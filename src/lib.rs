@@ -1,24 +1,38 @@
-#![feature(rustc_private)]
 #![feature(lang_items)]
 #![feature(start)]
+#![feature(asm)]
 #![no_std]
-
-extern crate libc;
 
 mod parser;
 
 use core::panic::PanicInfo;
 
-// Entry point for this program
 #[no_mangle]
-#[start]
-fn start(_argc: isize, _argv: *const *const u8) -> isize {
+fn func() -> () {
+    ()
+}
+
+#[no_mangle]
+pub fn _start() -> ! {
+    unsafe {
+        asm!(
+            "call func;"
+            : : : :
+        );
+    }
+
     parser::test(10);
-    0
+
+    loop {}
 }
 
 #[lang = "eh_personality"] extern fn eh_personality() {}
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {
+    loop {}
+}
+
+#[no_mangle]
+pub fn abort() -> ! {
     loop {}
 }
