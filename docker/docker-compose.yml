@@ -1,0 +1,9 @@
+version: '3'
+services:
+  baremetalisp:
+    build: .
+    volumes:
+      - "../:/hostdir"
+    stdin_open: true
+    tty: true
+    working_dir: "/hostdir"

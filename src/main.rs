@@ -1,9 +1,24 @@
+#![feature(rustc_private)]
+#![feature(lang_items)]
+#![feature(start)]
+#![no_std]
+
+extern crate libc;
+
 mod parser;
 
-fn main() {
-    match parser::parse_exp("foo bar") {
-        Ok((_remain, _result)) => println!("OK!"),
-        Err(e) => println!("Error: {}", e),
-    };
-    println!("Hello, world!");
+use core::panic::PanicInfo;
+
+// Entry point for this program
+#[no_mangle]
+#[start]
+fn start(_argc: isize, _argv: *const *const u8) -> isize {
+    parser::test(10);
+    0
+}
+
+#[lang = "eh_personality"] extern fn eh_personality() {}
+#[panic_handler]
+fn panic(_info: &PanicInfo) -> ! {
+    loop {}
 }
