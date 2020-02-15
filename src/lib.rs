@@ -4,8 +4,10 @@
 #![no_std]
 
 mod parser;
+mod arch/aarch64;
 
 use core::panic::PanicInfo;
+
 
 #[no_mangle]
 fn func() -> () {
@@ -13,7 +15,7 @@ fn func() -> () {
 }
 
 #[no_mangle]
-pub fn _start() -> ! {
+pub fn entry() -> ! {
     unsafe {
         asm!(
             "call func;"
