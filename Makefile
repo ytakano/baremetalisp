@@ -1,19 +1,22 @@
 all: baremetalisp
 
-AARCH64_ASM=asm/aarch64.as
-X86_64_ASM=asm/x86_64.s
+ASM_FILE=asm/aarch64.s
+#ASM_FILE=asm/x86_64.s
+ASM_OBJ=aarch64.o
 
-RUSTLIB=target/debug/libbaremetalisp.a
+RUSTLIB=target/aarch64-unknown-linux-gnu/debug/libbaremetalisp.a
 
-x86_64.o: $(X86_64_ASM)
-	as $(X86_64_ASM) -o x86_64.o
+AS=aarch64-linux-gnu-as
+LD=aarch64-linux-gnu-ld
+
+$(ASM_OBJ): $(ASM_FILE)
+	$(AS) $(ASM_FILE) -o $(ASM_OBJ)
 
 $(RUSTLIB): FORCE
-	cargo build
+	cargo build --target aarch64-unknown-linux-gnu
 
-baremetalisp: $(RUSTLIB) x86_64.o
-	cargo build
-	ld -o baremetalisp x86_64.o $(RUSTLIB)
+baremetalisp: $(RUSTLIB) $(ASM_OBJ)
+	$(LD) -o baremetalisp $(ASM_OBJ) $(RUSTLIB)
 
 clean:
 	cargo clean

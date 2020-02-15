@@ -4,10 +4,9 @@
 #![no_std]
 
 mod parser;
-mod arch/aarch64;
+mod aarch64;
 
 use core::panic::PanicInfo;
-
 
 #[no_mangle]
 fn func() -> () {
@@ -18,10 +17,12 @@ fn func() -> () {
 pub fn entry() -> ! {
     unsafe {
         asm!(
-            "call func;"
+            "bl func;"
             : : : :
         );
     }
+
+    aarch64::init();
 
     parser::test(10);
 
