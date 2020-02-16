@@ -1,3 +1,4 @@
+#![feature(core_intrinsics)]
 #![feature(lang_items)]
 #![feature(start)]
 #![feature(asm)]
@@ -24,12 +25,17 @@ pub fn entry() -> ! {
 
     aarch64::init();
 
+    aarch64::uart_puts("Hello World!\n");
+
     parser::test(10);
 
     loop {}
 }
 
-#[lang = "eh_personality"] extern fn eh_personality() {}
+#[lang = "eh_personality"]
+#[no_mangle]
+extern fn eh_personality() {}
+
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {
     loop {}

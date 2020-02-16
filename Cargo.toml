@@ -8,5 +8,20 @@ edition = "2018"
 
 [dependencies]
 
+[profile.dev]
+opt-level = 2
+lto = true
+panic = "abort"
+
+[profile.release]
+opt-level = 2
+lto = true
+panic = "abort"
+
 [lib]
 crate-type = ["staticlib"]
+
+[features]
+rspi2 = []
+rspi3 = []
+rspi4 = []
