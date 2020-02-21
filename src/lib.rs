@@ -27,8 +27,9 @@ pub fn entry() -> ! {
 
     aarch64::uart::puts("Hello World!\n");
     match aarch64::mbox::get_serial() {
-        Some(_) => {
+        Some(serial) => {
                 aarch64::uart::puts("serial#: ");
+                aarch64::uart::hex(serial);
                 aarch64::uart::puts("\n");
             }
         None => { aarch64::uart::puts("failed to get serial#\n") }

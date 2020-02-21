@@ -1,4 +1,4 @@
-TARGET=rspi3
+TARGET=raspi3
 
 ASM_FILE=asm/aarch64.s
 ASM_OBJ=aarch64.o

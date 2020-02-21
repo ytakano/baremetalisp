@@ -69,3 +69,13 @@ pub fn puts(s : &str) -> () {
 
     ()
 }
+
+pub fn hex(h : u64) ->() {
+    for i in (0..61).step_by(4).rev() {
+        let mut n = (h >> i) & 0xF;
+        n += if n > 9 { 0x37 } else { 0x30 };
+        send(n as u32);
+    };
+
+    ()
+}

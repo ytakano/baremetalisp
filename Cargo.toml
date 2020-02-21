@@ -22,6 +22,6 @@ panic = "abort"
 crate-type = ["staticlib"]
 
 [features]
-rspi2 = []
-rspi3 = []
-rspi4 = []
+raspi2 = []
+raspi3 = []
+raspi4 = []

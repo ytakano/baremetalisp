@@ -4,10 +4,10 @@
 pub const SYS_FREQ: u32 = 250000000;
 pub const BAUD:     u32 = 115200;
 
-#[cfg(any(feature = "rspi3", feature = "rspi2"))]
+#[cfg(any(feature = "raspi3", feature = "raspi2"))]
 pub const MMIO_BASE: u32 = 0x3F000000;
 
-#[cfg(feature = "rspi4")]
+#[cfg(feature = "raspi4")]
 pub const MMIO_BASE: u32 = 0xFE000000;
 
 pub const GPFSEL0:   *mut u32 = (MMIO_BASE + 0x00200000) as *mut u32;

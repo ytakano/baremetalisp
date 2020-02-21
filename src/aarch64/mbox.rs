@@ -65,20 +65,22 @@ pub fn call(ptr: *mut u32, ch: u8) -> bool {
 #[repr(align(64))]
 struct Mbox8([u32; 8]);
 
-pub fn get_serial() -> Option<(u32, u32)> {
+pub fn get_serial() -> Option<u64> {
+    // get the board's unique serial number with a mailbox call
     let mut m = [
-        8 * 4,
-        MBOX_REQUEST,
-        MBOX_TAG_GETSERIAL,
+        8 * 4,              // length of the message
+        MBOX_REQUEST,       // this is a request message
+        MBOX_TAG_GETSERIAL, // get serial number command
+        8,                  // buffer size
         8,
-        8,
-        0,
+        0,                  // clear output buffer
         0,
         MBOX_TAG_LAST
     ];
 
     if call(&mut(m[0]) as *mut u32, MBOX_CH_PROP) {
-        Some((m[5], m[6]))
+        let serial: u64 = m[5] as u64 | ((m[6] as u64) << 32);
+        Some(serial)
     } else {
         None
     }
