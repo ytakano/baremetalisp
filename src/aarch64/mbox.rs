@@ -4,33 +4,33 @@ use core::intrinsics::volatile_load;
 use super::memory::*;
 use super::uart;
 
-pub const MBOX_REQUEST: u32 = 0;
+const MBOX_REQUEST: u32 = 0;
 
 // channels
-pub const MBOX_CH_POWER: u8 = 0;
-pub const MBOX_CH_FB:    u8 = 1;
-pub const MBOX_CH_VUART: u8 = 2;
-pub const MBOX_CH_VCHIQ: u8 = 3;
-pub const MBOX_CH_LEDS:  u8 = 4;
-pub const MBOX_CH_BTNS:  u8 = 5;
-pub const MBOX_CH_TOUCH: u8 = 6;
-pub const MBOX_CH_COUNT: u8 = 7;
-pub const MBOX_CH_PROP:  u8 = 8;
+const MBOX_CH_POWER: u8 = 0;
+const MBOX_CH_FB:    u8 = 1;
+const MBOX_CH_VUART: u8 = 2;
+const MBOX_CH_VCHIQ: u8 = 3;
+const MBOX_CH_LEDS:  u8 = 4;
+const MBOX_CH_BTNS:  u8 = 5;
+const MBOX_CH_TOUCH: u8 = 6;
+const MBOX_CH_COUNT: u8 = 7;
+const MBOX_CH_PROP:  u8 = 8;
 
-pub const MBOX_TAG_GETSERIAL:  u32 = 0x10004;
-pub const MBOX_TAG_SETCLKRATE: u32 = 0x38002;
-pub const MBOX_TAG_LAST:       u32 = 0;
+const MBOX_TAG_GETSERIAL:  u32 = 0x10004;
+const MBOX_TAG_SETCLKRATE: u32 = 0x38002;
+const MBOX_TAG_LAST:       u32 = 0;
 
-pub const VIDEOCORE_MBOX: u32 = MMIO_BASE + 0x0000B880;
-pub const MBOX_READ:      *mut u32 = (VIDEOCORE_MBOX + 0x0 ) as *mut u32;
-pub const MBOX_POLL:      *mut u32 = (VIDEOCORE_MBOX + 0x10) as *mut u32;
-pub const MBOX_SENDER:    *mut u32 = (VIDEOCORE_MBOX + 0x14) as *mut u32;
-pub const MBOX_STATUS:    *mut u32 = (VIDEOCORE_MBOX + 0x18) as *mut u32;
-pub const MBOX_CONFIG:    *mut u32 = (VIDEOCORE_MBOX + 0x1C) as *mut u32;
-pub const MBOX_WRITE:     *mut u32 = (VIDEOCORE_MBOX + 0x20) as *mut u32;
-pub const MBOX_RESPONSE:  u32 = 0x80000000;
-pub const MBOX_FULL:      u32 = 0x80000000;
-pub const MBOX_EMPTY:     u32 = 0x40000000;
+const VIDEOCORE_MBOX: u32 = MMIO_BASE + 0x0000B880;
+const MBOX_READ:      *mut u32 = (VIDEOCORE_MBOX + 0x0 ) as *mut u32;
+const MBOX_POLL:      *mut u32 = (VIDEOCORE_MBOX + 0x10) as *mut u32;
+const MBOX_SENDER:    *mut u32 = (VIDEOCORE_MBOX + 0x14) as *mut u32;
+const MBOX_STATUS:    *mut u32 = (VIDEOCORE_MBOX + 0x18) as *mut u32;
+const MBOX_CONFIG:    *mut u32 = (VIDEOCORE_MBOX + 0x1C) as *mut u32;
+const MBOX_WRITE:     *mut u32 = (VIDEOCORE_MBOX + 0x20) as *mut u32;
+const MBOX_RESPONSE:  u32 = 0x80000000;
+const MBOX_FULL:      u32 = 0x80000000;
+const MBOX_EMPTY:     u32 = 0x40000000;
 
 pub fn call(ptr: *mut u32, ch: u8) -> bool {
     let r = ptr as u64;

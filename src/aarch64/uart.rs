@@ -4,15 +4,17 @@ use core::intrinsics::volatile_load;
 use super::memory::*;
 use super::mbox;
 
-pub const UART0_DR:   *mut u32 = (MMIO_BASE + 0x00201000) as *mut u32;
-pub const UART0_FR:   *mut u32 = (MMIO_BASE + 0x00201018) as *mut u32;
-pub const UART0_IBRD: *mut u32 = (MMIO_BASE + 0x00201024) as *mut u32;
-pub const UART0_FBRD: *mut u32 = (MMIO_BASE + 0x00201028) as *mut u32;
-pub const UART0_LCRH: *mut u32 = (MMIO_BASE + 0x0020102C) as *mut u32;
-pub const UART0_CR:   *mut u32 = (MMIO_BASE + 0x00201030) as *mut u32;
-pub const UART0_IMSC: *mut u32 = (MMIO_BASE + 0x00201038) as *mut u32;
-pub const UART0_ICR:  *mut u32 = (MMIO_BASE + 0x00201044) as *mut u32;
+const UART0_DR:   *mut u32 = (MMIO_BASE + 0x00201000) as *mut u32;
+const UART0_FR:   *mut u32 = (MMIO_BASE + 0x00201018) as *mut u32;
+const UART0_IBRD: *mut u32 = (MMIO_BASE + 0x00201024) as *mut u32;
+const UART0_FBRD: *mut u32 = (MMIO_BASE + 0x00201028) as *mut u32;
+const UART0_LCRH: *mut u32 = (MMIO_BASE + 0x0020102C) as *mut u32;
+const UART0_CR:   *mut u32 = (MMIO_BASE + 0x00201030) as *mut u32;
+const UART0_IMSC: *mut u32 = (MMIO_BASE + 0x00201038) as *mut u32;
+const UART0_ICR:  *mut u32 = (MMIO_BASE + 0x00201044) as *mut u32;
 
+// Set baud rate and characteristics (115200 8N1) and map to GPIO
+// 8N1 stands for "eight data bits, no parity, one stop bit"
 pub fn init() -> () {
     unsafe { volatile_store(UART0_CR, 0) }; // turn off UART0
 
@@ -45,6 +47,7 @@ pub fn init() -> () {
     unsafe {
         volatile_store(GPPUDCLK0,   0);        // flush GPIO setup
         volatile_store(UART0_ICR, 0x7FF);      // clear interrupts
+        volatile_store(UART0_IBRD, 2);         // 115200 baud
         volatile_store(UART0_FBRD, 0xB);
         volatile_store(UART0_LCRH, 0b11 << 5); // 8n1
         volatile_store(UART0_CR, 0x301);       // enable Tx, Rx, FIFO
