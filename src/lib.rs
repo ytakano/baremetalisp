@@ -33,7 +33,19 @@ pub fn entry() -> ! {
                 aarch64::uart::puts("\n");
             }
         None => { aarch64::uart::puts("failed to get serial#\n") }
-    };
+    }
+
+    aarch64::uart::puts("random number:\n");
+    for _ in 0..5 {
+        let rnd = aarch64::rand::rand64();
+        aarch64::uart::hex(rnd);
+        aarch64::uart::puts("\n");
+    }
+
+    aarch64::uart::puts("system timer's counter: ");
+    let cnt = aarch64::delays::get_system_timer();
+    aarch64::uart::hex(cnt);
+    aarch64::uart::puts("\n");
 
     parser::test(10);
 

@@ -3,6 +3,7 @@ use core::intrinsics::volatile_load;
 
 use super::memory::*;
 use super::mbox;
+use super::delays;
 
 const UART0_DR:   *mut u32 = (MMIO_BASE + 0x00201000) as *mut u32;
 const UART0_FR:   *mut u32 = (MMIO_BASE + 0x00201018) as *mut u32;
@@ -30,19 +31,15 @@ pub fn init() -> () {
     unsafe {
         volatile_store(GPFSEL1, r);
         volatile_store(GPPUD,   0);
-    };
+    }
 
-    for _ in 0..150 {
-        unsafe { asm!("nop;") };
-    };
+    delays::wait_cycles(150);
 
     unsafe {
         volatile_store(GPPUDCLK0, (1 << 14) | (1 << 15));
-    };
+    }
 
-    for _ in 0..150 {
-        unsafe { asm!("nop;") };
-    };
+    delays::wait_cycles(150);
 
     unsafe {
         volatile_store(GPPUDCLK0,   0);        // flush GPIO setup
@@ -51,7 +48,7 @@ pub fn init() -> () {
         volatile_store(UART0_FBRD, 0xB);
         volatile_store(UART0_LCRH, 0b11 << 5); // 8n1
         volatile_store(UART0_CR, 0x301);       // enable Tx, Rx, FIFO
-    };
+    }
 }
 
 pub fn send(c : u32) -> () {
@@ -59,12 +56,12 @@ pub fn send(c : u32) -> () {
     unsafe { asm!("nop;") };
     while unsafe { volatile_load(UART0_FR) } & 0x20 != 0 {
         unsafe { asm!("nop;") };
-    };
+    }
 
     // write the character to the buffer
     unsafe {
         volatile_store(UART0_DR, c);
-    };
+    }
 }
 
 pub fn puts(s : &str) -> () {
@@ -73,7 +70,7 @@ pub fn puts(s : &str) -> () {
         if c == '\n' {
             send('\r' as u32);
         }
-    };
+    }
 }
 
 pub fn hex(h : u64) ->() {
@@ -81,5 +78,5 @@ pub fn hex(h : u64) ->() {
         let mut n = (h >> i) & 0xF;
         n += if n > 9 { 0x37 } else { 0x30 };
         send(n as u32);
-    };
+    }
 }

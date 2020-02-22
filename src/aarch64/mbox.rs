@@ -2,7 +2,6 @@ use core::intrinsics::volatile_store;
 use core::intrinsics::volatile_load;
 
 use super::memory::*;
-use super::uart;
 
 const MBOX_REQUEST: u32 = 0;
 
@@ -44,7 +43,7 @@ pub fn call(ptr: *mut u32, ch: u8) -> bool {
     unsafe { asm!("nop;") };
     while unsafe { volatile_load(MBOX_STATUS) } & MBOX_FULL > 0 {
         unsafe { asm!("nop;") };
-    };
+    }
 
     // write the address of our message to the mailbox with channel identifier
     unsafe { volatile_store(MBOX_WRITE, r) };
@@ -56,7 +55,7 @@ pub fn call(ptr: *mut u32, ch: u8) -> bool {
         unsafe { asm!("nop;") };
         while unsafe { volatile_load(MBOX_STATUS) } & MBOX_EMPTY > 0 {
             unsafe { asm!("nop;") };
-        };
+        }
 
         if r == unsafe { volatile_load(MBOX_READ) } {
             return unsafe { volatile_load(ptr1) } == MBOX_RESPONSE;
