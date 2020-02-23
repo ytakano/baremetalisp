@@ -16,7 +16,7 @@ const UART0_ICR:  *mut u32 = (MMIO_BASE + 0x00201044) as *mut u32;
 
 // Set baud rate and characteristics (115200 8N1) and map to GPIO
 // 8N1 stands for "eight data bits, no parity, one stop bit"
-pub fn init() -> () {
+pub fn init() {
     unsafe { volatile_store(UART0_CR, 0) }; // turn off UART0
 
     // set up clock for consistent divisor values
@@ -42,7 +42,7 @@ pub fn init() -> () {
     delays::wait_cycles(150);
 
     unsafe {
-        volatile_store(GPPUDCLK0,   0);        // flush GPIO setup
+        volatile_store(GPPUDCLK0, 0);          // flush GPIO setup
         volatile_store(UART0_ICR, 0x7FF);      // clear interrupts
         volatile_store(UART0_IBRD, 2);         // 115200 baud
         volatile_store(UART0_FBRD, 0xB);
@@ -51,7 +51,7 @@ pub fn init() -> () {
     }
 }
 
-pub fn send(c : u32) -> () {
+pub fn send(c : u32) {
     // wait until we can send
     unsafe { asm!("nop;") };
     while unsafe { volatile_load(UART0_FR) } & 0x20 != 0 {
@@ -64,7 +64,7 @@ pub fn send(c : u32) -> () {
     }
 }
 
-pub fn puts(s : &str) -> () {
+pub fn puts(s : &str) {
     for c in s.chars() {
         send(c as u32);
         if c == '\n' {
@@ -73,7 +73,7 @@ pub fn puts(s : &str) -> () {
     }
 }
 
-pub fn hex(h : u64) ->() {
+pub fn hex(h : u64) {
     for i in (0..61).step_by(4).rev() {
         let mut n = (h >> i) & 0xF;
         n += if n > 9 { 0x37 } else { 0x30 };

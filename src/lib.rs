@@ -10,7 +10,7 @@ mod aarch64;
 use core::panic::PanicInfo;
 
 #[no_mangle]
-fn func() -> () {
+fn func() {
     ()
 }
 
@@ -23,7 +23,7 @@ pub fn entry() -> ! {
         );
     }
 
-    aarch64::init();
+    let mut ctx = aarch64::init();
 
     aarch64::uart::puts("Hello World!\n");
     match aarch64::mbox::get_serial() {
@@ -46,6 +46,17 @@ pub fn entry() -> ! {
     let cnt = aarch64::delays::get_system_timer();
     aarch64::uart::hex(cnt);
     aarch64::uart::puts("\n");
+
+    match ctx.graphics0 {
+        Some(mut gr) => {
+            aarch64::uart::puts("graphics was successfuly initialized\n");
+            gr.plot_mandelbrot_set();
+        }
+        None => { aarch64::uart::puts("failed to initialize graphics\n") }
+    }
+
+//    aarch64::uart::puts("halting...\n");
+//    aarch64::power::shutdown();
 
     parser::test(10);
 

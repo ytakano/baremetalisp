@@ -6,7 +6,7 @@ const SYSTMR_LO: *mut u32 = (MMIO_BASE + 0x00003004) as *mut u32;
 const SYSTMR_HI: *mut u32 = (MMIO_BASE + 0x00003008) as *mut u32;
 
 // Wait N CPU cycles (ARM CPU only)
-pub fn wait_cycles(n: u32) -> () {
+pub fn wait_cycles(n: u32) {
     if n > 0 {
         for _ in 0..n {
             unsafe { asm!("nop;") };
@@ -15,7 +15,7 @@ pub fn wait_cycles(n: u32) -> () {
 }
 
 // Wait N microsec (ARM CPU only)
-pub fn wait_microsec(n: u32) -> () {
+pub fn wait_microsec(n: u32) {
     // get the current counter frequency
     let mut frq: u64;
     unsafe { asm!("mrs %0, cntfrq_el0" : "=r"(frq)) };
