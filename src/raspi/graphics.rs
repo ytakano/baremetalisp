@@ -1,4 +1,4 @@
-use super::mbox;
+use core::slice;
 
 pub struct Display {
     pub size_phy: (u32, u32),
@@ -18,7 +18,7 @@ impl Display {
         self.buffer[pos + 2] = b;
     }
 
-    pub fn plot_mandelbrot_set(&mut self) {
+    pub fn draw_mandelbrot_set(&mut self) {
         let size = 2;
         let width = self.size_virt.0;
         let height = self.size_virt.1;
@@ -52,22 +52,51 @@ impl Display {
     }
 }
 
-#[repr(C)]
-struct PST {
-    pub magic: u32,
-    pub version: u32,
-    pub headersize: u32,
-    pub flags: u32,
-    pub numglyph: u32,
-    pub bytesperglyph: u32,
-    pub height: u32,
-    pub width: u32,
-    pub glyphs: u8;
-};
+extern {
+    fn lfb_init(size_phy_x: *mut u32, size_phy_y: *mut u32,
+                size_virt_x: *mut u32, size_virt_y: *mut u32,
+                offset_x: *mut u32, offset_y: *mut u32,
+                depth: *mut u32,
+                pitch: *mut u32,
+                ptr: *mut u32) -> i32;
+}
 
-// Set screen resolution to 1024x768
 pub fn init() -> Option<Display> {
-    mbox::set_display(1024, 768, 1024, 768, 0, 0)
+    let mut size_phy_x:  u32 = 1024;
+    let mut size_phy_y:  u32 = 768;
+    let mut size_virt_x: u32 = 1024;
+    let mut size_virt_y: u32 = 768;
+    let mut offset_x:    u32 = 0;
+    let mut offset_y:    u32 = 0;
+    let mut depth:       u32 = 32;
+    let mut pitch:       u32 = 0;
+    let mut ptr:         u32 = 0;
+
+    let result = unsafe {
+        lfb_init(&mut size_phy_x as *mut u32, &mut size_phy_y as *mut u32,
+                 &mut size_virt_x as *mut u32, &mut size_virt_y as *mut u32,
+                 &mut offset_x as *mut u32, &mut offset_y as *mut u32,
+                 &mut depth as *mut u32,
+                 &mut pitch as *mut u32,
+                 &mut ptr as *mut u32) };
+
+    if result == 1 {
+        let slice = unsafe {
+            slice::from_raw_parts_mut(ptr as *mut u8,
+                                      pitch as usize * size_virt_y as usize) };
+
+        Some(Display {
+            size_phy: (size_phy_x, size_phy_y),
+            size_virt: (size_virt_x, size_virt_y),
+            offset: (offset_x, offset_y),
+            depth: depth,
+            pitch: pitch,
+            ptr: ptr,
+            buffer: slice
+        })
+    } else {
+        None
+    }
 }
 
 pub fn hsv2rgb(mut h: f32, s: f32, v: f32) -> (u8, u8, u8) {

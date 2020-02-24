@@ -2,11 +2,8 @@
 
 use core::panic::PanicInfo;
 
+mod raspi;
 mod parser;
-
-extern{
-    fn uart_puts(s: *const u8);
-}
 
 #[no_mangle]
 fn func() {
@@ -15,9 +12,22 @@ fn func() {
 
 #[no_mangle]
 pub fn rust_entry() -> ! {
-    unsafe {
-        uart_puts("Hello World!\n\0".as_ptr());
+    raspi::uart::puts("Hello World!\n");
+
+    let serial = raspi::mbox::get_serial();
+    raspi::uart::puts("serial#: ");
+    raspi::uart::hex(serial);
+    raspi::uart::puts("\n");
+
+    match raspi::graphics::init() {
+        Some(mut pict) => {
+            pict.draw_mandelbrot_set();
+        }
+        _ => {
+            raspi::uart::puts("failed to initialize graphics\n");
+        }
     }
+
     parser::test(10);
 
     loop {}
@@ -25,5 +35,6 @@ pub fn rust_entry() -> ! {
 
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {
+    raspi::uart::puts("kernel panic!\n");
     loop {}
 }
