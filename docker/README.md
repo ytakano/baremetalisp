@@ -1,10 +1,9 @@
-# docker-template
-my docker's template
+# Run Container for Building Kernel
 
 build & run
 ```
 $ docker-compose build
-$ docker-compose run container
+$ docker-compose run baremetalisp
 ```
 
 remove
