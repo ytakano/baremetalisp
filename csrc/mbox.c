@@ -24,7 +24,6 @@
  */
 
 #include "gpio.h"
-#include "mbox.h"
 
 /* mailbox message buffer */
 volatile unsigned int  __attribute__((aligned(16))) mbox[36];
@@ -60,24 +59,4 @@ int mbox_call(unsigned char ch)
             return mbox[1]==MBOX_RESPONSE;
     }
     return 0;
-}
-
-unsigned long mbox_get_serial()
-{
-    // get the board's unique serial number with a mailbox call
-    mbox[0] = 8*4;                  // length of the message
-    mbox[1] = MBOX_REQUEST;         // this is a request message
-
-    mbox[2] = MBOX_TAG_GETSERIAL;   // get serial number command
-    mbox[3] = 8;                    // buffer size
-    mbox[4] = 8;
-    mbox[5] = 0;                    // clear output buffer
-    mbox[6] = 0;
-
-    mbox[7] = MBOX_TAG_LAST;
-
-    if (mbox_call(MBOX_CH_PROP))
-        return (unsigned long)mbox[6] << 32 | (unsigned long)mbox[5];
-    else
-        return 0;
 }

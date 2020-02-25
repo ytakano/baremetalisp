@@ -9,10 +9,10 @@ extern void rust_entry();
 void entry() {
     // set up serial console and linear frame buffer
     uart_init(UART_CLOCK, UART_BAUD);
-//    lfb_init();
+    lfb_init();
 
     // display a pixmap
-//    lfb_showpicture();
+    lfb_showpicture();
 
     rust_entry();
 }

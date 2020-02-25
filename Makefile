@@ -21,7 +21,7 @@ $(CLIB): FORCE
 	$(MAKE) -C csrc TARGET=$(TARGET)
 
 baremetalisp: $(RUSTLIB) $(ASM_OBJ) $(CLIB)
-	$(LD) -T link.ld -o baremetalisp $(ASM_OBJ) $(CLIB) $(RUSTLIB) $(CLIB)
+	$(LD) -T link.ld -o baremetalisp $(ASM_OBJ) $(CLIB) $(RUSTLIB)
 
 kernel8.img: baremetalisp
 	aarch64-linux-gnu-objcopy -O binary baremetalisp kernel8.img

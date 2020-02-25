@@ -52,19 +52,6 @@ impl Display {
     }
 }
 
-#[repr(C)]
-struct PST {
-    pub magic: u32,
-    pub version: u32,
-    pub headersize: u32,
-    pub flags: u32,
-    pub numglyph: u32,
-    pub bytesperglyph: u32,
-    pub height: u32,
-    pub width: u32,
-    pub glyphs: u8;
-};
-
 // Set screen resolution to 1024x768
 pub fn init() -> Option<Display> {
     mbox::set_display(1024, 768, 1024, 768, 0, 0)

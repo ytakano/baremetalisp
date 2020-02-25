@@ -23,10 +23,5 @@
  *
  */
 
-int lfb_init(unsigned int *size_phy_x, unsigned int *size_phy_y,
-             unsigned int *size_virt_x, unsigned int *size_virt_y,
-             unsigned int *offset_x, unsigned int *offset_y,
-             unsigned int *depth,
-             unsigned int *pitch,
-             unsigned int *ptr);
-//void lfb_showpicture();
+void lfb_init();
+void lfb_showpicture();
