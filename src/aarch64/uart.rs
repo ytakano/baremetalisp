@@ -2,7 +2,6 @@ use core::intrinsics::volatile_store;
 use core::intrinsics::volatile_load;
 
 use super::memory::*;
-use super::mbox;
 use super::delays;
 
 const UART0_DR:   *mut u32 = (MMIO_BASE + 0x00201000) as *mut u32;
@@ -14,8 +13,9 @@ const UART0_CR:   *mut u32 = (MMIO_BASE + 0x00201030) as *mut u32;
 const UART0_IMSC: *mut u32 = (MMIO_BASE + 0x00201038) as *mut u32;
 const UART0_ICR:  *mut u32 = (MMIO_BASE + 0x00201044) as *mut u32;
 
-// Set baud rate and characteristics (8N1) and map to GPIO
-// 8N1 stands for "eight data bits, no parity, one stop bit"
+/// Initialiaze UART0 for serial console.
+/// Set baud rate and characteristics (8N1) and map to GPIO 14 (Tx) and 15 (Rx).
+/// 8N1 stands for "eight data bits, no parity, one stop bit".
 pub fn init(uart_clock: u64, baudrate: u64) {
     unsafe { volatile_store(UART0_CR, 0) }; // turn off UART0
 
@@ -52,6 +52,7 @@ pub fn init(uart_clock: u64, baudrate: u64) {
     }
 }
 
+/// send a character to serial console
 pub fn send(c : u32) {
     // wait until we can send
     unsafe { asm!("nop;") };
@@ -65,6 +66,7 @@ pub fn send(c : u32) {
     }
 }
 
+/// print characters to serial console
 pub fn puts(s : &str) {
     for c in s.chars() {
         send(c as u32);
@@ -74,6 +76,7 @@ pub fn puts(s : &str) {
     }
 }
 
+/// print a 64-bit value in hexadecimal to serial console
 pub fn hex(h : u64) {
     for i in (0..61).step_by(4).rev() {
         let mut n = (h >> i) & 0xF;

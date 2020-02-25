@@ -13,7 +13,9 @@ endif
 ASM_FILE=asm/aarch64.s
 ASM_OBJ=aarch64.o
 
-RUSTLIB=target/aarch64-unknown-none-softfloat/debug/libbaremetalisp.a
+TARGET=aarch64-unknown-none-softfloat
+
+RUSTLIB=target/$(TARGET)/release/libbaremetalisp.a
 RUSTFLAGS=$(RUSTC_MISC_ARGS)
 
 AS=aarch64-linux-gnu-as
@@ -25,7 +27,10 @@ $(ASM_OBJ): $(ASM_FILE)
 	$(AS) $(ASM_FILE) -o $(ASM_OBJ)
 
 $(RUSTLIB): FORCE
-	RUSTFLAGS="$(RUSTFLAGS)" cargo xrustc --features $(BSP) --target aarch64-unknown-none-softfloat
+	RUSTFLAGS="$(RUSTFLAGS)" cargo xrustc --features $(BSP) --target $(TARGET) --release
+
+doc:
+	cargo xdoc --target=$(TARGET) --features $(BSP) --document-private-items
 
 baremetalisp: $(RUSTLIB) $(ASM_OBJ)
 	$(LD) -T link.ld -o baremetalisp $(ASM_OBJ) $(RUSTLIB)

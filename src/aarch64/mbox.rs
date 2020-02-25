@@ -186,7 +186,7 @@ pub fn set_display(width_phy: u32, height_phy: u32, width_virt: u32, height_virt
 
     if call(&mut(m.0[0]) as *mut u32, MBOX_CH_PROP) && m.0[20] == 32 && m.0[28] != 0 {
         let ptr = m.0[28] & 0x3FFFFFFF;
-        let mut slice = unsafe {
+        let slice = unsafe {
             slice::from_raw_parts_mut(ptr as *mut u8,
                                   m.0[33] as usize * m.0[11] as usize) };
         Some(graphics::Display{

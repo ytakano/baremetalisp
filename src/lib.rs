@@ -23,7 +23,7 @@ pub fn entry() -> ! {
         );
     }
 
-    let mut ctx = aarch64::init();
+    let ctx = aarch64::init();
 
     aarch64::uart::puts("Hello World!\n");
     match aarch64::mbox::get_serial() {

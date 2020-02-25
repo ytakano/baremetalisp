@@ -1,9 +1,3 @@
-/* Define the system clock frequency in MHz for the baud rate calculation.
-   This is clearly defined on the BCM2835 datasheet errata page:
-   http://elinux.org/BCM2835_datasheet_errata */
-pub const SYS_FREQ: u32 = 250000000;
-pub const BAUD:     u32 = 115200;
-
 #[cfg(any(feature = "raspi3", feature = "raspi2"))]
 pub const MMIO_BASE: u32 = 0x3F000000;
 
