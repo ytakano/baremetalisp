@@ -14,13 +14,10 @@ const UART0_CR:   *mut u32 = (MMIO_BASE + 0x00201030) as *mut u32;
 const UART0_IMSC: *mut u32 = (MMIO_BASE + 0x00201038) as *mut u32;
 const UART0_ICR:  *mut u32 = (MMIO_BASE + 0x00201044) as *mut u32;
 
-// Set baud rate and characteristics (115200 8N1) and map to GPIO
+// Set baud rate and characteristics (8N1) and map to GPIO
 // 8N1 stands for "eight data bits, no parity, one stop bit"
-pub fn init() {
+pub fn init(uart_clock: u64, baudrate: u64) {
     unsafe { volatile_store(UART0_CR, 0) }; // turn off UART0
-
-    // set up clock for consistent divisor values
-    mbox::set_uart_clock(4000000); // 4Mhz
 
     // map UART1 to GPIO pins
     let mut r = unsafe { volatile_load(GPFSEL1) };
@@ -41,11 +38,15 @@ pub fn init() {
 
     delays::wait_cycles(150);
 
+    let bauddiv: u32 = ((1000 * uart_clock) / (16 * baudrate)) as u32;
+    let ibrd: u32 = bauddiv / 1000;
+    let fbrd: u32 = ((bauddiv - ibrd * 1000) * 64 + 500) / 1000;
+
     unsafe {
         volatile_store(GPPUDCLK0, 0);          // flush GPIO setup
         volatile_store(UART0_ICR, 0x7FF);      // clear interrupts
-        volatile_store(UART0_IBRD, 2);         // 115200 baud
-        volatile_store(UART0_FBRD, 0xB);
+        volatile_store(UART0_IBRD, ibrd);
+        volatile_store(UART0_FBRD, fbrd);
         volatile_store(UART0_LCRH, 0b11 << 5); // 8n1
         volatile_store(UART0_CR, 0x301);       // enable Tx, Rx, FIFO
     }
