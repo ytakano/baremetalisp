@@ -82,6 +82,7 @@ pub fn call(ptr: *mut u32, ch: u8) -> bool {
 #[repr(align(16))]
 struct Mbox<T>(T);
 
+/// get board's serial number
 pub fn get_serial() -> Option<u64> {
     // get the board's unique serial number with a mailbox call
     let mut m = Mbox::<[u32; 8]>([
@@ -119,7 +120,7 @@ pub fn set_uart_clock(clock: u32) {
     call(&mut(m.0[0]) as *mut u32, MBOX_CH_PROP);
 }
 
-// power off a device
+/// power off a device
 pub fn set_power_off(n: u32) {
     let mut m = Mbox::<[u32; 8]>([
         8 * 4,             // length of the message
@@ -135,6 +136,7 @@ pub fn set_power_off(n: u32) {
     call(&mut(m.0[0]) as *mut u32, MBOX_CH_PROP);
 }
 
+/// set display's setting
 pub fn set_display(width_phy: u32, height_phy: u32, width_virt: u32, height_virt: u32,
                    offset_x: u32, offset_y: u32) -> Option<graphics::Display> {
     let mut m = Mbox::<[u32; 35]>([

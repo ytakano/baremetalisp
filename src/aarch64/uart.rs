@@ -68,9 +68,9 @@ pub fn send(c : u32) {
 
 /// print characters to serial console
 pub fn puts(s : &str) {
-    for c in s.chars() {
+    for c in s.bytes() {
         send(c as u32);
-        if c == '\n' {
+        if c == '\n' as u8 {
             send('\r' as u32);
         }
     }
@@ -82,5 +82,23 @@ pub fn hex(h : u64) {
         let mut n = (h >> i) & 0xF;
         n += if n > 9 { 0x37 } else { 0x30 };
         send(n as u32);
+    }
+}
+
+/// print a 64-bit value in decimal to serial console
+pub fn decimal(mut h: u64) {
+    let mut num = [0; 32];
+
+    let mut i = 0;
+    while h > 0 {
+        let n = h % 10;
+        h /= 10;
+        num[i] = n + 0x30;
+        i += 1;
+    }
+
+    while i > 0 {
+        send(num[i - 1] as u32);
+        i -= 1;
     }
 }

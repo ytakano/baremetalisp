@@ -13,7 +13,7 @@ endif
 ASM_FILE=asm/aarch64.s
 ASM_OBJ=aarch64.o
 
-TARGET=aarch64-unknown-none-softfloat
+TARGET=aarch64-unknown-none
 
 RUSTLIB=target/$(TARGET)/release/libbaremetalisp.a
 RUSTFLAGS=$(RUSTC_MISC_ARGS)

@@ -52,7 +52,7 @@ impl Display {
     }
 }
 
-// Set screen resolution to 1024x768
+/// Set screen resolution to 1024x768
 pub fn init() -> Option<Display> {
     mbox::set_display(1024, 768, 1024, 768, 0, 0)
 }

@@ -5,7 +5,7 @@ use super::memory::*;
 const SYSTMR_LO: *mut u32 = (MMIO_BASE + 0x00003004) as *mut u32;
 const SYSTMR_HI: *mut u32 = (MMIO_BASE + 0x00003008) as *mut u32;
 
-// Wait N CPU cycles (ARM CPU only)
+/// Wait N CPU cycles (ARM CPU only)
 pub fn wait_cycles(n: u32) {
     if n > 0 {
         for _ in 0..n {
@@ -14,7 +14,7 @@ pub fn wait_cycles(n: u32) {
     }
 }
 
-// Wait N microsec (ARM CPU only)
+/// Wait N microsec (ARM CPU only)
 pub fn wait_microsec(n: u32) {
     // get the current counter frequency
     let mut frq: u64;
@@ -33,7 +33,7 @@ pub fn wait_microsec(n: u32) {
     }
 }
 
-// Get System Timer's counter
+/// Get System Timer's counter
 pub fn get_system_timer() -> u64 {
     let mut hi: u32;
     let mut lo: u32;
@@ -53,7 +53,7 @@ pub fn get_system_timer() -> u64 {
     (hi as u64) << 32 | lo as u64
 }
 
-// Wait N microsec (with BCM System Timer)
+/// Wait N microsec (with BCM System Timer)
 pub fn wait_microsec_st(n: u32) {
     let t = get_system_timer();
     // we must check if it's non-zero, because qemu does not emulate
