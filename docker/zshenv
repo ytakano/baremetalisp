@@ -9,3 +9,4 @@ export LC_ALL=ja_JP.UTF-8
 export LANG=ja_JP.UTF-8
 export MAKEFLAGS="-j 20"
 export PATH=$PATH:$HOME/.cargo/bin
+export RUSTFLAGS="-C target-feature=+strict-align"
