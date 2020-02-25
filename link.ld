@@ -13,18 +13,6 @@ SECTIONS
         *(COMMON)
         __bss_end = .;
     }
-    .heap : {
-		__heap_start = .;
-		/* 64MiB heap */
-		. = . + 1024 * 1024 * 64;
-		. = ALIGN(4096);
-		__heap_end = .;
-	}
-    .stack : {
-		__stack_end = .;
-		/* 64MiB space */
-		__stack_start = __stack_end + (1024*1024) * 64;
-	}
     _end = .;
 
    /DISCARD/ : { *(.comment) *(.gnu*) *(.note*) *(.eh_frame*) }

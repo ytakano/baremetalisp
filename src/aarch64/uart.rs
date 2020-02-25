@@ -19,6 +19,9 @@ const UART0_ICR:  *mut u32 = (MMIO_BASE + 0x00201044) as *mut u32;
 pub fn init() {
     unsafe { volatile_store(UART0_CR, 0) }; // turn off UART0
 
+    // set up clock for consistent divisor values
+    mbox::set_uart_clock(4000000); // 4Mhz
+
     // map UART1 to GPIO pins
     let mut r = unsafe { volatile_load(GPFSEL1) };
     r &= !((7 << 12) | (7 << 15));  // gpio14, gpio15
