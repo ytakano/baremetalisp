@@ -22,7 +22,7 @@ impl Display {
         let size = 2;
         let width = self.size_virt.0;
         let height = self.size_virt.1;
-        let offset_x = -250.0;
+        let offset_x = -350.0;
         for x in 0..width {
             let cr = ((x as f32 + offset_x) * size as f32) / width as f32 - (size / 2) as f32; // real number
             for y in 0..height {
@@ -52,9 +52,9 @@ impl Display {
     }
 }
 
-/// Set screen resolution to 1024x768
+/// Set screen resolution to 1280x720
 pub fn init() -> Option<Display> {
-    mbox::set_display(1024, 768, 1024, 768, 0, 0)
+    mbox::set_display(1280, 720, 1280, 720, 0, 0)
 }
 
 pub fn hsv2rgb(mut h: f32, s: f32, v: f32) -> (u8, u8, u8) {

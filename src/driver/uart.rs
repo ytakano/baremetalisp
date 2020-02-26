@@ -89,6 +89,11 @@ pub fn hex(h : u64) {
 pub fn decimal(mut h: u64) {
     let mut num = [0; 32];
 
+    if (h == 0) {
+        send('0' as u32);
+        return;
+    }
+
     let mut i = 0;
     while h > 0 {
         let n = h % 10;

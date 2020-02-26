@@ -21,7 +21,12 @@ const MBOX_CH_TOUCH: u8 = 6;
 const MBOX_CH_COUNT: u8 = 7;
 const MBOX_CH_PROP:  u8 = 8;
 
+const MBOX_TAG_GETFWVER:       u32 = 0x00001;
+const MBOX_TAG_GETBOARDMODEL:  u32 = 0x10001;
+const MBOX_TAG_GETBOARDREV:    u32 = 0x10002;
+const MBOX_TAG_GETBOARDMAC:    u32 = 0x10003;
 const MBOX_TAG_GETSERIAL:      u32 = 0x10004;
+const MBOX_TAG_GETMEM:         u32 = 0x10005;
 const MBOX_TAG_SETPOWER:       u32 = 0x28001;
 const MBOX_TAG_SETCLKRATE:     u32 = 0x38002;
 const MBOX_TAG_ALLOCFB:        u32 = 0x40001; // allocate frame buffer
@@ -99,6 +104,59 @@ pub fn get_serial() -> Option<u64> {
     if call(&mut(m.0[0]) as *mut u32, MBOX_CH_PROP) {
         let serial: u64 = m.0[5] as u64 | ((m.0[6] as u64) << 32);
         Some(serial)
+    } else {
+        None
+    }
+}
+
+fn get_len7_u32(tag: u32) -> Option<u32> {
+    let mut m = Mbox::<[u32; 7]>([
+        7 * 4,        // length of the message
+        MBOX_REQUEST, // this is a request message
+        tag,          // get firmware version
+        4,            // buffer size
+        4,
+        0,            // clear output buffer
+        MBOX_TAG_LAST
+    ]);
+
+    if call(&mut(m.0[0]) as *mut u32, MBOX_CH_PROP) {
+        Some(m.0[5])
+    } else {
+        None
+    }
+}
+
+/// get firmware version
+pub fn get_firmware_version() -> Option<u32> {
+    get_len7_u32(MBOX_TAG_GETFWVER)
+}
+
+/// get board model
+pub fn get_board_model() -> Option<u32> {
+    get_len7_u32(MBOX_TAG_GETBOARDMODEL)
+}
+
+/// get board revision
+pub fn get_board_rev() -> Option<u32> {
+    get_len7_u32(MBOX_TAG_GETBOARDREV)
+}
+
+/// get ARM memory
+pub fn get_memory() -> Option<(u32, u32)> {
+    let mut m = Mbox::<[u32; 8]>([
+        8 * 4,           // length of the message
+        MBOX_REQUEST,    // this is a request message
+        MBOX_TAG_GETMEM, // get memory
+        8,               // buffer size
+        8,
+        0,               // clear output buffer
+        0,
+        MBOX_TAG_LAST
+    ]);
+
+    if call(&mut(m.0[0]) as *mut u32, MBOX_CH_PROP) {
+        Some((m.0[5], m.0[6]))
     } else {
         None
     }
