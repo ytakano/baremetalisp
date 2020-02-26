@@ -142,23 +142,40 @@ pub fn get_board_rev() -> Option<u32> {
     get_len7_u32(MBOX_TAG_GETBOARDREV)
 }
 
-/// get ARM memory
-pub fn get_memory() -> Option<(u32, u32)> {
-    let mut m = Mbox::<[u32; 8]>([
-        8 * 4,           // length of the message
-        MBOX_REQUEST,    // this is a request message
-        MBOX_TAG_GETMEM, // get memory
-        8,               // buffer size
-        8,
-        0,               // clear output buffer
-        0,
-        MBOX_TAG_LAST
-    ]);
+/// get memory size
+pub fn get_memory() -> Option<usize> {
+    match get_board_rev() {
+        Some(rev) => {
+            // https://www.raspberrypi.org/documentation/hardware/raspberrypi/revision-codes/README.md
+            if (rev >> 23) & 1 == 0 {
+                let mut m = Mbox::<[u32; 8]>([
+                    8 * 4,           // length of the message
+                    MBOX_REQUEST,    // this is a request message
+                    MBOX_TAG_GETMEM, // get memory
+                    8,               // buffer size
+                    8,
+                    0,               // clear output buffer
+                    0,
+                    MBOX_TAG_LAST
+                ]);
 
-    if call(&mut(m.0[0]) as *mut u32, MBOX_CH_PROP) {
-        Some((m.0[5], m.0[6]))
-    } else {
-        None
+                if call(&mut(m.0[0]) as *mut u32, MBOX_CH_PROP) {
+                    Some(m.0[6] as usize)
+                } else {
+                    None
+                }
+            } else {
+                match (rev >> 20) & 0b111 {
+                    0 => { Some(256 * 1024 * 1024) }      // 256MiB
+                    1 => { Some(512 * 1024 * 1024) }      // 512MiB
+                    2 => { Some(1024 * 1024 * 1024) }     // 1GiB
+                    3 => { Some(2 * 1024 * 1024 * 1024) } // 2GiB
+                    4 => { Some(4 * 1024 * 1024 * 1024) } // 4GiB
+                    _ => None
+                }
+            }
+        }
+        _ => { None }
     }
 }
 

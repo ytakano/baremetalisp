@@ -11,6 +11,7 @@ const UART_BAUD:  u64 = 115200;
 
 pub struct Context {
     pub graphics0: Option<graphics::Display>,
+    pub memory: usize
 }
 
 /// Initlize UART0 for serial console with 115200 8n1,
@@ -21,11 +22,20 @@ pub fn init() -> Context {
     //rand::init();
     //uart::puts("initialized rand\n");
 
-    let graphics0 = graphics::init();
+    let g = graphics::init();
+    let m = match mbox::get_memory() {
+        Some(mem) => { mem }
+        _ => { 0 }
+    };
+
+    uart::puts("memory: ");
+    uart::decimal(m as u64);
+    uart::puts("\n");
 
     init_exceptions();
 
-    Context{graphics0: graphics0}
+    Context{graphics0: g,
+            memory: m}
 }
 
 fn init_exceptions() {

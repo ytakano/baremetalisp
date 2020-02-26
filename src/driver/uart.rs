@@ -85,11 +85,20 @@ pub fn hex(h : u64) {
     }
 }
 
+/// print a 32-bit value in hexadecimal to serial console
+pub fn hex32(h : u32) {
+    for i in (0..29).step_by(4).rev() {
+        let mut n = (h >> i) & 0xF;
+        n += if n > 9 { 0x37 } else { 0x30 };
+        send(n as u32);
+    }
+}
+
 /// print a 64-bit value in decimal to serial console
 pub fn decimal(mut h: u64) {
     let mut num = [0; 32];
 
-    if (h == 0) {
+    if h == 0 {
         send('0' as u32);
         return;
     }
