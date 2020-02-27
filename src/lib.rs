@@ -50,8 +50,20 @@ pub fn entry() -> ! {
 extern fn eh_personality() {}
 
 #[panic_handler]
-fn panic(_info: &PanicInfo) -> ! {
-    driver::uart::puts("kernel panic!");
+fn panic(info: &PanicInfo) -> ! {
+    driver::uart::puts("kernel panic!\n");
+    if let Some(location) = info.location() {
+        driver::uart::puts(location.file());
+        driver::uart::puts(":");
+        driver::uart::decimal(location.line() as u64);
+        driver::uart::puts("\n");
+    }
+
+    if let Some(s) = info.payload().downcast_ref::<&str>() {
+        driver::uart::puts(s);
+        driver::uart::puts("\n");
+    }
+
     loop {}
 }
 
