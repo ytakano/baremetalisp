@@ -28,10 +28,6 @@ pub fn init() -> Context {
         _ => { 0 }
     };
 
-    uart::puts("memory: ");
-    uart::decimal(m as u64);
-    uart::puts("\n");
-
     init_exceptions();
 
     Context{graphics0: g,

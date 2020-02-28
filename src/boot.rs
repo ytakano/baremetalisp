@@ -14,6 +14,21 @@ fn print_el() {
     let el = aarch64::el::get_current_el();
     driver::uart::decimal(el as u64);
     driver::uart::puts("\n");
+
+    driver::uart::puts("[MMU         ] ");
+    match aarch64::mmu::enabled() {
+        Some(m) => {
+            if m == true {
+                driver::uart::puts("true\n");
+            } else {
+                driver::uart::puts("false\n");
+            }
+        }
+        None => {
+            driver::uart::puts("failed to access the system control register\n");
+        }
+    }
+    driver::uart::puts("\n");
 }
 
 fn print_firmware_version() {
