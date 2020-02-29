@@ -10,7 +10,7 @@ else ifeq ($(BSP),raspi4)
 	RUSTC_MISC_ARGS = -C target-cpu=cortex-a72
 endif
 
-ASM_FILE=asm/aarch64.s
+ASM_FILE=asm/aarch64.S
 ASM_OBJ=aarch64.o
 
 TARGET=aarch64-unknown-none
@@ -18,13 +18,13 @@ TARGET=aarch64-unknown-none
 RUSTLIB=target/$(TARGET)/release/libbaremetalisp.a
 RUSTFLAGS=$(RUSTC_MISC_ARGS)
 
-AS=aarch64-linux-gnu-as
+CC=aarch64-linux-gnu-gcc
 LD=aarch64-linux-gnu-ld
 
 all: kernel8.img
 
 $(ASM_OBJ): $(ASM_FILE)
-	$(AS) $(ASM_FILE) -o $(ASM_OBJ)
+	$(CC) -c $(ASM_FILE) -o $(ASM_OBJ) -D$(BSP)
 
 $(RUSTLIB): FORCE
 	RUSTFLAGS="$(RUSTFLAGS)" cargo xrustc --features $(BSP) --target $(TARGET) --release

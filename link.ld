@@ -1,6 +1,7 @@
 SECTIONS
 {
-    . = 0x80000;
+/*    . = 0x80000;*/
+    . = 0;
     .init : { KEEP(*(.init)) }
     .text : { *(.text .text.* .gnu.linkonce.t*) }
     .rodata : { *(.rodata .rodata.* .gnu.linkonce.r*) }
