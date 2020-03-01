@@ -182,7 +182,7 @@ _start:
 
     mrs     x1, scr_el3
     orr     x1, x1, #0b1110 // EA, FIQ, IRQ
-    MSR     scr_el3, x0
+    MSR     scr_el3, x1
     msr     DAIFClr, #0xF
 
 .L4:

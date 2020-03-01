@@ -33,7 +33,7 @@ doc:
 	cargo xdoc --target=$(TARGET) --features $(BSP) --document-private-items
 
 baremetalisp: $(RUSTLIB) $(ASM_OBJ)
-	$(LD) -T link.ld -o baremetalisp $(ASM_OBJ) $(RUSTLIB)
+	$(LD) -T link.ld -pie -o baremetalisp $(ASM_OBJ) $(RUSTLIB)
 
 kernel8.img: baremetalisp
 	aarch64-linux-gnu-objcopy -O binary baremetalisp kernel8.img

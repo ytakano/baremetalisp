@@ -1,7 +1,7 @@
 SECTIONS
 {
-/*    . = 0x80000;*/
-    . = 0;
+    . = 0x80000;
+/*    . = 0;*/
     .init : { KEEP(*(.init)) }
     .text : { *(.text .text.* .gnu.linkonce.t*) }
     .rodata : { *(.rodata .rodata.* .gnu.linkonce.r*) }
@@ -14,6 +14,7 @@ SECTIONS
         *(COMMON)
         __bss_end = .;
     }
+    .gnu : { KEEP(*(.hash)) }
     .heap : {
         __heap_start = .;
         /* 64MiB heap */
@@ -28,6 +29,6 @@ SECTIONS
     }
     _end = .;
 
-   /DISCARD/ : { *(.comment) *(.gnu*) *(.note*) *(.eh_frame*) }
+   /DISCARD/ : { *(.comment) *(.note*) *(.eh_frame*) }
 }
 __bss_size = (__bss_end - __bss_start)>>3;
