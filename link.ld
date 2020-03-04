@@ -1,7 +1,6 @@
 SECTIONS
 {
-    . = 0x80000;
-/*    . = 0;*/
+    . = 0;
     .init : { KEEP(*(.init)) }
     .text : { *(.text .text.* .gnu.linkonce.t*) }
     .rodata : { *(.rodata .rodata.* .gnu.linkonce.r*) }
@@ -17,15 +16,15 @@ SECTIONS
     .gnu : { KEEP(*(.hash)) }
     .heap : {
         __heap_start = .;
-        /* 64MiB heap */
-        . = . + 1024 * 1024 * 64;
-        . = ALIGN(4096);
+        /* 16MiB heap */
+        . = . + 1024 * 1024 * 16;
+        . = ALIGN(65536);
         __heap_end = .;
     }
     .stack : {
         __stack_end = .;
-        /* 64MiB space */
-        __stack_start = __stack_end + (1024*1024) * 64;
+        /* 2MiB space */
+        __stack_start = __stack_end + 1024 * 1024 * 2;
     }
     _end = .;
 

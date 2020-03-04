@@ -143,7 +143,7 @@ pub fn get_board_rev() -> Option<u32> {
 }
 
 /// get memory size
-pub fn get_memory() -> Option<usize> {
+pub fn get_memory() -> usize {
     match get_board_rev() {
         Some(rev) => {
             // https://www.raspberrypi.org/documentation/hardware/raspberrypi/revision-codes/README.md
@@ -160,22 +160,22 @@ pub fn get_memory() -> Option<usize> {
                 ]);
 
                 if call(&mut(m.0[0]) as *mut u32, MBOX_CH_PROP) {
-                    Some(m.0[6] as usize)
+                    m.0[6] as usize
                 } else {
-                    None
+                    256 * 1024 * 1024 // 256MiB
                 }
             } else {
                 match (rev >> 20) & 0b111 {
-                    0 => { Some(256 * 1024 * 1024) }      // 256MiB
-                    1 => { Some(512 * 1024 * 1024) }      // 512MiB
-                    2 => { Some(1024 * 1024 * 1024) }     // 1GiB
-                    3 => { Some(2 * 1024 * 1024 * 1024) } // 2GiB
-                    4 => { Some(4 * 1024 * 1024 * 1024) } // 4GiB
-                    _ => None
+                    0 => { 256 * 1024 * 1024 }      // 256MiB
+                    1 => { 512 * 1024 * 1024 }      // 512MiB
+                    2 => { 1024 * 1024 * 1024 }     // 1GiB
+                    3 => { 2 * 1024 * 1024 * 1024 } // 2GiB
+                    4 => { 4 * 1024 * 1024 * 1024 } // 4GiB
+                    _ => 256 * 1024 * 1024          // 256MiB
                 }
             }
         }
-        _ => { None }
+        _ => { 256 * 1024 * 1024 } // 256MiB
     }
 }
 

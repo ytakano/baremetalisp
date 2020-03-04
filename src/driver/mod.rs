@@ -23,10 +23,7 @@ pub fn init() -> Context {
     //uart::puts("initialized rand\n");
 
     let g = graphics::init();
-    let m = match mbox::get_memory() {
-        Some(mem) => { mem }
-        _ => { 0 }
-    };
+    let m = mbox::get_memory();
 
     init_exceptions();
 
