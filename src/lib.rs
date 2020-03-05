@@ -3,6 +3,7 @@
 #![feature(start)]
 #![feature(asm)]
 #![no_std]
+#![allow(dead_code)]
 
 mod parser;
 mod boot;
