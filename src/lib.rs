@@ -18,6 +18,12 @@ fn func() {
 }
 
 #[no_mangle]
+pub fn init_mmu() {
+    let m = driver::mbox::get_memory();
+    aarch64::mmu::init(m);
+}
+
+#[no_mangle]
 pub fn entry() -> ! {
     let ctx = driver::init();
     boot::run();

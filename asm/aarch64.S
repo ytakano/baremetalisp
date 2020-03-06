@@ -176,6 +176,9 @@ _start:
     sub     w2, w2, #1
     cbnz    w2, .L3
 
+    // initialize MMU
+    bl      init_mmu
+
     // set exception vector
     ldr     x1, =exception_vector_el3
     msr     vbar_el3, x1

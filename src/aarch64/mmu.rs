@@ -103,6 +103,15 @@ pub fn init(memsize: usize) -> () {
         L2ENTRY.0[i] = (&L3ENTRY.0[8192 * i] & 0xFFFFFFFF) << 16 | 0b11 | FLAG_L2_NS;
     }
 
+    // level 3 table
+    // virtual:     0 ... 0x03ffffff
+    //              0 ...      64MiB
+    // physical:    0 ... 0x03ffffff
+    for i in 0..1023 {
+        L3ENTRY.0[i] = (i as u64 * (64 * 1024 & 0xFFFFFFFF)) << 16 | 0b11 |
+            FLAG_L3_AF | FLAG_L3_NS | FLAG_L3_CONT | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_MEM;
+    }
+
     ////////////////////////////////////////////////////////////////////////////////////////////////
     // devices
 
@@ -154,8 +163,37 @@ pub fn init(memsize: usize) -> () {
     ////////////////////////////////////////////////////////////////////////////////////////////////
 
     // first, set Memory Attributes array, indexed by PT_MEM, PT_DEV, PT_NC in our example
-    let r: u64 = (0xFF <<  0) | // AttrIdx=0: normal, IWBWA, OWBWA, NTR
-                 (0x04 <<  8) | // AttrIdx=1: device, nGnRE (must be OSH too)
-                 (0x44 << 16);  // AttrIdx=2: non cacheable
-    unsafe { asm!("msr mair_el3, $0" : : "r" (r)) };
+    let mair: u64 = (0xFF <<  0) | // AttrIdx=0: normal, IWBWA, OWBWA, NTR
+                    (0x04 <<  8) | // AttrIdx=1: device, nGnRE (must be OSH too)
+                    (0x44 << 16);  // AttrIdx=2: non cacheable
+    unsafe { asm!("msr mair_el3, $0" : : "r" (mair)) };
+
+    // next, specify mapping characteristics in translate control register
+    // TODO: tcr_el3
+
+    let mut scr: u32;
+    unsafe { asm!("mrs $0, scr_el3" : "=r" (scr)) };
+    scr |= 1 << 10 | // The next lower level is AArch64.
+           3 <<  4 | // reserved
+           1 <<  3 | // External Aborts and SError Interrupts while executing at all exception levels are taken in EL3.
+           1 <<  2 | // Physical FIQ while executing at all exception levels are taken in EL3.
+           1 <<  1;  // Physical IRQ while executing at all exception levels are taken in EL3.
+    unsafe { asm!("msr scr_el3, $0" : : "r" (scr)) };
+
+    // tell the MMU where our translation tables are.
+    unsafe { asm!("msr ttbr0_el3, $0" : : "r" (&L2ENTRY.0[0] + 1)) };
+
+    // finally, toggle some bits in system control register to enable page translation
+    let mut r: u64;
+    unsafe { asm!("dsb ish; isb; mrs $0, sctlr_el3" : "=r" (r)) };
+    r |=
+        1 << 44 | // Hardware is permitted to load or store speculatively
+        1 << 12 | // no effect on the Cacheability of instruction access to Normal memory
+        1 <<  2 | // no effect on the Cacheability
+        1;        // set M, enable MMU
+    r &= !(1 << 25 | // clear EE, little endian translation tables
+           1 << 19 | // clear E0E
+           1 <<  3 | // clear SA
+           1 <<  1); // clear A, disable alignment check
+    unsafe { asm!("msr sctlr_el3, $0; isb" : : "r" (r)) };
 }
