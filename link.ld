@@ -1,6 +1,6 @@
 SECTIONS
 {
-    . = 0x8000;
+    . = 0;
     .init : { KEEP(*(.init)) }
     .text : { *(.text .text.* .gnu.linkonce.t*) }
     .rodata : { *(.rodata .rodata.* .gnu.linkonce.r*) }
@@ -26,6 +26,7 @@ SECTIONS
         /* 2MiB space */
         __stack_start = __stack_end + 1024 * 1024 * 2;
     }
+    . = ALIGN(64 * 1024);
     _end = .;
 
    /DISCARD/ : { *(.comment) *(.note*) *(.eh_frame*) }

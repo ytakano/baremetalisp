@@ -54,6 +54,8 @@
 .section .init, "x"
 .global _start
 
+// #define NOEL3
+
 #ifdef raspi4
 #define BCM2711 1
 #define GIC     1
@@ -84,7 +86,7 @@
 #define SCR_RES1_4          BIT(4)
 #define SCR_NS              BIT(0)
 #define SCR_VAL \
-    (SCR_RW | SCR_HCE | SCR_SMD | SCR_RES1_5 | SCR_RES1_4 | SCR_NS)
+    (SCR_RW | SCR_HCE | SCR_RES1_5 | SCR_RES1_4)
 
 #define CPUECTLR_EL1        S3_1_C15_C2_1
 #define CPUECTLR_EL1_SMPEN  BIT(6)
@@ -107,6 +109,7 @@
 #define GICD_IGROUPR        0x80
 
 _start:
+#ifndef NOEL3
 #ifdef raspi4
     /*
      * LOCAL_CONTROL:
@@ -148,6 +151,7 @@ _start:
 #ifdef GIC
     bl      setup_gic
 #endif
+#endif // NOEL3
 
 #endif // raspi4
 
@@ -179,6 +183,8 @@ _start:
     sub     w2, w2, #1
     cbnz    w2, .L3
 
+.L4:
+#ifndef NOEL3
 #ifdef raspi4
     // set exception vector
     ldr     x1, =exception_vector_el3
@@ -186,12 +192,12 @@ _start:
 
     mrs     x1, scr_el3
     orr     x1, x1, #0b1110 // EA, FIQ, IRQ
-    MSR     scr_el3, x1
+    msr     scr_el3, x1
+
+    msr     DAIFClr, #0xF
 #endif // raspi4
+#endif // NOEL3
 
-//    msr     DAIFClr, #0xF
-
-.L4:
     bl      entry
 .L5:
     wfe
