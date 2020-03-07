@@ -4,7 +4,7 @@
 pub const MMIO_BASE: u32 = 0x3F000000;
 
 #[cfg(any(feature = "raspi3", feature = "raspi2"))]
-const MMIO_SIZE: usize = 0x3F000000 - 0x42000000;
+const MMIO_SIZE: usize = 0x42000000 - 0x3F000000;
 
 #[cfg(feature = "raspi4")]
 pub const MMIO_BASE: u32 = 0xFE000000;

@@ -18,7 +18,7 @@ fn print_el() {
     driver::uart::puts("[MMU         ] ");
     match aarch64::mmu::enabled() {
         Some(m) => {
-            if m == true {
+            if m {
                 driver::uart::puts("true\n");
             } else {
                 driver::uart::puts("false\n");

@@ -107,6 +107,7 @@
 #define GICD_IGROUPR        0x80
 
 _start:
+#ifdef raspi4
     /*
      * LOCAL_CONTROL:
      * Bit 9 clear: Increment by 1 (vs. 2).
@@ -145,8 +146,10 @@ _start:
     msr CPUECTLR_EL1, x0
 
 #ifdef GIC
-        bl      setup_gic
+    bl      setup_gic
 #endif
+
+#endif // raspi4
 
     // disable all interrupt (daif at bits 9..6)
     msr     DAIFSet, #0x0f
@@ -176,9 +179,7 @@ _start:
     sub     w2, w2, #1
     cbnz    w2, .L3
 
-    // initialize MMU
-    bl      init_mmu
-
+#ifdef raspi4
     // set exception vector
     ldr     x1, =exception_vector_el3
     msr     vbar_el3, x1
@@ -186,11 +187,15 @@ _start:
     mrs     x1, scr_el3
     orr     x1, x1, #0b1110 // EA, FIQ, IRQ
     MSR     scr_el3, x1
-    msr     DAIFClr, #0xF
+#endif // raspi4
+
+//    msr     DAIFClr, #0xF
 
 .L4:
     bl      entry
-    b       _start
+.L5:
+    wfe
+    b       .L5
 
 #ifdef GIC
 

@@ -18,14 +18,13 @@ fn func() {
 }
 
 #[no_mangle]
-pub fn init_mmu() {
-    let m = driver::mbox::get_memory();
-    aarch64::mmu::init(m);
-}
-
-#[no_mangle]
 pub fn entry() -> ! {
     let ctx = driver::init();
+
+    driver::uart::puts("initlialized driver\n");
+
+    aarch64::mmu::init(ctx.memory);
+
     boot::run();
 
     match ctx.graphics0 {
