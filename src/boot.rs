@@ -5,6 +5,7 @@ pub fn run() {
     print_firmware_version();
     print_board_info();
     print_el();
+    print_fortune();
     print_splash();
 }
 
@@ -28,7 +29,6 @@ fn print_el() {
             driver::uart::puts("failed to access the system control register\n");
         }
     }
-    driver::uart::puts("\n");
 }
 
 fn print_firmware_version() {
@@ -68,6 +68,16 @@ fn print_board_info() {
     }
 }
 
+fn print_fortune() {
+    driver::uart::puts("[Fortune     ] ");
+    let cnt = driver::delays::get_system_timer() as usize;
+    let fortune = ["大吉", "吉", "吉", "吉", "吉", "中吉", "中吉", "中吉",
+                   "中吉", "小吉", "小吉", "小吉", "末吉", "末吉", "末吉", "凶"];
+    driver::uart::puts("⛩  ");
+    driver::uart::puts(fortune[cnt & 0xF]);
+    driver::uart::puts(" ⛩\n");
+}
+
 /// print splash message
 fn print_splash() {
     driver::uart::puts(
@@ -79,13 +89,6 @@ fn print_splash() {
 (____/'`\\__,_)(_)  `\\____)(_) (_) (_)`\\____)`\\__)`\\__,_)(___)(_)(____/| ,__/'
                                                                       | |
                                                                       (_)\n");
-
-    let cnt = driver::delays::get_system_timer() as usize;
-    let fortune = ["大吉", "吉", "吉", "吉", "吉", "中吉", "中吉", "中吉",
-                   "中吉", "小吉", "小吉", "小吉", "末吉", "末吉", "末吉", "凶"];
-    driver::uart::puts("⛩ ⛩ ⛩  ");
-    driver::uart::puts(fortune[cnt & 0xF]);
-    driver::uart::puts(" ⛩ ⛩ ⛩\n");
 }
 
 fn print_revision(rev: u32) {

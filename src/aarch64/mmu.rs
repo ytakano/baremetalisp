@@ -1,6 +1,3 @@
-use core::intrinsics::volatile_store;
-use core::intrinsics::volatile_load;
-
 use core::slice;
 
 use super::el;
@@ -74,17 +71,17 @@ const FLAG_L3_ATTR_DEV: u64 = 1 << 2; // device MMIO
 const FLAG_L3_ATTR_NC:  u64 = 2 << 2; // non-cachable
 
 
-#[cfg(feature = "raspi3")]
+#[cfg(any(feature = "raspi3", feature = "raspi2"))]
 pub const DRIVER_MEM_START: usize =  0x3C000000;
 
-#[cfg(feature = "raspi3")]
+#[cfg(any(feature = "raspi3", feature = "raspi2"))]
 pub const DRIVER_MEM_END:   usize =  0x40000000;
 
 #[cfg(feature = "raspi4")]
-pub const DRIVER_MEM_START: usize =  0xfd500000;
+pub const DRIVER_MEM_START: usize =  0xfd000000; // maybe...
 
 #[cfg(feature = "raspi4")]
-pub const DRIVER_MEM_END:   usize = 0x100000000;
+pub const DRIVER_MEM_END:   usize = 0x100100000; // maybe...
 
 /// 64KB page, level 2 and 3 translation tables
 ///
@@ -93,6 +90,7 @@ pub const DRIVER_MEM_END:   usize = 0x100000000;
 /// PAGESIZE = 64 * 1024
 /// mmax     = if memsize == 4GiB then memsize - (688 * PAGESIZE) else memsize
 ///
+/// TODO: fix
 /// physical                  | virtual                                | for what         | #pages (size)
 /// --------------------------|----------------------------------------|------------------|-----------------
 ///          0 ... 0x03ffffff |        2^40 ... 0x03ffffff + 2^40      | for EL3 (static) |  1024 ( 64MiB)
@@ -101,13 +99,7 @@ pub const DRIVER_MEM_END:   usize = 0x100000000;
 /// 0x04000000 ... mmax - 1   |        2^41 ... 0x3fffffff + 2^41      | secure memory    | 16384 (  1GiB)
 /// 0x04000000 ... mmax - 1   | 2^41 + 2^32 ... 2^41 + 2^32 + 2^17 - 1 | shared memory    |     2 (128KiB)
 ///
-pub fn init(memsize: usize) -> () {
-    let mmax: u64 = if memsize == 4 * 1024 * 1024 * 1024 {
-        memsize as u64 - (688 * PAGESIZE)
-    } else {
-        memsize as u64
-    };
-
+pub fn init() -> () {
     let mut addr = unsafe { &mut _end as *mut u64 as u64 };
     if addr % PAGESIZE != 0 {
         addr += PAGESIZE - (addr % PAGESIZE);
@@ -119,19 +111,28 @@ pub fn init(memsize: usize) -> () {
         tt[i] = 0;
     }
 
-    for i in 0..7 { // L2 table
+    // L2 table, 4GiB + 512MiB space
+    for i in 0..8 {
         tt[i] = addr + (i as u64 + 1) * 8192 * 8 | 0b11 | FLAG_L2_NS;
     }
 
-    for i in 0..8191 { // L3 table
+    // L3 table, 16MiB space, secure kernel, temporary
+    for i in 0..255 {
         tt[i + 8192] = (i * 64 * 1024) as u64 | 0b11 |
-            FLAG_L3_NS | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_RW | FLAG_L3_ATTR_MEM;
+            FLAG_L3_NS | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_MEM;
+    }
+
+    // L3 table
+    for i in 256..(8192 * 8 - 1) {
+        tt[i + 8192] = (i * 64 * 1024) as u64 | 0b11 |
+            FLAG_L3_NS | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_RW | FLAG_L3_ATTR_NC;
     }
 
     let start = DRIVER_MEM_START / 64 / 1024;
     let end   = start + (DRIVER_MEM_END - DRIVER_MEM_START) / 64 / 1024;
 
-    for i in start..end { // device
+    // L3 table, device
+    for i in start..end {
         tt[i + 8192] = (i * 64 * 1024) as u64 | 0b11 |
             FLAG_L3_NS | FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_OSH | FLAG_L3_SH_RW_RW | FLAG_L3_ATTR_DEV;
     }
@@ -154,7 +155,12 @@ pub fn init(memsize: usize) -> () {
     let mair: u64 = (0xFF <<  0) | // AttrIdx=0: normal, IWBWA, OWBWA, NTR
                     (0x04 <<  8) | // AttrIdx=1: device, nGnRE (must be OSH too)
                     (0x44 << 16);  // AttrIdx=2: non cacheable
+
+#[cfg(any(feature = "raspi3", feature = "raspi2"))]
     unsafe { asm!("msr mair_el2, $0" : : "r" (mair)) };
+
+#[cfg(feature = "raspi4")]
+    unsafe { asm!("msr mair_el3, $0" : : "r" (mair)) };
 
     // next, specify mapping characteristics in translate control register
     let tcr: u64 = 1 << 31 | // Res1
@@ -164,11 +170,20 @@ pub fn init(memsize: usize) -> () {
                    3 << 12 | // inner shadable
                    1 << 10 | // Normal memory, Outer Write-Back Read-Allocate Write-Allocate Cacheable.
                    1 <<  8 | // Normal memory, Inner Write-Back Read-Allocate Write-Allocate Cacheable.
-                   32;       // T0SZ = 22, 2 levels (level 2 and 3 translation tables), 2^42B (4TiB) space
+                   22;       // T0SZ = 22, 2 levels (level 2 and 3 translation tables), 2^42B (4TiB) space
+
+#[cfg(any(feature = "raspi3", feature = "raspi2"))]
     unsafe { asm!("msr tcr_el2, $0" : : "r" (tcr)) };
 
+#[cfg(feature = "raspi4")]
+    unsafe { asm!("msr tcr_el3, $0" : : "r" (tcr)) };
+
     // tell the MMU where our translation tables are.
+#[cfg(any(feature = "raspi3", feature = "raspi2"))]
     unsafe { asm!("msr ttbr0_el2, $0" : : "r" (addr + 1)) };
+
+#[cfg(feature = "raspi4")]
+    unsafe { asm!("msr ttbr0_el3, $0" : : "r" (addr + 1)) };
 
     // Enables data coherency with other cores in the cluster.
     let mut extend: u64;
@@ -178,13 +193,14 @@ pub fn init(memsize: usize) -> () {
 
     // finally, toggle some bits in system control register to enable page translation
     let mut sctlr: u64;
+#[cfg(any(feature = "raspi3", feature = "raspi2"))]
     unsafe { asm!("dsb ish; isb; mrs $0, sctlr_el2" : "=r" (sctlr)) };
 
-    driver::uart::puts("MMU: read sctlr\n");
-
+#[cfg(feature = "raspi4")]
+    unsafe { asm!("dsb ish; isb; mrs $0, sctlr_el3" : "=r" (sctlr)) };
     sctlr |=
         1 << 12 | // no effect on the Cacheability of instruction access to Normal memory
-        1 <<  2 | // no effect on the Cacheability
+//        1 <<  2 | // no effect on the Cacheability
         1;        // set M, enable MMU
     sctlr &= !(
         1 << 25 | // clear EE
@@ -193,10 +209,9 @@ pub fn init(memsize: usize) -> () {
         1 <<  1   // clear A
     );
 
+#[cfg(any(feature = "raspi3", feature = "raspi2"))]
     unsafe { asm!("msr sctlr_el2, $0; dsb sy; isb" : : "r" (sctlr)) };
 
-//    sctlr -= 1;
-//    unsafe { asm!("msr sctlr_el2, $0; dsb sy; isb" : : "r" (sctlr)) };
-
-    driver::uart::puts("MMU: write sctlr\n");
+#[cfg(feature = "raspi4")]
+    unsafe { asm!("msr sctlr_el3, $0; dsb sy; isb" : : "r" (sctlr)) };
 }

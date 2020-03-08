@@ -13,9 +13,6 @@ endif
 ASM_FILE=asm/aarch64.S
 ASM_OBJ=aarch64.o
 
-MMU_FILE=csrc/mmu.c
-MMU_OBJ=mmu.o
-
 TARGET=aarch64-unknown-none
 
 RUSTLIB=target/$(TARGET)/release/libbaremetalisp.a
@@ -29,9 +26,6 @@ all: kernel8.img
 $(ASM_OBJ): $(ASM_FILE)
 	$(CC) -c $(ASM_FILE) -o $(ASM_OBJ) -D$(BSP)
 
-$(MMU_OBJ): $(MMU_FILE)
-	$(CC) -c $(MMU_FILE) -o $(MMU_OBJ) -D$(BSP)
-
 $(RUSTLIB): FORCE
 	RUSTFLAGS="$(RUSTFLAGS)" cargo xrustc --features $(BSP) --target $(TARGET) --release
 
@@ -39,7 +33,7 @@ doc:
 	cargo xdoc --target=$(TARGET) --features $(BSP) --document-private-items
 
 baremetalisp: $(RUSTLIB) $(MMU_OBJ) $(ASM_OBJ)
-	$(LD) -T link.ld -pie -o baremetalisp $(ASM_OBJ) $(MMU_OBJ) $(RUSTLIB)
+	$(LD) -T link.ld -pie -o baremetalisp $(ASM_OBJ) $(RUSTLIB)
 
 kernel8.img: baremetalisp
 	aarch64-linux-gnu-objcopy -O binary baremetalisp kernel8.img

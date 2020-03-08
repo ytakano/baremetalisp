@@ -25,12 +25,6 @@ extern "C" {
 pub fn entry() -> ! {
     let ctx = driver::init();
 
-    driver::uart::puts("initlialized driver\n");
-
-    aarch64::mmu::init(ctx.memory);
-
-//    unsafe { init_mmu() };
-
     boot::run();
 
     match ctx.graphics0 {
@@ -45,6 +39,9 @@ pub fn entry() -> ! {
         }
         None => { driver::uart::puts("failed to initialize graphics\n") }
     }
+
+    let p = 0x400000000 as *mut u64;
+    unsafe { *p = 10 };
 
 //    driver::uart::puts("halting...\n");
 //    driver::power::shutdown();

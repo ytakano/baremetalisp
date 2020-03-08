@@ -16,8 +16,8 @@ SECTIONS
     .gnu : { KEEP(*(.hash)) }
     .heap : {
         __heap_start = .;
-        /* 16MiB heap */
-        . = . + 1024 * 1024 * 16;
+        /* 8MiB heap */
+        . = . + 1024 * 1024 * 8;
         . = ALIGN(65536);
         __heap_end = .;
     }

@@ -54,7 +54,7 @@
 .section .init, "x"
 .global _start
 
-#define NOEL3
+// #define NOEL3
 
 #ifdef raspi4
 #define BCM2711 1
@@ -194,7 +194,7 @@ _start:
     orr     x1, x1, #0b1110 // EA, FIQ, IRQ
     msr     scr_el3, x1
 
-    msr     DAIFClr, #0xF
+    msr     DAIFClr, #0x0F
 #endif // raspi4
 #endif // NOEL3
 

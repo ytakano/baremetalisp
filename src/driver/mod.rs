@@ -1,3 +1,5 @@
+use crate::aarch64;
+
 pub mod uart;
 pub mod memory;
 pub mod mbox;
@@ -19,6 +21,7 @@ pub struct Context {
 pub fn init() -> Context {
     uart::init(UART_CLOCK, UART_BAUD);
 
+    aarch64::mmu::init();
     //rand::init();
     //uart::puts("initialized rand\n");
 
