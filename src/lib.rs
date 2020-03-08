@@ -27,9 +27,9 @@ pub fn entry() -> ! {
 
     driver::uart::puts("initlialized driver\n");
 
-//    aarch64::mmu::init(ctx.memory);
+    aarch64::mmu::init(ctx.memory);
 
-    unsafe { init_mmu() };
+//    unsafe { init_mmu() };
 
     boot::run();
 

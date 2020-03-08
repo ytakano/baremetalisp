@@ -54,7 +54,7 @@
 .section .init, "x"
 .global _start
 
-// #define NOEL3
+#define NOEL3
 
 #ifdef raspi4
 #define BCM2711 1

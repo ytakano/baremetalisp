@@ -1,8 +1,14 @@
 use core::intrinsics::volatile_store;
 use core::intrinsics::volatile_load;
 
+use core::slice;
+
 use super::el;
 use crate::driver;
+
+extern "C" {
+    static mut _end: u64;
+}
 
 pub fn enabled() -> Option<bool> {
     let mut sctlr: u32;
@@ -63,23 +69,22 @@ const FLAG_L3_SH_R_R:   u64 = 0b11 << 6;
 
 // [4:2]: AttrIndx
 // defined in MAIR register
-const FLAG_L3_ATTR_MEM: u64 = 0 << 2; // normal memory
+const FLAG_L3_ATTR_MEM: u64 = 0     ; // normal memory
 const FLAG_L3_ATTR_DEV: u64 = 1 << 2; // device MMIO
 const FLAG_L3_ATTR_NC:  u64 = 2 << 2; // non-cachable
 
-#[repr(align(65536))]
-#[repr(C)]
-struct TT<T>(T);
 
-const L2ENTRY: TT<[u64; 8192]> = TT([0; 8192]);
+#[cfg(feature = "raspi3")]
+pub const DRIVER_MEM_START: usize =  0x3C000000;
 
-// level 3 table
-const L3ENTRY: TT<[u64; 8192 * 12]> = TT([0; 8192 * 12]);
+#[cfg(feature = "raspi3")]
+pub const DRIVER_MEM_END:   usize =  0x40000000;
 
+#[cfg(feature = "raspi4")]
+pub const DRIVER_MEM_START: usize =  0xfd500000;
 
-const MMIO_BASE: u32 = 0xFE000000;
-const UART0_DR:   *mut u32 = (MMIO_BASE + 0x00201000) as *mut u32;
-const UART0_FR:   *mut u32 = (MMIO_BASE + 0x00201018) as *mut u32;
+#[cfg(feature = "raspi4")]
+pub const DRIVER_MEM_END:   usize = 0x100000000;
 
 /// 64KB page, level 2 and 3 translation tables
 ///
@@ -103,84 +108,40 @@ pub fn init(memsize: usize) -> () {
         memsize as u64
     };
 
-    // 1000 0110 0000 0000 0000 0000 0000 0110
+    let mut addr = unsafe { &mut _end as *mut u64 as u64 };
+    if addr % PAGESIZE != 0 {
+        addr += PAGESIZE - (addr % PAGESIZE);
+    }
+    let ptr = addr as *mut u64;
+    let tt  = unsafe { slice::from_raw_parts_mut(ptr, 8192 * 13) };
 
-    ////////////////////////////////////////////////////////////////////////////////////////////////
-    // non secure world
-
-    // level 2 tables
-    // virtual: 0 ... memsize
-    let n = memsize / (512 * 1024 * 1024) - 1;
-    for i in 0..7 {
-        L2ENTRY.0[i] = &L3ENTRY.0[8192 * i] | 0b11;
+    for i in 0..(8192 * 13 - 1) {
+        tt[i] = 0;
     }
 
-    // level 3 table
-    // virtual:     0 ... 0x03ffffff
-    //              0 ...      64MiB
-    // physical:    0 ... 0x03ffffff
-    for i in 0..8191 {
-        L3ENTRY.0[i] = (i as u64 * 64 * 1024) | 0b11 |
-            FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_RW | FLAG_L3_ATTR_MEM;
+    for i in 0..7 { // L2 table
+        tt[i] = addr + (i as u64 + 1) * 8192 * 8 | 0b11 | FLAG_L2_NS;
     }
 
-    ////////////////////////////////////////////////////////////////////////////////////////////////
-    // devices
+    for i in 0..8191 { // L3 table
+        tt[i + 8192] = (i * 64 * 1024) as u64 | 0b11 |
+            FLAG_L3_NS | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_RW | FLAG_L3_ATTR_MEM;
+    }
 
-    // level 2 table
-    // virtual:  0xfd500000 ... 0xffffffff
-    // physical: 0xfd500000 ... 0xffffffff
-//    L2ENTRY.0[7] = &L3ENTRY.0[8192 * 7] | 0b11;
+    let start = DRIVER_MEM_START / 64 / 1024;
+    let end   = start + (DRIVER_MEM_END - DRIVER_MEM_START) / 64 / 1024;
 
-    // level 3 table
-    for i in (8192 * 7)..(8192 * 8 - 1) {
-        L3ENTRY.0[i] = (i as u64 * 64 * 1024) | 0b11 |
+    for i in start..end { // device
+        tt[i + 8192] = (i * 64 * 1024) as u64 | 0b11 |
             FLAG_L3_NS | FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_OSH | FLAG_L3_SH_RW_RW | FLAG_L3_ATTR_DEV;
     }
 
-    ////////////////////////////////////////////////////////////////////////////////////////////////
-    // seure monitor kernel
-
-    // level 2 tables
-    // virtual: 2^40 ... 0x03ffffff + 2^40
-    //          1TiB ...      64MiB + 1TiB
-    L2ENTRY.0[2048] = &L3ENTRY.0[8192 * 8] | 0b11;
-
-    // level 3 table
-    // virtual:  2^40 ... 0x03ffffff + 2^40
-    //           1TiB ...      64MiB + 1TiB
-    // physical:    0 ... 0x03ffffff
-    for i in 0..1023 {
-        L3ENTRY.0[8192 * 8 + i] = (i as u64 * 64 * 1024) | 0b11 |
-            FLAG_L3_AF | FLAG_L3_CONT | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_MEM;
-    }
-
-    ////////////////////////////////////////////////////////////////////////////////////////////////
-    // secure world
-
-    // level 2 tables
-    // virtual: 2^41 ... 0x3fffffff + 2^41
-    //          2TiB ...       1GiB + 2TiB
-    L2ENTRY.0[4096] = &L3ENTRY.0[8192 *  9] | 0b11;
-    L2ENTRY.0[4097] = &L3ENTRY.0[8192 * 10] | 0b11;
-
-    ////////////////////////////////////////////////////////////////////////////////////////////////
-    // shared memory between secure and non secure world
-
-    // level 2 table
-    // virtual: 2^41 + 2^32 ... 2^41 + 2^32 + 2^17 - 1
-    //          2TiB + 4GiB ... 2TiB + 4GiB + 128KiB - 1
-    L2ENTRY.0[4104] = &L3ENTRY.0[8192 * 11] | 0b11 | FLAG_L2_NS;
-
-    ////////////////////////////////////////////////////////////////////////////////////////////////
-
-    // check for 4k granule and at least 36 bits physical address bus */
+    // check for 4k granule and at least 36 bits physical address bus
     let mut mmfr: u64;
     unsafe { asm!("mrs $0, id_aa64mmfr0_el1" : "=r" (mmfr)) };
     let b = mmfr & 0xF;
     if b < 1 /* 36 bits */ {
-        driver::uart::decimal(b);
-        driver::uart::puts("\nERROR: 36 bit address space not supported\n");
+        driver::uart::puts("ERROR: 36 bit address space not supported\n");
         return;
     }
 
@@ -195,21 +156,19 @@ pub fn init(memsize: usize) -> () {
                     (0x44 << 16);  // AttrIdx=2: non cacheable
     unsafe { asm!("msr mair_el2, $0" : : "r" (mair)) };
 
-    // 0011 0101 0010 0000
-
     // next, specify mapping characteristics in translate control register
-    let tcr: u64 = //1 << 31 | // Res1
-                   //1 << 23 | // Res1
-                   3 << 16 | // 42 bits, 4TiB, physical address size.
+    let tcr: u64 = 1 << 31 | // Res1
+                   1 << 23 | // Res1
+                   b << 16 |
                    1 << 14 | // 64KiB granule
                    3 << 12 | // inner shadable
                    1 << 10 | // Normal memory, Outer Write-Back Read-Allocate Write-Allocate Cacheable.
                    1 <<  8 | // Normal memory, Inner Write-Back Read-Allocate Write-Allocate Cacheable.
-                   22;       // T0SZ = 22, 2 levels (level 2 and 3 translation tables), 2^42B (4TiB) space
+                   32;       // T0SZ = 22, 2 levels (level 2 and 3 translation tables), 2^42B (4TiB) space
     unsafe { asm!("msr tcr_el2, $0" : : "r" (tcr)) };
 
     // tell the MMU where our translation tables are.
-    unsafe { asm!("msr ttbr0_el2, $0" : : "r" (&L2ENTRY.0[0] + 1)) };
+    unsafe { asm!("msr ttbr0_el2, $0" : : "r" (addr + 1)) };
 
     // Enables data coherency with other cores in the cluster.
     let mut extend: u64;
@@ -231,15 +190,8 @@ pub fn init(memsize: usize) -> () {
         1 << 25 | // clear EE
         1 << 19 | // clear WXN
         1 <<  3 | // clear SA
-        1 << 12 | 1 << 2 |
         1 <<  1   // clear A
     );
-
-    let mut pc: u64;
-    unsafe { asm!("adr $0, ." : "=r" (pc)) };
-    driver::uart::puts("PC: ");
-    driver::uart::hex(pc);
-    driver::uart::puts("\n");
 
     unsafe { asm!("msr sctlr_el2, $0; dsb sy; isb" : : "r" (sctlr)) };
 
