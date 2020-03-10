@@ -184,19 +184,23 @@ _start:
     cbnz    w2, .L3
 
 .L4:
-#ifndef NOEL3
-#ifdef raspi4
     // set exception vector
+#if defined(NOEL3) || defined(raspi3) || defined(raspi2)
+    ldr     x1, =exception_vector_el3
+    msr     vbar_el2, x1
+
+    mrs     x1, hcr_el2
+    orr     x1, x1, #0b111000 // AMO, IMO, FMO
+    msr     hcr_el2, x1
+#else
     ldr     x1, =exception_vector_el3
     msr     vbar_el3, x1
 
     mrs     x1, scr_el3
     orr     x1, x1, #0b1110 // EA, FIQ, IRQ
     msr     scr_el3, x1
-
-    msr     DAIFClr, #0x0F
-#endif // raspi4
-#endif // NOEL3
+#endif
+    msr     DAIFClr, #0x0f // enable all interrupt
 
     bl      entry
 .L5:
@@ -235,6 +239,9 @@ setup_gic:
     // Make room on the stack for the exception context.
     sub     sp,  sp,  #16 * 17
 
+    mov     x26, #260
+    mov     x27, #270
+
     // Store all general purpose registers on the stack.
     stp     x0,  x1,  [sp, #16 * 0]
     stp     x2,  x3,  [sp, #16 * 1]
@@ -253,8 +260,16 @@ setup_gic:
     stp     x28, x29, [sp, #16 * 14]
 
     // Add the exception link register (ELR_EL3) and the saved program status (SPSR_EL3).
+#if defined(NOEL3) || defined(raspi3) || defined(raspi2)
+    mrs     x1, ELR_EL2
+    mrs     x2, SPSR_EL2
+#else
     mrs     x1, ELR_EL3
     mrs     x2, SPSR_EL3
+#endif
+
+    mov     x1, #100
+    mov     x2, #200
 
     stp     lr,  x1,  [sp, #16 * 15]
     str     w2,       [sp, #16 * 16]
@@ -276,8 +291,13 @@ exception_restore_context:
     ldr     w19,      [sp, #16 * 16]
     ldp     lr,  x20, [sp, #16 * 15]
 
+#if defined(NOEL3) || defined(raspi3) || defined(raspi2)
+    msr     SPSR_EL2, x19
+    msr     ELR_EL2,  x20
+#else
     msr     SPSR_EL3, x19
     msr     ELR_EL3,  x20
+#endif
 
     ldp     x0,  x1,  [sp, #16 * 0]
     ldp     x2,  x3,  [sp, #16 * 1]
@@ -296,6 +316,8 @@ exception_restore_context:
     ldp     x28, x29, [sp, #16 * 14]
 
     add     sp,  sp,  #16 * 17
+
+    b       .L5 // hung-up temporary
 
     eret
 
