@@ -239,9 +239,6 @@ setup_gic:
     // Make room on the stack for the exception context.
     sub     sp,  sp,  #16 * 17
 
-    mov     x26, #260
-    mov     x27, #270
-
     // Store all general purpose registers on the stack.
     stp     x0,  x1,  [sp, #16 * 0]
     stp     x2,  x3,  [sp, #16 * 1]
@@ -267,9 +264,6 @@ setup_gic:
     mrs     x1, ELR_EL3
     mrs     x2, SPSR_EL3
 #endif
-
-    mov     x1, #100
-    mov     x2, #200
 
     stp     lr,  x1,  [sp, #16 * 15]
     str     w2,       [sp, #16 * 16]

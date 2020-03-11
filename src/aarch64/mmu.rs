@@ -4,6 +4,7 @@ use super::el;
 use crate::driver;
 
 extern "C" {
+    static mut __invalid_start: u8;
     static mut _end: u64;
 }
 
@@ -84,48 +85,38 @@ pub const DRIVER_MEM_START: usize =  0xfd000000; // maybe...
 pub const DRIVER_MEM_END:   usize = 0x100100000; // maybe...
 
 /// 64KB page, level 2 and 3 translation tables
-///
-/// ## memory map
-///
-/// PAGESIZE = 64 * 1024
-/// mmax     = if memsize == 4GiB then memsize - (688 * PAGESIZE) else memsize
-///
-/// TODO: fix
-/// physical                  | virtual                                | for what         | #pages (size)
-/// --------------------------|----------------------------------------|------------------|-----------------
-///          0 ... 0x03ffffff |        2^40 ... 0x03ffffff + 2^40      | for EL3 (static) |  1024 ( 64MiB)
-/// 0x04000000 ... mmax - 1   |           0 ... mmax - 1               | for EL2          | 64847
-/// 0xfd500000 ... 0xffffffff |  0xfd500000 ... 0xffffffff             | devices (static) |   688
-/// 0x04000000 ... mmax - 1   |        2^41 ... 0x3fffffff + 2^41      | secure memory    | 16384 (  1GiB)
-/// 0x04000000 ... mmax - 1   | 2^41 + 2^32 ... 2^41 + 2^32 + 2^17 - 1 | shared memory    |     2 (128KiB)
-///
-pub fn init() -> () {
+pub fn init() -> Option<&'static [u64]> {
     let mut addr = unsafe { &mut _end as *mut u64 as u64 };
     if addr % PAGESIZE != 0 {
         addr += PAGESIZE - (addr % PAGESIZE);
     }
     let ptr = addr as *mut u64;
-    let tt  = unsafe { slice::from_raw_parts_mut(ptr, 8192 * 13) };
+    let tt  = unsafe { slice::from_raw_parts_mut(ptr, 8192 * 10) };
 
-    for i in 0..(8192 * 13 - 1) {
+    // zero fill
+    for i in 0..(8192 * 10 - 1) {
         tt[i] = 0;
     }
 
     // L2 table, 4GiB + 512MiB space
     for i in 0..8 {
-        tt[i] = addr + (i as u64 + 1) * 8192 * 8 | 0b11 | FLAG_L2_NS;
+        tt[i] = addr + (i as u64 + 1) * 8192 * 8 | 0b11;
     }
 
     // L3 table, 16MiB space, secure kernel, temporary
     for i in 0..255 {
         tt[i + 8192] = (i * 64 * 1024) as u64 | 0b11 |
-            FLAG_L3_NS | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_MEM;
+            FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_MEM;
     }
+
+    // stack over flow
+    let invalid_addr = unsafe { &mut __invalid_start as *mut u8 as usize };
+    tt[8192 + invalid_addr / 64 / 1024] = 0;
 
     // L3 table
     for i in 256..(8192 * 8 - 1) {
         tt[i + 8192] = (i * 64 * 1024) as u64 | 0b11 |
-            FLAG_L3_NS | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_RW | FLAG_L3_ATTR_NC;
+            FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_RW | FLAG_L3_ATTR_NC;
     }
 
     let start = DRIVER_MEM_START / 64 / 1024;
@@ -134,7 +125,7 @@ pub fn init() -> () {
     // L3 table, device
     for i in start..end {
         tt[i + 8192] = (i * 64 * 1024) as u64 | 0b11 |
-            FLAG_L3_NS | FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_OSH | FLAG_L3_SH_RW_RW | FLAG_L3_ATTR_DEV;
+            FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_OSH | FLAG_L3_SH_RW_RW | FLAG_L3_ATTR_DEV;
     }
 
     // check for 4k granule and at least 36 bits physical address bus
@@ -143,12 +134,12 @@ pub fn init() -> () {
     let b = mmfr & 0xF;
     if b < 1 /* 36 bits */ {
         driver::uart::puts("ERROR: 36 bit address space not supported\n");
-        return;
+        return None;
     }
 
     if mmfr & (0xF << 24) != 0 /* 64KiB */ {
         driver::uart::puts("ERROR: 64KiB granule not supported\n");
-        return;
+        return None;
     }
 
     // first, set Memory Attributes array, indexed by PT_MEM, PT_DEV, PT_NC in our example
@@ -214,4 +205,16 @@ pub fn init() -> () {
 
 #[cfg(feature = "raspi4")]
     unsafe { asm!("msr sctlr_el3, $0; dsb sy; isb" : : "r" (sctlr)) };
+
+    Some(tt)
+}
+
+pub fn init_el2() -> Option<&'static [u64]> {
+    let mut addr = unsafe { &mut _end as *mut u64 as u64 };
+    if addr % PAGESIZE != 0 {
+        addr += PAGESIZE - (addr % PAGESIZE);
+    }
+    addr += 8192 * 8 * 10; // skip EL3's page table
+    let ptr = addr as *mut u64;
+    let tt  = unsafe { slice::from_raw_parts_mut(ptr, 8192 * 10) };
 }

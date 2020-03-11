@@ -2,16 +2,16 @@ use crate::driver;
 
 #[repr(C)]
 pub struct Context {
-    x0: u64,
-    x1: u64,
-    x2: u64,
-    x3: u64,
-    x4: u64,
-    x5: u64,
-    x6: u64,
-    x7: u64,
-    x8: u64,
-    x9: u64,
+     x0: u64,
+     x1: u64,
+     x2: u64,
+     x3: u64,
+     x4: u64,
+     x5: u64,
+     x6: u64,
+     x7: u64,
+     x8: u64,
+     x9: u64,
     x10: u64,
     x11: u64,
     x12: u64,
@@ -33,7 +33,7 @@ pub struct Context {
     x28: u64,
     x29: u64,
     x30: u64,  // link register
-    elr: u64,  // exception syndrome register
+    esr: u64,  // exception syndrome register
     spsr: u32, // saved program status register
     _unused: [u8; 12]
 }
@@ -63,10 +63,10 @@ pub fn curr_el_sp0_serror_el3(ctx: *mut Context) {
 #[no_mangle]
 pub fn curr_el_spx_sync_el3(ctx: *mut Context) {
     let r = unsafe { &*ctx };
-    driver::uart::puts("exception: SPX Sync\nX26 = ");
-    driver::uart::decimal(r.x26);
-    driver::uart::puts("\nX27 = ");
-    driver::uart::decimal(r.x27);
+    driver::uart::puts("exception: SPX Sync\nESR = 0x");
+    driver::uart::hex(r.esr);
+    driver::uart::puts("\nSPSR = 0x");
+    driver::uart::hex(r.spsr as u64);
     driver::uart::puts("\n");
 }
 
