@@ -33,9 +33,15 @@ pub struct Context {
     x28: u64,
     x29: u64,
     x30: u64,  // link register
-    esr: u64,  // exception syndrome register
+    elr: u64,  // exception link register
     spsr: u32, // saved program status register
     _unused: [u8; 12]
+}
+
+pub fn get_esr_el3() -> u32 {
+    let esr;
+    unsafe { asm!("mrs $0, esr_el3" : "=r"(esr)) };
+    esr
 }
 
 // from the current EL using the current SP0
@@ -63,10 +69,12 @@ pub fn curr_el_sp0_serror_el3(ctx: *mut Context) {
 #[no_mangle]
 pub fn curr_el_spx_sync_el3(ctx: *mut Context) {
     let r = unsafe { &*ctx };
-    driver::uart::puts("exception: SPX Sync\nESR = 0x");
-    driver::uart::hex(r.esr);
+    driver::uart::puts("exception: SPX Sync\nELR = 0x");
+    driver::uart::hex(r.elr);
     driver::uart::puts("\nSPSR = 0x");
     driver::uart::hex(r.spsr as u64);
+    driver::uart::puts("\nESR = 0x");
+    driver::uart::hex(get_esr_el3() as u64);
     driver::uart::puts("\n");
 }
 

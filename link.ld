@@ -1,6 +1,7 @@
 SECTIONS
 {
-    . = 0x80000;
+/*    . = 0x80000;*/
+    . = 0;
     .init : { KEEP(*(.init)) }
     .text : { *(.text .text.* .gnu.linkonce.t*) }
     .rodata : { *(.rodata .rodata.* .gnu.linkonce.r*) }
@@ -13,16 +14,14 @@ SECTIONS
         *(COMMON)
         __bss_end = .;
     }
-    .invalid : {
-        . = ALIGN(64 * 1024);
-        __invalid_start = .;
-        . = . + 1026 * 64;
-    }
     .stack : {
-        . = ALIGN(16);
-        __stack_end = .;
-        /* 2MiB space */
-        __stack_start = __stack_end + 1024 * 1024 * 2;
+        . = ALIGN(1024 * 64);
+        __stack_el3_end = .;
+        /* 8MiB space for EL3 */
+        __stack_el3_start = __stack_el3_end + 1024 * 1024 * 8;
+        /* 8MiB space for EL2 */
+        __stack_el2_end = .;
+        __stack_el2_start = __stack_el2_end + 1024 * 1024 * 8;
     }
     _end = .;
 
