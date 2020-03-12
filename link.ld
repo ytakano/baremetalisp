@@ -12,19 +12,24 @@ SECTIONS
         __bss_start = .;
         *(.bss .bss.*)
         *(COMMON)
-        __bss_end = .;
-    }
-    .stack : {
         . = ALIGN(1024 * 64);
-        __stack_el3_end = .;
+        __tt_el3_start = .;
+        __tt_el3_end   = __tt_el3_start + 1024 * 64 * 10;
+        __tt_el2_start = __tt_el3_end;
+        __tt_el2_end   = __tt_el2_start + 1024 * 64 * 10;
+        __bss_end      = __tt_el2_end;
+    }
+    .stack (NOLOAD) : {
+        . = ALIGN(1024 * 64);
         /* 8MiB space for EL3 */
+        __stack_el3_end   = .;
         __stack_el3_start = __stack_el3_end + 1024 * 1024 * 8;
         /* 8MiB space for EL2 */
-        __stack_el2_end = .;
+        __stack_el2_end   = __stack_el3_start;
         __stack_el2_start = __stack_el2_end + 1024 * 1024 * 8;
     }
-    _end = .;
+    _end = __stack_el2_start;
 
    /DISCARD/ : { *(.comment) *(.gnu*) *(.note*) *(.eh_frame*) }
 }
-__bss_size = (__bss_end - __bss_start)>>3;
+__bss_size = (__bss_end - __bss_start) >> 3;

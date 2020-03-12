@@ -4,16 +4,24 @@ use super::el;
 use crate::driver;
 
 extern "C" {
+    static mut __bss_start: u64;
+
     static mut __stack_el3_end: u64;
     static mut __stack_el3_start: u64;
     static mut __stack_el2_end: u64;
     static mut __stack_el2_start: u64;
+
+    static mut __tt_el3_end: u64;
+    static mut __tt_el3_start: u64;
+    static mut __tt_el2_end: u64;
+    static mut __tt_el2_start: u64;
+
     static mut _end: u64;
 }
 
 pub struct VMTables {
-    el3: &'static mut [u64],
-    el2: &'static mut [u64]
+    el2: &'static mut [u64],
+    el3: &'static mut [u64]
 }
 
 pub fn enabled() -> Option<bool> {
@@ -92,7 +100,41 @@ pub const DRIVER_MEM_START: usize =  0xfd000000; // maybe...
 #[cfg(feature = "raspi4")]
 pub const DRIVER_MEM_END:   usize = 0x100100000; // maybe...
 
+pub fn print_addr() {
+    let addr = unsafe { &mut __bss_start as *mut u64 as u64 };
+    driver::uart::puts("__bss_start       = ");
+    driver::uart::decimal(addr as u64);
+    driver::uart::puts("\n");
+
+    let addr = unsafe { &mut __tt_el3_start as *mut u64 as u64 };
+    driver::uart::puts("__tt_el3_start    = ");
+    driver::uart::decimal(addr as u64);
+    driver::uart::puts("\n");
+
+    let addr = unsafe { &mut __tt_el2_start as *mut u64 as u64 };
+    driver::uart::puts("__tt_el2_start    = ");
+    driver::uart::decimal(addr as u64);
+    driver::uart::puts("\n");
+
+    let addr = unsafe { &mut __stack_el3_start as *mut u64 as u64 };
+    driver::uart::puts("__stack_el3_start = ");
+    driver::uart::decimal(addr as u64);
+    driver::uart::puts("\n");
+
+    let addr = unsafe { &mut __stack_el2_start as *mut u64 as u64 };
+    driver::uart::puts("__stack_el2_start = ");
+    driver::uart::decimal(addr as u64);
+    driver::uart::puts("\n");
+
+    let addr = unsafe { &mut _end as *mut u64 as u64 };
+    driver::uart::puts("_end              = ");
+    driver::uart::decimal(addr as u64);
+    driver::uart::puts("\n");
+}
+
 pub fn init() -> Option<VMTables> {
+    print_addr();
+
     // check for 4k granule and at least 36 bits physical address bus
     let mut mmfr: u64;
     unsafe { asm!("mrs $0, id_aa64mmfr0_el1" : "=r" (mmfr)) };
@@ -107,29 +149,25 @@ pub fn init() -> Option<VMTables> {
         return None;
     }
 
-//    Some(VMTables{el3: init_el3(), el2: init_el2()})
-    Some(VMTables{el3: init_el3(), el2: init_el2()} )
+    Some(VMTables{el2: init_el2(), el3: init_el3()} )
 }
 
 fn init_table_flat(tt: &'static mut [u64], addr: u64) -> &'static mut [u64] {
-    // zero fill
-    for i in 0..(8192 * 10 - 1) {
-        tt[i] = 0;
-    }
+    let end = unsafe { &mut _end as *mut u64 as usize } >> 16;
 
     // L2 table, 4GiB + 512MiB space
     for i in 0..8 {
         tt[i] = addr + (i as u64 + 1) * 8192 * 8 | 0b11;
     }
 
-    // L3 table, 32MiB space, secure kernel, and hyper visor
-    for i in 0..511 {
+    // L3 table, secure kernel, and hyper visor
+    for i in 0..(end - 1) {
         tt[i + 8192] = (i * 64 * 1024) as u64 | 0b11 |
             FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_MEM;
     }
 
     // L3 table
-    for i in 512..(8192 * 8 - 1) {
+    for i in end..(8192 * 8 - 1) {
         tt[i + 8192] = (i * 64 * 1024) as u64 | 0b11 |
             FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_RW | FLAG_L3_ATTR_NC;
     }
@@ -181,26 +219,36 @@ fn update_sctlr(sctlr: u64) -> u64 {
     )
 }
 
-/// set up EL2's page table, 64KB page, level 2 and 3 translation tables,
+/// set up EL3's page table, 64KB page, level 2 and 3 translation tables,
 /// assume 2MiB stack space per CPU
 fn init_el3() -> &'static mut [u64] {
-    let mut addr = unsafe { &mut _end as *mut u64 as u64 };
-    if addr % PAGESIZE != 0 {
-        addr += PAGESIZE - (addr % PAGESIZE);
-    }
-    let ptr = addr as *mut u64;
-    let tt  = unsafe { slice::from_raw_parts_mut(ptr, 8192 * 10) };
-    let tt  = init_table_flat(tt, addr);
+    let addr = unsafe { &mut __tt_el3_start as *mut u64 as u64 };
+    let ptr  = addr as *mut u64;
+    let tt   = unsafe { slice::from_raw_parts_mut(ptr, 8192 * 10) };
+    let tt   = init_table_flat(tt, addr);
 
+    // detect stack over flow
     let end = unsafe { &mut __stack_el3_end as *mut u64 as usize };
     let start = unsafe { &mut __stack_el3_start as *mut u64 as usize };
 
     // #CPU
     let nc = (start - end) >> 21; // div by 2MiB (32 pages)
-
-    // stack over flow
     for i in 0..(nc - 1) {
         tt[(end >> 16) + i * 32 + 8192] = 0;
+    }
+
+    // mask EL2's stack
+    let end = unsafe { &mut __stack_el2_end as *mut u64 as usize } >> 16; // div by 64KiB
+    let start = unsafe { &mut __stack_el2_start as *mut u64 as usize } >> 16; // div by 64KiB
+    for i in end..(start - 1) {
+        tt[i + 8192] = 0;
+    }
+
+    // mask EL2's transition table
+    let end = unsafe { &mut __tt_el2_end as *mut u64 as usize } >> 16; // div by 64KiB
+    let start = unsafe { &mut __tt_el2_start as *mut u64 as usize } >> 16; // div by 64KiB
+    for i in start..(end - 1) {
+        tt[i + 8192] = 0;
     }
 
     // first, set Memory Attributes array, indexed by PT_MEM, PT_DEV, PT_NC in our example
@@ -221,27 +269,36 @@ fn init_el3() -> &'static mut [u64] {
     tt
 }
 
-/// set up EL3's page table, 64KB page, level 2 and 3 translation tables,
+/// set up EL2's page table, 64KB page, level 2 and 3 translation tables,
 /// assume 2MiB stack space per CPU
 fn init_el2() -> &'static mut [u64] {
-    let mut addr = unsafe { &mut _end as *mut u64 as u64 };
-    if addr % PAGESIZE != 0 {
-        addr += PAGESIZE - (addr % PAGESIZE);
-    }
-    addr += 8192 * 8 * 10; // skip EL3's page table
-    let ptr = addr as *mut u64;
-    let tt  = unsafe { slice::from_raw_parts_mut(ptr, 8192 * 10) };
-    let tt  = init_table_flat(tt, addr);
+    let addr = unsafe { &mut __tt_el2_start as *mut u64 as u64 };
+    let ptr  = addr as *mut u64;
+    let tt   = unsafe { slice::from_raw_parts_mut(ptr, 8192 * 10) };
+    let tt   = init_table_flat(tt, addr);
 
+    // detect stack over flow
     let end = unsafe { &mut __stack_el2_end as *mut u64 as usize };
     let start = unsafe { &mut __stack_el2_start as *mut u64 as usize };
 
     // #CPU
     let nc = (start - end) >> 21; // div by 2MiB (32 pages)
-
-    // stack over flow
     for i in 0..(nc - 1) {
         tt[(end >> 16) + i * 32 + 8192] = 0;
+    }
+
+    // mask EL3's stack
+    let end = unsafe { &mut __stack_el3_end as *mut u64 as usize } >> 16; // div by 64KiB
+    let start = unsafe { &mut __stack_el3_start as *mut u64 as usize } >> 16; // div by 64KiB
+    for i in end..(start - 1) {
+        tt[i + 8192] = 0;
+    }
+
+    // mask EL3's transition table
+    let end = unsafe { &mut __tt_el3_end as *mut u64 as usize } >> 16; // div by 64KiB
+    let start = unsafe { &mut __tt_el3_start as *mut u64 as usize } >> 16; // div by 64KiB
+    for i in start..(end - 1) {
+        tt[i + 8192] = 0;
     }
 
     // first, set Memory Attributes array, indexed by PT_MEM, PT_DEV, PT_NC in our example
