@@ -38,6 +38,9 @@ baremetalisp: $(RUSTLIB) $(MMU_OBJ) $(ASM_OBJ)
 kernel8.img: baremetalisp
 	aarch64-linux-gnu-objcopy -O binary baremetalisp kernel8.img
 
+rmobj: FORCE
+	rm -f baremetalisp kernel8.img *.o
+
 clean:
 	cargo clean
 	rm -f baremetalisp kernel8.img *.o

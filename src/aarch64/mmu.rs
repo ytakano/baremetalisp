@@ -21,6 +21,7 @@ extern "C" {
 
 pub struct VMTables {
     el2: &'static mut [u64],
+#[cfg(feature = "raspi4")]
     el3: &'static mut [u64]
 }
 
@@ -149,7 +150,13 @@ pub fn init() -> Option<VMTables> {
         return None;
     }
 
-    Some(VMTables{el2: init_el2(), el3: init_el3()} )
+#[cfg(any(feature = "raspi3", feature = "raspi2"))]
+    let ret = Some(VMTables{el2: init_el2()} );
+
+#[cfg(feature = "raspi4")]
+    let ret = Some(VMTables{el2: init_el2(), el3: init_el3()} );
+
+    ret
 }
 
 fn init_table_flat(tt: &'static mut [u64], addr: u64) -> &'static mut [u64] {
@@ -219,6 +226,44 @@ fn update_sctlr(sctlr: u64) -> u64 {
     )
 }
 
+/// mask EL2's stack and transition table
+fn mask_el2(tt: &'static mut [u64]) -> &'static mut [u64] {
+    // mask EL2's stack
+    let end = unsafe { &mut __stack_el2_end as *mut u64 as usize } >> 16; // div by 64KiB
+    let start = unsafe { &mut __stack_el2_start as *mut u64 as usize } >> 16; // div by 64KiB
+    for i in end..(start - 1) {
+        tt[i + 8192] = 0;
+    }
+
+    // mask EL2's transition table
+    let end = unsafe { &mut __tt_el2_end as *mut u64 as usize } >> 16; // div by 64KiB
+    let start = unsafe { &mut __tt_el2_start as *mut u64 as usize } >> 16; // div by 64KiB
+    for i in start..(end - 1) {
+        tt[i + 8192] = 0;
+    }
+
+    tt
+}
+
+/// mask EL3's stack and transition table
+fn mask_el3(tt: &'static mut [u64]) -> &'static mut [u64] {
+    // mask EL3's stack
+    let end = unsafe { &mut __stack_el3_end as *mut u64 as usize } >> 16; // div by 64KiB
+    let start = unsafe { &mut __stack_el3_start as *mut u64 as usize } >> 16; // div by 64KiB
+    for i in end..(start - 1) {
+        tt[i + 8192] = 0;
+    }
+
+    // mask EL3's transition table
+    let end = unsafe { &mut __tt_el3_end as *mut u64 as usize } >> 16; // div by 64KiB
+    let start = unsafe { &mut __tt_el3_start as *mut u64 as usize } >> 16; // div by 64KiB
+    for i in start..(end - 1) {
+        tt[i + 8192] = 0;
+    }
+
+    tt
+}
+
 /// set up EL3's page table, 64KB page, level 2 and 3 translation tables,
 /// assume 2MiB stack space per CPU
 fn init_el3() -> &'static mut [u64] {
@@ -237,19 +282,7 @@ fn init_el3() -> &'static mut [u64] {
         tt[(end >> 16) + i * 32 + 8192] = 0;
     }
 
-    // mask EL2's stack
-    let end = unsafe { &mut __stack_el2_end as *mut u64 as usize } >> 16; // div by 64KiB
-    let start = unsafe { &mut __stack_el2_start as *mut u64 as usize } >> 16; // div by 64KiB
-    for i in end..(start - 1) {
-        tt[i + 8192] = 0;
-    }
-
-    // mask EL2's transition table
-    let end = unsafe { &mut __tt_el2_end as *mut u64 as usize } >> 16; // div by 64KiB
-    let start = unsafe { &mut __tt_el2_start as *mut u64 as usize } >> 16; // div by 64KiB
-    for i in start..(end - 1) {
-        tt[i + 8192] = 0;
-    }
+    let tt = mask_el2(tt);
 
     // first, set Memory Attributes array, indexed by PT_MEM, PT_DEV, PT_NC in our example
     unsafe { asm!("msr mair_el3, $0" : : "r" (get_mair())) };
@@ -287,19 +320,7 @@ fn init_el2() -> &'static mut [u64] {
         tt[(end >> 16) + i * 32 + 8192] = 0;
     }
 
-    // mask EL3's stack
-    let end = unsafe { &mut __stack_el3_end as *mut u64 as usize } >> 16; // div by 64KiB
-    let start = unsafe { &mut __stack_el3_start as *mut u64 as usize } >> 16; // div by 64KiB
-    for i in end..(start - 1) {
-        tt[i + 8192] = 0;
-    }
-
-    // mask EL3's transition table
-    let end = unsafe { &mut __tt_el3_end as *mut u64 as usize } >> 16; // div by 64KiB
-    let start = unsafe { &mut __tt_el3_start as *mut u64 as usize } >> 16; // div by 64KiB
-    for i in start..(end - 1) {
-        tt[i + 8192] = 0;
-    }
+    let tt = mask_el3(tt);
 
     // first, set Memory Attributes array, indexed by PT_MEM, PT_DEV, PT_NC in our example
     unsafe { asm!("msr mair_el2, $0" : : "r" (get_mair())) };

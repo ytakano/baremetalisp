@@ -185,10 +185,15 @@ _start:
 
 .L4:
     // set exception vector
-#if defined(NOEL3) || defined(raspi3) || defined(raspi2)
-    ldr     x1, =exception_vector_el3
+    ldr     x1, =exception_vector_el1
+    mov     x2, #(0xFFFFFC << 40) // 64KiB page tables, 22 MSB bits are 1
+    add     x1, x1, x2
+    msr     vbar_el1, x1
+
+    ldr     x1, =exception_vector_el2
     msr     vbar_el2, x1
 
+#if defined(NOEL3) || defined(raspi3) || defined(raspi2)
     mrs     x1, hcr_el2
     orr     x1, x1, #0b111000 // AMO, IMO, FMO
     msr     hcr_el2, x1
@@ -235,7 +240,7 @@ setup_gic:
 
 #endif
 
-.macro CALL_WITH_CONTEXT handler
+.macro CALL_WITH_CONTEXT handler elr_reg spsr_reg
     // Make room on the stack for the exception context.
     sub     sp,  sp,  #16 * 17
 
@@ -256,14 +261,9 @@ setup_gic:
     stp     x26, x27, [sp, #16 * 13]
     stp     x28, x29, [sp, #16 * 14]
 
-    // Add the exception link register (ELR_EL3) and the saved program status (SPSR_EL3).
-#if defined(NOEL3) || defined(raspi3) || defined(raspi2)
-    mrs     x1, ELR_EL2
-    mrs     x2, SPSR_EL2
-#else
-    mrs     x1, ELR_EL3
-    mrs     x2, SPSR_EL3
-#endif
+    // Add the exception link register and the saved program status.
+    mrs     x1, \elr_reg
+    mrs     x2, \spsr_reg
 
     stp     lr,  x1,  [sp, #16 * 15]
     str     w2,       [sp, #16 * 16]
@@ -274,6 +274,12 @@ setup_gic:
     // Call `\handler`.
     bl      \handler
 
+    ldr     w19,      [sp, #16 * 16]
+    ldp     lr,  x20, [sp, #16 * 15]
+
+    msr     \spsr_reg, x19
+    msr     \elr_reg,  x20
+
     // After returning from exception handling code, replay the saved context and return via `eret`.
     b       exception_restore_context
 .endm
@@ -282,17 +288,6 @@ setup_gic:
 // Helper functions
 //--------------------------------------------------------------------------------------------------
 exception_restore_context:
-    ldr     w19,      [sp, #16 * 16]
-    ldp     lr,  x20, [sp, #16 * 15]
-
-#if defined(NOEL3) || defined(raspi3) || defined(raspi2)
-    msr     SPSR_EL2, x19
-    msr     ELR_EL2,  x20
-#else
-    msr     SPSR_EL3, x19
-    msr     ELR_EL3,  x20
-#endif
-
     ldp     x0,  x1,  [sp, #16 * 0]
     ldp     x2,  x3,  [sp, #16 * 1]
     ldp     x4,  x5,  [sp, #16 * 2]
@@ -318,40 +313,122 @@ exception_restore_context:
     .balign 0x800
 exception_vector_el3:
     // from the current EL using the current SP0
-    CALL_WITH_CONTEXT curr_el_sp0_sync_el3
+    CALL_WITH_CONTEXT curr_el_sp0_sync_el3 ELR_EL3 SPSR_EL3
     .balign 0x80
-    CALL_WITH_CONTEXT curr_el_sp0_irq_el3
+    CALL_WITH_CONTEXT curr_el_sp0_irq_el3 ELR_EL3 SPSR_EL3
     .balign 0x80
-    CALL_WITH_CONTEXT curr_el_sp0_fiq_el3
+    CALL_WITH_CONTEXT curr_el_sp0_fiq_el3 ELR_EL3 SPSR_EL3
     .balign 0x80
-    CALL_WITH_CONTEXT curr_el_sp0_serror_el3
+    CALL_WITH_CONTEXT curr_el_sp0_serror_el3 ELR_EL3 SPSR_EL3
 
     // from the current EL using the current SP
     .balign 0x80
-    CALL_WITH_CONTEXT curr_el_spx_sync_el3
+    CALL_WITH_CONTEXT curr_el_spx_sync_el3 ELR_EL3 SPSR_EL3
     .balign 0x80
-    CALL_WITH_CONTEXT curr_el_spx_irq_el3
+    CALL_WITH_CONTEXT curr_el_spx_irq_el3 ELR_EL3 SPSR_EL3
     .balign 0x80
-    CALL_WITH_CONTEXT curr_el_spx_fiq_el3
+    CALL_WITH_CONTEXT curr_el_spx_fiq_el3 ELR_EL3 SPSR_EL3
     .balign 0x80
-    CALL_WITH_CONTEXT curr_el_spx_serror_el3
+    CALL_WITH_CONTEXT curr_el_spx_serror_el3 ELR_EL3 SPSR_EL3
 
     // from lower EL (AArch64)
     .balign 0x80
-    CALL_WITH_CONTEXT lower_el_aarch64_sync_el3
+    CALL_WITH_CONTEXT lower_el_aarch64_sync_el3 ELR_EL3 SPSR_EL3
     .balign 0x80
-    CALL_WITH_CONTEXT lower_el_aarch64_irq_el3
+    CALL_WITH_CONTEXT lower_el_aarch64_irq_el3 ELR_EL3 SPSR_EL3
     .balign 0x80
-    CALL_WITH_CONTEXT lower_el_aarch64_fiq_el3
+    CALL_WITH_CONTEXT lower_el_aarch64_fiq_el3 ELR_EL3 SPSR_EL3
     .balign 0x80
-    CALL_WITH_CONTEXT lower_el_aarch64_serror_el3
+    CALL_WITH_CONTEXT lower_el_aarch64_serror_el3 ELR_EL3 SPSR_EL3
 
     // from lower EL (AArch32)
     .balign 0x80
-    CALL_WITH_CONTEXT lower_el_aarch32_sync_el3
+    CALL_WITH_CONTEXT lower_el_aarch32_sync_el3 ELR_EL3 SPSR_EL3
     .balign 0x80
-    CALL_WITH_CONTEXT lower_el_aarch32_irq_el3
+    CALL_WITH_CONTEXT lower_el_aarch32_irq_el3 ELR_EL3 SPSR_EL3
     .balign 0x80
-    CALL_WITH_CONTEXT lower_el_aarch32_fiq_el3
+    CALL_WITH_CONTEXT lower_el_aarch32_fiq_el3 ELR_EL3 SPSR_EL3
     .balign 0x80
-    CALL_WITH_CONTEXT lower_el_aarch32_serror_el3
+    CALL_WITH_CONTEXT lower_el_aarch32_serror_el3 ELR_EL3 SPSR_EL3
+
+    .balign 0x800
+exception_vector_el2:
+    // from the current EL using the current SP0
+    CALL_WITH_CONTEXT curr_el_sp0_sync_el2 ELR_EL2 SPSR_EL2
+    .balign 0x80
+    CALL_WITH_CONTEXT curr_el_sp0_irq_el2 ELR_EL2 SPSR_EL2
+    .balign 0x80
+    CALL_WITH_CONTEXT curr_el_sp0_fiq_el2 ELR_EL2 SPSR_EL2
+    .balign 0x80
+    CALL_WITH_CONTEXT curr_el_sp0_serror_el2 ELR_EL2 SPSR_EL2
+
+    // from the current EL using the current SP
+    .balign 0x80
+    CALL_WITH_CONTEXT curr_el_spx_sync_el2 ELR_EL2 SPSR_EL2
+    .balign 0x80
+    CALL_WITH_CONTEXT curr_el_spx_irq_el2 ELR_EL2 SPSR_EL2
+    .balign 0x80
+    CALL_WITH_CONTEXT curr_el_spx_fiq_el2 ELR_EL2 SPSR_EL2
+    .balign 0x80
+    CALL_WITH_CONTEXT curr_el_spx_serror_el2 ELR_EL2 SPSR_EL2
+
+    // from lower EL (AArch64)
+    .balign 0x80
+    CALL_WITH_CONTEXT lower_el_aarch64_sync_el2 ELR_EL2 SPSR_EL2
+    .balign 0x80
+    CALL_WITH_CONTEXT lower_el_aarch64_irq_el2 ELR_EL2 SPSR_EL2
+    .balign 0x80
+    CALL_WITH_CONTEXT lower_el_aarch64_fiq_el2 ELR_EL2 SPSR_EL2
+    .balign 0x80
+    CALL_WITH_CONTEXT lower_el_aarch64_serror_el2 ELR_EL2 SPSR_EL2
+
+    // from lower EL (AArch32)
+    .balign 0x80
+    CALL_WITH_CONTEXT lower_el_aarch32_sync_el2 ELR_EL2 SPSR_EL2
+    .balign 0x80
+    CALL_WITH_CONTEXT lower_el_aarch32_irq_el2 ELR_EL2 SPSR_EL2
+    .balign 0x80
+    CALL_WITH_CONTEXT lower_el_aarch32_fiq_el2 ELR_EL2 SPSR_EL2
+    .balign 0x80
+    CALL_WITH_CONTEXT lower_el_aarch32_serror_el2 ELR_EL2 SPSR_EL2
+
+    .balign 0x800
+exception_vector_el1:
+    // from the current EL using the current SP0
+    CALL_WITH_CONTEXT curr_el_sp0_sync_el1 ELR_EL1 SPSR_EL1
+    .balign 0x80
+    CALL_WITH_CONTEXT curr_el_sp0_irq_el1 ELR_EL1 SPSR_EL1
+    .balign 0x80
+    CALL_WITH_CONTEXT curr_el_sp0_fiq_el1 ELR_EL1 SPSR_EL1
+    .balign 0x80
+    CALL_WITH_CONTEXT curr_el_sp0_serror_el1 ELR_EL1 SPSR_EL1
+
+    // from the current EL using the current SP
+    .balign 0x80
+    CALL_WITH_CONTEXT curr_el_spx_sync_el1 ELR_EL1 SPSR_EL1
+    .balign 0x80
+    CALL_WITH_CONTEXT curr_el_spx_irq_el1 ELR_EL1 SPSR_EL1
+    .balign 0x80
+    CALL_WITH_CONTEXT curr_el_spx_fiq_el1 ELR_EL1 SPSR_EL1
+    .balign 0x80
+    CALL_WITH_CONTEXT curr_el_spx_serror_el1 ELR_EL1 SPSR_EL1
+
+    // from lower EL (AArch64)
+    .balign 0x80
+    CALL_WITH_CONTEXT lower_el_aarch64_sync_el1 ELR_EL1 SPSR_EL1
+    .balign 0x80
+    CALL_WITH_CONTEXT lower_el_aarch64_irq_el1 ELR_EL1 SPSR_EL1
+    .balign 0x80
+    CALL_WITH_CONTEXT lower_el_aarch64_fiq_el1 ELR_EL1 SPSR_EL1
+    .balign 0x80
+    CALL_WITH_CONTEXT lower_el_aarch64_serror_el1 ELR_EL1 SPSR_EL1
+
+    // from lower EL (AArch32)
+    .balign 0x80
+    CALL_WITH_CONTEXT lower_el_aarch32_sync_el1 ELR_EL1 SPSR_EL1
+    .balign 0x80
+    CALL_WITH_CONTEXT lower_el_aarch32_irq_el1 ELR_EL1 SPSR_EL1
+    .balign 0x80
+    CALL_WITH_CONTEXT lower_el_aarch32_fiq_el1 ELR_EL1 SPSR_EL1
+    .balign 0x80
+    CALL_WITH_CONTEXT lower_el_aarch32_serror_el1 ELR_EL1 SPSR_EL1
