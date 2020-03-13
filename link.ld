@@ -17,7 +17,9 @@ SECTIONS
         __tt_el3_end   = __tt_el3_start + 1024 * 64 * 10;
         __tt_el2_start = __tt_el3_end;
         __tt_el2_end   = __tt_el2_start + 1024 * 64 * 10;
-        __bss_end      = __tt_el2_end;
+        __tt_el1_start = __tt_el2_end;
+        __tt_el1_end   = __tt_el1_start + 1024 * 64 * 10;
+        __bss_end      = __tt_el1_end;
     }
     .stack (NOLOAD) : {
         . = ALIGN(1024 * 64);
@@ -27,8 +29,11 @@ SECTIONS
         /* 8MiB space for EL2 */
         __stack_el2_end   = __stack_el3_start;
         __stack_el2_start = __stack_el2_end + 1024 * 1024 * 8;
+        /* 8MiB space for EL1 */
+        __stack_el1_end   = __stack_el2_start;
+        __stack_el1_start = __stack_el1_end + 1024 * 1024 * 8;
     }
-    _end = __stack_el2_start;
+    _end = __stack_el1_start;
 
    /DISCARD/ : { *(.comment) *(.gnu*) *(.note*) *(.eh_frame*) }
 }
