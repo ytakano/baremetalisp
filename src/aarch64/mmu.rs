@@ -23,6 +23,56 @@ extern "C" {
     static mut _end: u64;
 }
 
+#[repr(C)]
+struct Pages63 {
+    vacancy: u64,
+    pages: [u64; 63]
+}
+
+#[repr(C)]
+#[repr(align(65536))]
+struct PageManager {
+    addr_min: usize,
+    addr_max: usize,
+    p63: [Pages63; 127]
+}
+
+/// counting leading zero
+fn clz(n: u64) -> u64 {
+    let rd: u64;
+    unsafe { asm!("clz $0, $1": "=r"(rd) : "r"(n)) }
+    rd
+}
+
+impl PageManager {
+    fn alloc(&mut self) -> Option<usize> {
+        let mut idx1 = 0;
+        for pgs in self.p63.iter_mut() {
+            if pgs.vacancy == !1 {
+                idx1 += 1;
+                continue;
+            } else {
+                let idx2 = clz(!pgs.vacancy) as usize;
+                let idx3 = clz(!pgs.pages[idx2]) as usize;
+
+                pgs.pages[idx2] |= 1 << (63 - idx3);
+                if pgs.pages[idx2] == !0 {
+                    pgs.vacancy |= 1 << (63 - idx2);
+                }
+
+                let addr = 64 * 1024 * 63 * 64 * idx1 + 64 * 1024 * 64 * idx2 + 64 * 1024 * idx3 + self.addr_min;
+                if addr > self.addr_max {
+                    return None;
+                } else {
+                    return Some(addr);
+                }
+            }
+        }
+
+        None
+    }
+}
+
 pub struct VMTables {
     el1: &'static mut [u64],
     el2: &'static mut [u64],

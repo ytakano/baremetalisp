@@ -10,8 +10,8 @@ SECTIONS
     .bss (NOLOAD) : {
         . = ALIGN(1024 * 64);
         __bss_start = .;
-        __non_cache_start = .;
-        __tt_el3_start = __non_cache_start + 1024 * 64;
+        __mng_pages    = .;
+        __tt_el3_start = __mng_pages + 1024 * 64;
         __tt_el3_end   = __tt_el3_start + 1024 * 64 * 10;
         __tt_el2_start = __tt_el3_end;
         __tt_el2_end   = __tt_el2_start + 1024 * 64 * 10;
