@@ -48,6 +48,53 @@ pub fn enabled() -> Option<bool> {
     }
 }
 
+fn get_sctlr() -> u32 {
+    let mut sctlr: u32 = 0;
+    let el = el::get_current_el();
+    if el == 1 {
+        unsafe { asm!("mrs $0, SCTLR_EL1" : "=r"(sctlr)) };
+    } else if el == 2 {
+        unsafe { asm!("mrs $0, SCTLR_EL2" : "=r"(sctlr)) };
+    } else if el == 3 {
+        unsafe { asm!("mrs $0, SCTLR_EL3" : "=r"(sctlr)) };
+    }
+
+    sctlr
+}
+
+fn set_sctlr(sctlr: u32) {
+    let el = el::get_current_el();
+    if el == 1 {
+        unsafe { asm!("msr SCTLR_EL1, $0" : : "r"(sctlr)) };
+    } else if el == 2 {
+        unsafe { asm!("msr SCTLR_EL2, $0" : : "r"(sctlr)) };
+    } else if el == 3 {
+        unsafe { asm!("msr SCTLR_EL3, $0" : : "r"(sctlr)) };
+    }
+}
+
+/// disable data cache, then enable it when dropping
+pub struct DisableCache;
+
+impl DisableCache {
+    pub fn new() -> DisableCache {
+        driver::uart::puts("new!\n");
+        let mut sctlr = get_sctlr();
+        sctlr &= !(1 << 2);
+        set_sctlr(sctlr);
+        DisableCache{}
+    }
+}
+
+impl Drop for DisableCache {
+    fn drop(&mut self) {
+        driver::uart::puts("drop!\n");
+        let mut sctlr = get_sctlr();
+        sctlr |= 1 << 2;
+        set_sctlr(sctlr);
+    }
+}
+
 // 64KB page
 // level 2 and 3 translation tables
 
@@ -229,7 +276,7 @@ fn update_sctlr(sctlr: u64) -> u64 {
     let sctlr =
         sctlr   |
         1 << 12 | // set I, instruction cache
-//        1 <<  2 | // set C, data cache
+        1 <<  2 | // set C, data cache
         1;        // set M, enable MMU
     sctlr & !(
         1 << 25 | // clear EE

@@ -17,10 +17,6 @@ fn func() {
     ()
 }
 
-extern "C" {
-    fn init_mmu() -> ();
-}
-
 #[no_mangle]
 pub fn entry() -> ! {
     let ctx = driver::init();

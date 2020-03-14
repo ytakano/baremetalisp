@@ -6,6 +6,8 @@ use core::slice;
 use super::memory::*;
 use super::graphics;
 
+use crate::aarch64::mmu;
+
 // see https://github.com/raspberrypi/firmware/wiki/Mailbox-property-interface
 
 const MBOX_REQUEST: u32 = 0;
@@ -89,6 +91,8 @@ struct Mbox<T>(T);
 
 /// get board's serial number
 pub fn get_serial() -> Option<u64> {
+    let _dc = mmu::DisableCache::new();
+
     // get the board's unique serial number with a mailbox call
     let mut m = Mbox::<[u32; 8]>([
         8 * 4,              // length of the message
@@ -110,6 +114,8 @@ pub fn get_serial() -> Option<u64> {
 }
 
 fn get_len7_u32(tag: u32) -> Option<u32> {
+    let _dc = mmu::DisableCache::new();
+
     let mut m = Mbox::<[u32; 7]>([
         7 * 4,        // length of the message
         MBOX_REQUEST, // this is a request message
@@ -144,6 +150,8 @@ pub fn get_board_rev() -> Option<u32> {
 
 /// get memory size
 pub fn get_memory() -> usize {
+    let _dc = mmu::DisableCache::new();
+
     match get_board_rev() {
         Some(rev) => {
             // https://www.raspberrypi.org/documentation/hardware/raspberrypi/revision-codes/README.md
@@ -180,6 +188,8 @@ pub fn get_memory() -> usize {
 }
 
 pub fn set_uart_clock(clock: u32) {
+    let _dc = mmu::DisableCache::new();
+
     let mut m = Mbox::<[u32; 9]>([
         9 * 4,
         MBOX_REQUEST,
@@ -197,6 +207,8 @@ pub fn set_uart_clock(clock: u32) {
 
 /// power off a device
 pub fn set_power_off(n: u32) {
+    let _dc = mmu::DisableCache::new();
+
     let mut m = Mbox::<[u32; 8]>([
         8 * 4,             // length of the message
         MBOX_REQUEST,      // this is a request message
@@ -214,6 +226,8 @@ pub fn set_power_off(n: u32) {
 /// set display's setting
 pub fn set_display(width_phy: u32, height_phy: u32, width_virt: u32, height_virt: u32,
                    offset_x: u32, offset_y: u32) -> Option<graphics::Display> {
+    let _dc = mmu::DisableCache::new();
+
     let mut m = Mbox::<[u32; 35]>([
         35 * 4,
         MBOX_REQUEST,
