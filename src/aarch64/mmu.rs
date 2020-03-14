@@ -10,16 +10,21 @@ extern "C" {
     static mut __stack_el3_start: u64;
     static mut __stack_el2_end: u64;
     static mut __stack_el2_start: u64;
+    static mut __stack_el1_end: u64;
+    static mut __stack_el1_start: u64;
 
     static mut __tt_el3_end: u64;
     static mut __tt_el3_start: u64;
     static mut __tt_el2_end: u64;
     static mut __tt_el2_start: u64;
+    static mut __tt_el1_end: u64;
+    static mut __tt_el1_start: u64;
 
     static mut _end: u64;
 }
 
 pub struct VMTables {
+    el1: &'static mut [u64],
     el2: &'static mut [u64],
 #[cfg(feature = "raspi4")]
     el3: &'static mut [u64]
@@ -99,7 +104,7 @@ pub const DRIVER_MEM_END:   usize =  0x40000000;
 pub const DRIVER_MEM_START: usize =  0xfd000000; // maybe...
 
 #[cfg(feature = "raspi4")]
-pub const DRIVER_MEM_END:   usize = 0x100100000; // maybe...
+pub const DRIVER_MEM_END:   usize = 0x100000000; // maybe...
 
 pub fn print_addr() {
     let addr = unsafe { &mut __bss_start as *mut u64 as u64 };
@@ -151,30 +156,37 @@ pub fn init() -> Option<VMTables> {
     }
 
 #[cfg(any(feature = "raspi3", feature = "raspi2"))]
-    let ret = Some(VMTables{el2: init_el2()} );
+    let ret = Some(VMTables{el1: init_el1(), el2: init_el2()} );
 
 #[cfg(feature = "raspi4")]
-    let ret = Some(VMTables{el2: init_el2(), el3: init_el3()} );
+    let ret = Some(VMTables{el1: init_el1(), el2: init_el2(), el3: init_el3()} );
 
     ret
 }
 
 fn init_table_flat(tt: &'static mut [u64], addr: u64) -> &'static mut [u64] {
+    let bss_start = unsafe { &mut __bss_start as *mut u64 as usize } >> 16;
     let end = unsafe { &mut _end as *mut u64 as usize } >> 16;
 
-    // L2 table, 4GiB + 512MiB space
+    // L2 table, 4GiB space
     for i in 0..8 {
         tt[i] = addr + (i as u64 + 1) * 8192 * 8 | 0b11;
     }
 
-    // L3 table, secure kernel, and hyper visor
-    for i in 0..(end - 1) {
+    // L3 table, instructions and read only data
+    for i in 0..bss_start {
+        tt[i + 8192] = (i * 64 * 1024) as u64 | 0b11 |
+            FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_R_N | FLAG_L3_ATTR_MEM;
+    }
+
+    // L3 table, data
+    for i in bss_start..end {
         tt[i + 8192] = (i * 64 * 1024) as u64 | 0b11 |
             FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_MEM;
     }
 
     // L3 table
-    for i in end..(8192 * 8 - 1) {
+    for i in end..(8192 * 8) {
         tt[i + 8192] = (i * 64 * 1024) as u64 | 0b11 |
             FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_RW | FLAG_L3_ATTR_NC;
     }
@@ -197,6 +209,7 @@ fn get_mair() -> u64 {
     (0x44 << 16)   // AttrIdx=2: non cacheable
 }
 
+/// for TCR_EL2 and TCR_EL2
 fn get_tcr() -> u64 {
     let mut mmfr: u64;
     unsafe { asm!("mrs $0, id_aa64mmfr0_el1" : "=r" (mmfr)) };
@@ -264,6 +277,25 @@ fn mask_el3(tt: &'static mut [u64]) -> &'static mut [u64] {
     tt
 }
 
+/// mask EL1's stack and transition table
+fn mask_el1(tt: &'static mut [u64]) -> &'static mut [u64] {
+    // mask EL1's stack
+    let end = unsafe { &mut __stack_el1_end as *mut u64 as usize } >> 16; // div by 64KiB
+    let start = unsafe { &mut __stack_el1_start as *mut u64 as usize } >> 16; // div by 64KiB
+    for i in end..(start - 1) {
+        tt[i + 8192] = 0;
+    }
+
+    // mask EL1's transition table
+    let end = unsafe { &mut __tt_el1_end as *mut u64 as usize } >> 16; // div by 64KiB
+    let start = unsafe { &mut __tt_el1_start as *mut u64 as usize } >> 16; // div by 64KiB
+    for i in start..(end - 1) {
+        tt[i + 8192] = 0;
+    }
+
+    tt
+}
+
 /// set up EL3's page table, 64KB page, level 2 and 3 translation tables,
 /// assume 2MiB stack space per CPU
 fn init_el3() -> &'static mut [u64] {
@@ -282,6 +314,7 @@ fn init_el3() -> &'static mut [u64] {
         tt[(end >> 16) + i * 32 + 8192] = 0;
     }
 
+    let tt = mask_el1(tt);
     let tt = mask_el2(tt);
 
     // first, set Memory Attributes array, indexed by PT_MEM, PT_DEV, PT_NC in our example
@@ -320,6 +353,7 @@ fn init_el2() -> &'static mut [u64] {
         tt[(end >> 16) + i * 32 + 8192] = 0;
     }
 
+    let tt = mask_el1(tt);
     let tt = mask_el3(tt);
 
     // first, set Memory Attributes array, indexed by PT_MEM, PT_DEV, PT_NC in our example
@@ -336,6 +370,66 @@ fn init_el2() -> &'static mut [u64] {
     unsafe { asm!("dsb ish; isb; mrs $0, sctlr_el2" : "=r" (sctlr)) };
     sctlr = update_sctlr(sctlr);
     unsafe { asm!("msr sctlr_el2, $0; dsb sy; isb" : : "r" (sctlr)) };
+
+    tt
+}
+
+/// set up EL1's page table, 64KB page, level 2 and 3 translation tables,
+/// assume 2MiB stack space per CPU
+fn init_el1() -> &'static mut [u64] {
+    let addr = unsafe { &mut __tt_el1_start as *mut u64 as u64 };
+    let ptr  = addr as *mut u64;
+    let tt   = unsafe { slice::from_raw_parts_mut(ptr, 8192 * 10) };
+    let tt   = init_table_flat(tt, addr);
+
+    // detect stack over flow
+    let end = unsafe { &mut __stack_el1_end as *mut u64 as usize };
+    let start = unsafe { &mut __stack_el1_start as *mut u64 as usize };
+
+    // #CPU
+    let nc = (start - end) >> 21; // div by 2MiB (32 pages)
+    for i in 0..(nc - 1) {
+        tt[(end >> 16) + i * 32 + 8192] = 0;
+    }
+
+    let tt = mask_el3(tt);
+    let tt = mask_el2(tt);
+
+    // first, set Memory Attributes array, indexed by PT_MEM, PT_DEV, PT_NC in our example
+    unsafe { asm!("msr mair_el1, $0" : : "r" (get_mair())) };
+
+    let mut mmfr: u64;
+    unsafe { asm!("mrs $0, id_aa64mmfr0_el1" : "=r" (mmfr)) };
+    let b = mmfr & 0xF;
+
+    let tcr: u64 =
+         b << 32 |
+         3 << 30 | // 64KiB granule, TTBR1_EL1
+         3 << 28 | // inner shadable, TTBR1_EL1
+         1 << 26 | // Normal memory, Outer Write-Back Read-Allocate Write-Allocate Cacheable, TTBR1_EL1
+         1 << 24 | // Normal memory, Inner Write-Back Read-Allocate Write-Allocate Cacheable, TTBR1_EL1
+        22 << 16 | // T1SZ = 22, 2 levels (level 2 and 3 translation tables), 2^42B (4TiB) space
+         1 << 14 | // 64KiB granule
+         3 << 12 | // inner shadable, TTBR0_EL1
+         1 << 10 | // Normal memory, Outer Write-Back Read-Allocate Write-Allocate Cacheable, TTBR0_EL1
+         1 <<  8 | // Normal memory, Inner Write-Back Read-Allocate Write-Allocate Cacheable, TTBR0_EL1
+        22;        // T0SZ = 22, 2 levels (level 2 and 3 translation tables), 2^42B (4TiB) space
+
+    // next, specify mapping characteristics in translate control register
+    unsafe { asm!("msr tcr_el1, $0" : : "r" (tcr)) };
+
+    // tell the MMU where our translation tables are.
+    // TTBR1_EL1 is kernel space
+    unsafe { asm!("msr ttbr1_el1, $0" : : "r" (addr + 1)) };
+
+    // finally, toggle some bits in system control register to enable page translation
+    let mut sctlr: u64;
+    unsafe { asm!("dsb ish; isb; mrs $0, sctlr_el1" : "=r" (sctlr)) };
+    sctlr = update_sctlr(sctlr);
+    sctlr &= !(
+        1 << 4 // clear SA0
+    );
+    unsafe { asm!("msr sctlr_el1, $0; dsb sy; isb" : : "r" (sctlr)) };
 
     tt
 }
