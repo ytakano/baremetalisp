@@ -91,8 +91,15 @@ pub fn curr_el_spx_fiq_el3(_ctx: *mut Context) {
 }
 
 #[no_mangle]
-pub fn curr_el_spx_serror_el3(_ctx: *mut Context) {
-    driver::uart::puts("EL3 exception: SPX Error\n");
+pub fn curr_el_spx_serror_el3(ctx: *mut Context) {
+    let r = unsafe { &*ctx };
+    driver::uart::puts("EL3 exception: SPX Error\nELR = 0x");
+    driver::uart::hex(r.elr);
+    driver::uart::puts("\nSPSR = 0x");
+    driver::uart::hex(r.spsr as u64);
+    driver::uart::puts("\nESR = 0x");
+    driver::uart::hex(get_esr_el3() as u64);
+    driver::uart::puts("\n");
 }
 
 // from lower EL (AArch64)

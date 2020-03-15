@@ -1,17 +1,23 @@
 use core::slice;
 
 use super::el;
+use super::lock;
 use crate::driver;
 
 extern "C" {
+    static mut __data_start: u64;
+    static mut __data_end: u64;
     static mut __bss_start: u64;
+    static mut __bss_end: u64;
 
+    static mut __stack_start: u64;
     static mut __stack_el3_end: u64;
     static mut __stack_el3_start: u64;
     static mut __stack_el2_end: u64;
     static mut __stack_el2_start: u64;
     static mut __stack_el1_end: u64;
     static mut __stack_el1_start: u64;
+    static mut __stack_end: u64;
 
     static mut __tt_el3_end: u64;
     static mut __tt_el3_start: u64;
@@ -20,21 +26,22 @@ extern "C" {
     static mut __tt_el1_end: u64;
     static mut __tt_el1_start: u64;
 
+//    static mut __mng_pages: PageManager;
     static mut _end: u64;
 }
 
-#[repr(C)]
+#[derive(Copy, Clone)]
 struct Pages63 {
     vacancy: u64,
     pages: [u64; 63]
 }
 
-#[repr(C)]
 #[repr(align(65536))]
 struct PageManager {
     addr_min: usize,
     addr_max: usize,
-    p63: [Pages63; 127]
+    p63: [Pages63; 127],
+    lock: u64
 }
 
 /// counting leading zero
@@ -47,6 +54,7 @@ fn clz(n: u64) -> u64 {
 impl PageManager {
     fn alloc(&mut self) -> Option<usize> {
         let mut idx1 = 0;
+        let _lock = lock::SpinLock::new(&mut self.lock);
         for pgs in self.p63.iter_mut() {
             if pgs.vacancy == !1 {
                 idx1 += 1;
@@ -72,6 +80,13 @@ impl PageManager {
         None
     }
 }
+
+static mut PAGEMNG: PageManager = PageManager{
+    addr_min: 0,
+    addr_max: 64 * 1024 * 1024 * 512,
+    p63: [Pages63{vacancy: 0, pages: [0; 63]}; 127],
+    lock: 0
+};
 
 pub struct VMTables {
     el1: &'static mut [u64],
@@ -128,7 +143,6 @@ pub struct DisableCache;
 
 impl DisableCache {
     pub fn new() -> DisableCache {
-        driver::uart::puts("new!\n");
         let mut sctlr = get_sctlr();
         sctlr &= !(1 << 2);
         set_sctlr(sctlr);
@@ -138,7 +152,6 @@ impl DisableCache {
 
 impl Drop for DisableCache {
     fn drop(&mut self) {
-        driver::uart::puts("drop!\n");
         let mut sctlr = get_sctlr();
         sctlr |= 1 << 2;
         set_sctlr(sctlr);
@@ -204,8 +217,28 @@ pub const DRIVER_MEM_START: usize =  0xfd000000; // maybe...
 pub const DRIVER_MEM_END:   usize = 0x100000000; // maybe...
 
 pub fn print_addr() {
+    let addr = unsafe { &mut __data_start as *mut u64 as u64 };
+    driver::uart::puts("__data_start      = ");
+    driver::uart::decimal(addr as u64);
+    driver::uart::puts("\n");
+
+    let addr = unsafe { &mut __data_end as *mut u64 as u64 };
+    driver::uart::puts("__data_end        = ");
+    driver::uart::decimal(addr as u64);
+    driver::uart::puts("\n");
+
     let addr = unsafe { &mut __bss_start as *mut u64 as u64 };
     driver::uart::puts("__bss_start       = ");
+    driver::uart::decimal(addr as u64);
+    driver::uart::puts("\n");
+
+    let addr = unsafe { &mut __bss_end as *mut u64 as u64 };
+    driver::uart::puts("__bss_end         = ");
+    driver::uart::decimal(addr as u64);
+    driver::uart::puts("\n");
+
+    let addr = unsafe { &mut _end as *mut u64 as u64 };
+    driver::uart::puts("_end              = ");
     driver::uart::decimal(addr as u64);
     driver::uart::puts("\n");
 
@@ -219,8 +252,23 @@ pub fn print_addr() {
     driver::uart::decimal(addr as u64);
     driver::uart::puts("\n");
 
+    let addr = unsafe { &mut __tt_el1_start as *mut u64 as u64 };
+    driver::uart::puts("__tt_el1_start    = ");
+    driver::uart::decimal(addr as u64);
+    driver::uart::puts("\n");
+
+    let addr = unsafe { &mut __stack_el3_end as *mut u64 as u64 };
+    driver::uart::puts("__stack_el3_end   = ");
+    driver::uart::decimal(addr as u64);
+    driver::uart::puts("\n");
+
     let addr = unsafe { &mut __stack_el3_start as *mut u64 as u64 };
     driver::uart::puts("__stack_el3_start = ");
+    driver::uart::decimal(addr as u64);
+    driver::uart::puts("\n");
+
+    let addr = unsafe { &mut __stack_el2_end as *mut u64 as u64 };
+    driver::uart::puts("__stack_el2_end   = ");
     driver::uart::decimal(addr as u64);
     driver::uart::puts("\n");
 
@@ -229,8 +277,13 @@ pub fn print_addr() {
     driver::uart::decimal(addr as u64);
     driver::uart::puts("\n");
 
-    let addr = unsafe { &mut _end as *mut u64 as u64 };
-    driver::uart::puts("_end              = ");
+    let addr = unsafe { &mut __stack_el1_end as *mut u64 as u64 };
+    driver::uart::puts("__stack_el1_end   = ");
+    driver::uart::decimal(addr as u64);
+    driver::uart::puts("\n");
+
+    let addr = unsafe { &mut __stack_el1_start as *mut u64 as u64 };
+    driver::uart::puts("__stack_el1_start = ");
     driver::uart::decimal(addr as u64);
     driver::uart::puts("\n");
 }
@@ -258,12 +311,23 @@ pub fn init() -> Option<VMTables> {
 #[cfg(feature = "raspi4")]
     let ret = Some(VMTables{el1: init_el1(), el2: init_el2(), el3: init_el3()} );
 
+    for _i in 0..128 {
+        let addr = {unsafe { PAGEMNG.alloc() }}.unwrap();
+        driver::uart::puts("addr = ");
+        driver::uart::hex(addr as u64);
+        driver::uart::puts("\n");
+    }
+
     ret
 }
 
 fn init_table_flat(tt: &'static mut [u64], addr: u64) -> &'static mut [u64] {
-    let bss_start = unsafe { &mut __bss_start as *mut u64 as usize } >> 16;
-    let end = unsafe { &mut _end as *mut u64 as usize } >> 16;
+    let data_start = unsafe { &mut __data_start as *mut u64 as usize } >> 16;
+    let stack_end = unsafe { &mut __stack_end as *mut u64 as usize } >> 16;
+
+    for t in tt.iter_mut() {
+        *t = 0;
+    }
 
     // L2 table, 4GiB space
     for i in 0..8 {
@@ -271,19 +335,19 @@ fn init_table_flat(tt: &'static mut [u64], addr: u64) -> &'static mut [u64] {
     }
 
     // L3 table, instructions and read only data
-    for i in 0..bss_start {
+    for i in 0..data_start {
         tt[i + 8192] = (i * 64 * 1024) as u64 | 0b11 |
             FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_R_N | FLAG_L3_ATTR_MEM;
     }
 
-    // L3 table, data
-    for i in bss_start..end {
+    // L3 table, data, bss, and stack
+    for i in data_start..stack_end {
         tt[i + 8192] = (i * 64 * 1024) as u64 | 0b11 |
-            FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_MEM;
+            FLAG_L3_AF | FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_MEM;
     }
 
     // L3 table
-    for i in end..(8192 * 8) {
+    for i in stack_end..(8192 * 8) {
         tt[i + 8192] = (i * 64 * 1024) as u64 | 0b11 |
             FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_RW | FLAG_L3_ATTR_NC;
     }
