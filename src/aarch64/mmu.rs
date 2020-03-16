@@ -26,21 +26,21 @@ extern "C" {
     static mut __tt_el1_end: u64;
     static mut __tt_el1_start: u64;
 
-//    static mut __mng_pages: PageManager;
     static mut _end: u64;
 }
 
 #[derive(Copy, Clone)]
-struct Pages63 {
-    vacancy: u64,
-    pages: [u64; 63]
+struct Book {
+    pages: [u64; 64]
 }
 
-#[repr(align(65536))]
+/// 64 * 64 * 64 pages = 64 * 64 * 64 * 64KiB = 16GiB
 struct PageManager {
     addr_min: usize,
     addr_max: usize,
-    p63: [Pages63; 127],
+    vacancy_books: u64,
+    vacancy_pages: [u64; 64],
+    book: [Book; 64],
     lock: u64
 }
 
@@ -53,38 +53,46 @@ fn clz(n: u64) -> u64 {
 
 impl PageManager {
     fn alloc(&mut self) -> Option<usize> {
-        let mut idx1 = 0;
         let _lock = lock::SpinLock::new(&mut self.lock);
-        for pgs in self.p63.iter_mut() {
-            if pgs.vacancy == !1 {
-                idx1 += 1;
-                continue;
-            } else {
-                let idx2 = clz(!pgs.vacancy) as usize;
-                let idx3 = clz(!pgs.pages[idx2]) as usize;
 
-                pgs.pages[idx2] |= 1 << (63 - idx3);
-                if pgs.pages[idx2] == !0 {
-                    pgs.vacancy |= 1 << (63 - idx2);
-                }
+        if self.vacancy_books == !0 {
+            return None;
+        }
 
-                let addr = 64 * 1024 * 63 * 64 * idx1 + 64 * 1024 * 64 * idx2 + 64 * 1024 * idx3 + self.addr_min;
-                if addr > self.addr_max {
-                    return None;
-                } else {
-                    return Some(addr);
-                }
+        let idx1 = clz(!self.vacancy_books) as usize;
+        let idx2 = clz(!self.vacancy_pages[idx1]) as usize;
+        let idx3 = clz(!self.book[idx1].pages[idx2]) as usize;
+
+        let addr = 64 * 1024 * 64 * 64 * idx1 + 64 * 1024 * 64 * idx2 + 64 * 1024 * idx3 + self.addr_min;
+
+        if addr >= self.addr_max {
+            return None;
+        }
+
+        self.book[idx1].pages[idx2] |= 1 << (63 - idx3);
+        if self.book[idx1].pages[idx2] == !0 {
+            self.vacancy_pages[idx1] |= 1 << (63 - idx2);
+            if self.vacancy_pages[idx1] == !0 {
+                self.vacancy_books |= 1 << (63 - idx1);
             }
         }
 
-        None
+        return Some(addr);
+    }
+
+    fn free(addr: usize) {
+        if addr & 0xFFFF != 0 {
+            panic!("invalid address");
+        }
     }
 }
 
 static mut PAGEMNG: PageManager = PageManager{
     addr_min: 0,
     addr_max: 64 * 1024 * 1024 * 512,
-    p63: [Pages63{vacancy: 0, pages: [0; 63]}; 127],
+    vacancy_books: 0,
+    vacancy_pages: [0; 64],
+    book: [Book{pages: [0; 64]}; 64],
     lock: 0
 };
 
@@ -237,26 +245,6 @@ pub fn print_addr() {
     driver::uart::decimal(addr as u64);
     driver::uart::puts("\n");
 
-    let addr = unsafe { &mut _end as *mut u64 as u64 };
-    driver::uart::puts("_end              = ");
-    driver::uart::decimal(addr as u64);
-    driver::uart::puts("\n");
-
-    let addr = unsafe { &mut __tt_el3_start as *mut u64 as u64 };
-    driver::uart::puts("__tt_el3_start    = ");
-    driver::uart::decimal(addr as u64);
-    driver::uart::puts("\n");
-
-    let addr = unsafe { &mut __tt_el2_start as *mut u64 as u64 };
-    driver::uart::puts("__tt_el2_start    = ");
-    driver::uart::decimal(addr as u64);
-    driver::uart::puts("\n");
-
-    let addr = unsafe { &mut __tt_el1_start as *mut u64 as u64 };
-    driver::uart::puts("__tt_el1_start    = ");
-    driver::uart::decimal(addr as u64);
-    driver::uart::puts("\n");
-
     let addr = unsafe { &mut __stack_el3_end as *mut u64 as u64 };
     driver::uart::puts("__stack_el3_end   = ");
     driver::uart::decimal(addr as u64);
@@ -284,6 +272,26 @@ pub fn print_addr() {
 
     let addr = unsafe { &mut __stack_el1_start as *mut u64 as u64 };
     driver::uart::puts("__stack_el1_start = ");
+    driver::uart::decimal(addr as u64);
+    driver::uart::puts("\n");
+
+    let addr = unsafe { &mut __tt_el3_start as *mut u64 as u64 };
+    driver::uart::puts("__tt_el3_start    = ");
+    driver::uart::decimal(addr as u64);
+    driver::uart::puts("\n");
+
+    let addr = unsafe { &mut __tt_el2_start as *mut u64 as u64 };
+    driver::uart::puts("__tt_el2_start    = ");
+    driver::uart::decimal(addr as u64);
+    driver::uart::puts("\n");
+
+    let addr = unsafe { &mut __tt_el1_start as *mut u64 as u64 };
+    driver::uart::puts("__tt_el1_start    = ");
+    driver::uart::decimal(addr as u64);
+    driver::uart::puts("\n");
+
+    let addr = unsafe { &mut _end as *mut u64 as u64 };
+    driver::uart::puts("_end              = ");
     driver::uart::decimal(addr as u64);
     driver::uart::puts("\n");
 }
@@ -389,6 +397,7 @@ fn get_tcr() -> u64 {
 fn update_sctlr(sctlr: u64) -> u64 {
     let sctlr =
         sctlr   |
+        1 << 44 | // set DSSBS, enable speculative load and store
         1 << 12 | // set I, instruction cache
         1 <<  2 | // set C, data cache
         1;        // set M, enable MMU

@@ -432,7 +432,3 @@ exception_vector_el1:
     CALL_WITH_CONTEXT lower_el_aarch32_fiq_el1 ELR_EL1 SPSR_EL1
     .balign 0x80
     CALL_WITH_CONTEXT lower_el_aarch32_serror_el1 ELR_EL1 SPSR_EL1
-
-.section .bss
-
-.section .stack

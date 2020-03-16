@@ -18,9 +18,8 @@ SECTIONS
         __bss_end = .;
     }
     . = ALIGN(1024 * 64);
-    _end = .;
 
-    __stack_start = _end;
+    __stack_start = .;
     /* 8MiB space for EL3 */
     __stack_el3_end   = __stack_start;
     __stack_el3_start = __stack_el3_end + 1024 * 1024 * 8;
@@ -39,6 +38,7 @@ SECTIONS
     __tt_el1_start = __tt_el2_end;
     __tt_el1_end   = __tt_el1_start + 1024 * 64 * 10;
 
+    _end = __tt_el1_end;
 
    /DISCARD/ : { *(.comment) *(.gnu*) *(.note*) *(.eh_frame*) }
 }
