@@ -329,13 +329,6 @@ pub fn init() -> Option<VMTables> {
 #[cfg(feature = "raspi4")]
     let ret = Some(VMTables{el1: init_el1(), el2: init_el2(), el3: init_el3()} );
 
-    for _i in 0..128 {
-        let addr = {unsafe { PAGEMNG.alloc() }}.unwrap();
-        driver::uart::puts("addr = ");
-        driver::uart::hex(addr as u64);
-        driver::uart::puts("\n");
-    }
-
     ret
 }
 
