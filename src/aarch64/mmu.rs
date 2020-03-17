@@ -80,10 +80,20 @@ impl PageManager {
         return Some(addr);
     }
 
-    fn free(addr: usize) {
-        if addr & 0xFFFF != 0 {
+    fn free(&mut self, addr: usize) {
+        if addr & 0xFFFF != 0 || addr >= self.addr_max {
             panic!("invalid address");
         }
+
+        let idx1 = (addr >> 28) & 0b111111;
+        let idx2 = (addr >> 22) & 0b111111;
+        let idx3 = (addr >> 16) & 0b111111;
+
+        let _lock = lock::SpinLock::new(&mut self.lock);
+
+        self.book[idx1].pages[idx2] &= !(1 << (63 - idx3));
+        self.vacancy_pages[idx1] &= !(1 << (63 - idx2));
+        self.vacancy_books &= !(1 << (63 - idx1));
     }
 }
 
