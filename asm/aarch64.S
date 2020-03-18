@@ -87,7 +87,7 @@
 #define SCR_RES1_4          BIT(4)
 #define SCR_NS              BIT(0)
 #define SCR_VAL \
-    (SCR_RW | SCR_HCE | SCR_RES1_5 | SCR_RES1_4)
+    (SCR_RW | SCR_HCE | SCR_RES1_5 | SCR_RES1_4 | SCR_NS)
 
 #define CPUECTLR_EL1        S3_1_C15_C2_1
 #define CPUECTLR_EL1_SMPEN  BIT(6)
@@ -187,8 +187,8 @@ _start:
 .L4:
     // set exception vector
     ldr     x1, =exception_vector_el1
-    mov     x2, #(0xFFFFFC << 40) // 64KiB page tables, 22 MSB bits are 1
-    add     x1, x1, x2
+//    mov     x2, #(0xFFFFFC << 40) // 64KiB page tables, 22 MSB bits are 1
+//    add     x1, x1, x2
     msr     vbar_el1, x1
 
     ldr     x1, =exception_vector_el2
@@ -201,7 +201,7 @@ _start:
     ldr     x0, =0x30c50830
     msr     sctlr_el2, x0
 
-    mrs     x1, hcr_el2
+//    mrs     x1, hcr_el2
     orr     x1, x1, #0b111000 // AMO, IMO, FMO
     msr     hcr_el2, x1
 

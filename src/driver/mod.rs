@@ -21,7 +21,7 @@ pub struct Context {
 pub fn init() -> Context {
     uart::init(UART_CLOCK, UART_BAUD);
 
-    aarch64::mmu::init();
+//    aarch64::mmu::init();
     //rand::init();
     //uart::puts("initialized rand\n");
 

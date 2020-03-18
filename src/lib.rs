@@ -10,6 +10,7 @@ mod boot;
 mod driver;
 mod aarch64;
 mod el2;
+mod el1;
 
 use core::panic::PanicInfo;
 
@@ -30,21 +31,8 @@ fn el3_to_el2() {
     let nc = (start - end) >> 21; // div by 2MiB (32 pages), #CPU
     let size = (start - end) / nc;
 
-    driver::uart::puts("nc = ");
-    driver::uart::decimal(nc as u64);
-    driver::uart::puts("\n");
-
-    driver::uart::puts("size = ");
-    driver::uart::decimal(size as u64);
-    driver::uart::puts("\n");
-
     let aff = aarch64::cpu::get_affinity_lv0();
-
     let addr = start - size * aff as usize;
-
-    driver::uart::puts("addr = ");
-    driver::uart::decimal(addr as u64);
-    driver::uart::puts("\n");
 
     unsafe {
         asm!(
@@ -64,10 +52,12 @@ fn el3_to_el2() {
 
 #[no_mangle]
 pub fn entry() -> ! {
-    let ctx = driver::init();
+//    let ctx = driver::init();
 
-    boot::run();
+//    boot::run();
 
+    el2::el2_to_el1();
+/*
     match ctx.graphics0 {
         Some(mut gr) => {
             driver::uart::puts("drawing mandelbrot set...\n");
@@ -80,11 +70,9 @@ pub fn entry() -> ! {
         }
         None => { driver::uart::puts("failed to initialize graphics\n") }
     }
+*/
 
-    el3_to_el2();
-
-    let p = 0x400000000 as *mut u64;
-    unsafe { *p = 10 };
+//    el3_to_el2();
 
 //    driver::uart::puts("halting...\n");
 //    driver::power::shutdown();

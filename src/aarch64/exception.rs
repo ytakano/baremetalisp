@@ -146,6 +146,12 @@ pub fn lower_el_aarch32_serror_el3(_ctx: *mut Context) {
 
 //------------------------------------------------------------------------------
 
+pub fn get_esr_el2() -> u32 {
+    let esr;
+    unsafe { asm!("mrs $0, esr_el2" : "=r"(esr)) };
+    esr
+}
+
 // from the current EL using the current SP0
 #[no_mangle]
 pub fn curr_el_sp0_sync_el2(_ctx: *mut Context) {
@@ -174,6 +180,8 @@ pub fn curr_el_spx_sync_el2(ctx: *mut Context) {
     driver::uart::hex(r.elr);
     driver::uart::puts("\nSPSR = 0x");
     driver::uart::hex(r.spsr as u64);
+    driver::uart::puts("\nESR = 0x");
+    driver::uart::hex(get_esr_el2() as u64);
     driver::uart::puts("\n");
 }
 
@@ -194,8 +202,15 @@ pub fn curr_el_spx_serror_el2(_ctx: *mut Context) {
 
 // from lower EL (AArch64)
 #[no_mangle]
-pub fn lower_el_aarch64_sync_el2(_ctx: *mut Context) {
-
+pub fn lower_el_aarch64_sync_el2(ctx: *mut Context) {
+    let r = unsafe { &*ctx };
+    driver::uart::puts("EL2 exception: Sync lower AArch64\nELR = ");
+    driver::uart::hex(r.elr);
+    driver::uart::puts("\nSPSR = 0x");
+    driver::uart::hex(r.spsr as u64);
+    driver::uart::puts("\nESR = 0x");
+    driver::uart::hex(get_esr_el2() as u64);
+    driver::uart::puts("\n");
 }
 
 #[no_mangle]
@@ -210,7 +225,7 @@ pub fn lower_el_aarch64_fiq_el2(_ctx: *mut Context) {
 
 #[no_mangle]
 pub fn lower_el_aarch64_serror_el2(_ctx: *mut Context) {
-
+    driver::uart::puts("EL2 exception: Error lower AArch64\n");
 }
 
 // from lower EL (AArch32)

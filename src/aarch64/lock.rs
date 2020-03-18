@@ -48,9 +48,9 @@ fn test_and_set(n: &mut u64) -> bool {
              cbnz  w10, 1b;
              clrex;
              and   $0, x9, #1"
-        : "=r"(rd)
-        : "r"(addr)
-        : "x8", "x9", "w10"
+            : "=r"(rd)
+            : "r"(addr)
+            : "x8", "x9", "w10"
         );
     }
     rd == 0

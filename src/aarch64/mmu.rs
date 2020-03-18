@@ -342,25 +342,25 @@ fn init_table_flat(tt: &'static mut [u64], addr: u64) -> &'static mut [u64] {
 
     // L2 table, 4GiB space
     for i in 0..8 {
-        tt[i] = addr + (i as u64 + 1) * 8192 * 8 | 0b11;
+        tt[i] = addr + (i as u64 + 1) * 8192 * 8 | 0b11 | FLAG_L2_NS;
     }
 
     // L3 table, instructions and read only data
     for i in 0..data_start {
         tt[i + 8192] = (i * 64 * 1024) as u64 | 0b11 |
-            FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_R_N | FLAG_L3_ATTR_MEM;
+            FLAG_L3_NS | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_R_N | FLAG_L3_ATTR_MEM;
     }
 
     // L3 table, data, bss, and stack
     for i in data_start..stack_end {
         tt[i + 8192] = (i * 64 * 1024) as u64 | 0b11 |
-            FLAG_L3_AF | FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_MEM;
+            FLAG_L3_NS | FLAG_L3_AF | FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_MEM;
     }
 
     // L3 table
     for i in stack_end..(8192 * 8) {
         tt[i + 8192] = (i * 64 * 1024) as u64 | 0b11 |
-            FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_RW | FLAG_L3_ATTR_NC;
+            FLAG_L3_NS | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_RW | FLAG_L3_ATTR_NC;
     }
 
     let start = DRIVER_MEM_START >> 16; // div by 64 * 1024
@@ -369,7 +369,7 @@ fn init_table_flat(tt: &'static mut [u64], addr: u64) -> &'static mut [u64] {
     // L3 table, device
     for i in start..end {
         tt[i + 8192] = (i * 64 * 1024) as u64 | 0b11 |
-            FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_OSH | FLAG_L3_SH_RW_RW | FLAG_L3_ATTR_DEV;
+            FLAG_L3_NS | FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_OSH | FLAG_L3_SH_RW_RW | FLAG_L3_ATTR_DEV;
     }
 
     tt
@@ -593,7 +593,7 @@ fn init_el1() -> &'static mut [u64] {
 
     // tell the MMU where our translation tables are.
     // TTBR1_EL1 is kernel space
-    unsafe { asm!("msr ttbr1_el1, $0" : : "r" (addr + 1)) };
+    unsafe { asm!("msr ttbr0_el1, $0" : : "r" (addr + 1)) };
 
     // finally, toggle some bits in system control register to enable page translation
     let mut sctlr: u64;
