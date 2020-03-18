@@ -194,12 +194,18 @@ _start:
     ldr     x1, =exception_vector_el2
     msr     vbar_el2, x1
 
+    /*
+     * Set up sctlr_el2
+     * All set bits below are res1. LE, no WXN/I/SA/C/A/M
+     */
+    ldr     x0, =0x30c50830
+    msr     sctlr_el2, x0
+
     mrs     x1, hcr_el2
     orr     x1, x1, #0b111000 // AMO, IMO, FMO
     msr     hcr_el2, x1
 
-#if defined(NOEL3) || defined(raspi3) || defined(raspi2)
-#else
+#ifdef raspi4
     ldr     x1, =exception_vector_el3
     msr     vbar_el3, x1
 
