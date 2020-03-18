@@ -1,5 +1,6 @@
 
 #[no_mangle]
-pub fn el1_entry() {
+pub fn el1_entry() -> {
 
+    loop{}
 }

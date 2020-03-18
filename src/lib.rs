@@ -30,23 +30,35 @@ fn el3_to_el2() {
     let nc = (start - end) >> 21; // div by 2MiB (32 pages), #CPU
     let size = (start - end) / nc;
 
+    driver::uart::puts("nc = ");
+    driver::uart::decimal(nc as u64);
+    driver::uart::puts("\n");
+
+    driver::uart::puts("size = ");
+    driver::uart::decimal(size as u64);
+    driver::uart::puts("\n");
+
     let aff = aarch64::cpu::get_affinity_lv0();
 
     let addr = start - size * aff as usize;
 
+    driver::uart::puts("addr = ");
+    driver::uart::decimal(addr as u64);
+    driver::uart::puts("\n");
+
     unsafe {
         asm!(
-            "mov x0, #0b1001;   // EL2h
+            "mov x0, $0;
+             msr sp_el2, x0;    // set stack pointer
+             mov x0, #0b1001;   // EL2h
              msr spsr_el3, x0;
              adr x0, el2_entry; // entry point
              msr elr_el3, x0;
-             adr x0,
-             msr sp_el2, $0
              eret"
             :
             : "r"(addr)
             : "x0"
-        )
+        );
     }
 }
 
@@ -68,6 +80,8 @@ pub fn entry() -> ! {
         }
         None => { driver::uart::puts("failed to initialize graphics\n") }
     }
+
+    el3_to_el2();
 
     let p = 0x400000000 as *mut u64;
     unsafe { *p = 10 };

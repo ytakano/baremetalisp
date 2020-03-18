@@ -53,6 +53,7 @@
 
 .section .init, "x"
 .global _start
+.global el2_setup
 
 // #define NOEL3
 
@@ -193,10 +194,11 @@ _start:
     ldr     x1, =exception_vector_el2
     msr     vbar_el2, x1
 
-#if defined(NOEL3) || defined(raspi3) || defined(raspi2)
     mrs     x1, hcr_el2
     orr     x1, x1, #0b111000 // AMO, IMO, FMO
     msr     hcr_el2, x1
+
+#if defined(NOEL3) || defined(raspi3) || defined(raspi2)
 #else
     ldr     x1, =exception_vector_el3
     msr     vbar_el3, x1
