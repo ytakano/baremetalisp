@@ -201,9 +201,7 @@ _start:
     ldr     x0, =0x30c50830
     msr     sctlr_el2, x0
 
-//    mrs     x1, hcr_el2
-    orr     x1, x1, #0b111000 // AMO, IMO, FMO
-    msr     hcr_el2, x1
+    msr     hcr_el2, xzr
 
 #ifdef raspi4
     ldr     x1, =exception_vector_el3

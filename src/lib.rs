@@ -52,12 +52,10 @@ fn el3_to_el2() {
 
 #[no_mangle]
 pub fn entry() -> ! {
-//    let ctx = driver::init();
+    let ctx = driver::init();
 
-//    boot::run();
+    boot::run();
 
-    el2::el2_to_el1();
-/*
     match ctx.graphics0 {
         Some(mut gr) => {
             driver::uart::puts("drawing mandelbrot set...\n");
@@ -70,9 +68,14 @@ pub fn entry() -> ! {
         }
         None => { driver::uart::puts("failed to initialize graphics\n") }
     }
-*/
 
-//    el3_to_el2();
+    match aarch64::el::get_current_el() {
+        3 => { el3_to_el2(); }
+        2 => { el2::el2_to_el1(); }
+        _ => {
+            driver::uart::puts("Warning: execution level is not EL3\n");
+        }
+    }
 
 //    driver::uart::puts("halting...\n");
 //    driver::power::shutdown();
