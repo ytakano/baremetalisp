@@ -341,20 +341,21 @@ fn init_table_flat(tt: &'static mut [u64], addr: u64) -> &'static mut [u64] {
     }
 
     // L2 table, 4GiB space
-    for i in 0..8 {
+    tt[0] = addr + 8192 * 8 | 0b11;
+    for i in 1..8 {
         tt[i] = addr + (i as u64 + 1) * 8192 * 8 | 0b11 | FLAG_L2_NS;
     }
 
     // L3 table, instructions and read only data
     for i in 0..data_start {
         tt[i + 8192] = (i * 64 * 1024) as u64 | 0b11 |
-            FLAG_L3_NS | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_R_N | FLAG_L3_ATTR_MEM;
+            FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_R_N | FLAG_L3_ATTR_MEM;
     }
 
     // L3 table, data, bss, and stack
     for i in data_start..stack_end {
         tt[i + 8192] = (i * 64 * 1024) as u64 | 0b11 |
-            FLAG_L3_NS | FLAG_L3_AF | FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_MEM;
+            FLAG_L3_AF | FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_MEM;
     }
 
     // L3 table

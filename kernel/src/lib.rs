@@ -9,45 +9,15 @@ mod parser;
 mod boot;
 mod driver;
 mod aarch64;
-mod el2;
 mod el1;
+mod el2;
+mod el3;
 
 use core::panic::PanicInfo;
-
-extern "C" {
-    static mut __stack_el2_end: u64;
-    static mut __stack_el2_start: u64;
-}
 
 #[no_mangle]
 fn func() {
     ()
-}
-
-fn el3_to_el2() {
-    let end = unsafe { &mut __stack_el2_end as *mut u64 as usize };
-    let start = unsafe { &mut __stack_el2_start as *mut u64 as usize };
-
-    let nc = (start - end) >> 21; // div by 2MiB (32 pages), #CPU
-    let size = (start - end) / nc;
-
-    let aff = aarch64::cpu::get_affinity_lv0();
-    let addr = start - size * aff as usize;
-
-    unsafe {
-        asm!(
-            "mov x0, $0;
-             msr sp_el2, x0;    // set stack pointer
-             mov x0, #0b1001;   // EL2h
-             msr spsr_el3, x0;
-             adr x0, el2_entry; // entry point
-             msr elr_el3, x0;
-             eret"
-            :
-            : "r"(addr)
-            : "x0"
-        );
-    }
 }
 
 #[no_mangle]
@@ -70,10 +40,13 @@ pub fn entry() -> ! {
     }
 
     match aarch64::el::get_current_el() {
-        3 => { el3_to_el2(); }
-        2 => { el2::el2_to_el1(); }
-        _ => {
+        3 => { el3::el3_to_el1(); }
+        2 => {
             driver::uart::puts("Warning: execution level is not EL3\n");
+            el2::el2_to_el1();
+        }
+        _ => {
+            driver::uart::puts("Error: execution level is not EL3\n");
         }
     }
 

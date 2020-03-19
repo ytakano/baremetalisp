@@ -1,4 +1,3 @@
-use crate::driver;
 use crate::aarch64;
 
 extern "C" {
@@ -32,26 +31,14 @@ pub fn el2_to_el1() {
              // change execution level to EL1
              mov x0, $0;
              msr sp_el1, x0    // set stack pointer
-             mov x2, #0b101    // EL1h
-             msr spsr_el2, x2
-             adr x2, el1_entry // set entry point
-             msr elr_el2, x2
+             mov x0, #0b101    // EL1h
+             msr spsr_el2, x0
+             adr x0, el1_entry // set entry point
+             msr elr_el2, x0
              eret"
             :
             : "r"(addr)
-            : "x0", "x2"
+            : "x0"
         );
     }
-}
-
-#[no_mangle]
-pub fn el2_entry() -> ! {
-    driver::uart::puts("entered EL2\n");
-
-    el2_to_el1();
-
-    let p = 0x400000000 as *mut u64;
-    unsafe { *p = 10 };
-
-    loop{}
 }
