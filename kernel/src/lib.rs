@@ -23,8 +23,7 @@ fn func() {
 #[no_mangle]
 pub fn entry() -> ! {
     let ctx = driver::init();
-
-    boot::run();
+    aarch64::mmu::init();
 
     match ctx.graphics0 {
         Some(mut gr) => {
@@ -49,7 +48,6 @@ pub fn entry() -> ! {
             driver::uart::puts("Error: execution level is not EL3\n");
         }
     }
-
 //    driver::uart::puts("halting...\n");
 //    driver::power::shutdown();
 

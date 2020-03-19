@@ -251,6 +251,12 @@ pub fn lower_el_aarch32_serror_el2(_ctx: *mut Context) {
 
 //------------------------------------------------------------------------------
 
+pub fn get_esr_el1() -> u32 {
+    let esr;
+    unsafe { asm!("mrs $0, esr_el1" : "=r"(esr)) };
+    esr
+}
+
 // from the current EL using the current SP0
 #[no_mangle]
 pub fn curr_el_sp0_sync_el1(_ctx: *mut Context) {
@@ -279,6 +285,8 @@ pub fn curr_el_spx_sync_el1(ctx: *mut Context) {
     driver::uart::hex(r.elr);
     driver::uart::puts("\nSPSR = 0x");
     driver::uart::hex(r.spsr as u64);
+    driver::uart::puts("\nESR = 0x");
+    driver::uart::hex(get_esr_el1() as u64);
     driver::uart::puts("\n");
 }
 

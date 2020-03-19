@@ -309,7 +309,7 @@ pub fn print_addr() {
 pub fn init() -> Option<VMTables> {
     print_addr();
 
-    // check for 4k granule and at least 36 bits physical address bus
+    // check for 64KiB granule and at least 36 bits physical address bus
     let mut mmfr: u64;
     unsafe { asm!("mrs $0, id_aa64mmfr0_el1" : "=r" (mmfr)) };
     let b = mmfr & 0xF;
@@ -341,9 +341,8 @@ fn init_table_flat(tt: &'static mut [u64], addr: u64) -> &'static mut [u64] {
     }
 
     // L2 table, 4GiB space
-    tt[0] = addr + 8192 * 8 | 0b11;
-    for i in 1..8 {
-        tt[i] = addr + (i as u64 + 1) * 8192 * 8 | 0b11 | FLAG_L2_NS;
+    for i in 0..8 {
+        tt[i] = addr + (i as u64 + 1) * 8192 * 8 | 0b11;
     }
 
     // L3 table, instructions and read only data
