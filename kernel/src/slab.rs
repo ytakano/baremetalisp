@@ -62,6 +62,63 @@ impl Page for Page16 {
 struct Page32 {
     buf: [u8; 65268],
     next: *mut Page32,
-    l1_bitmap: u64,       // l1_bitmap = 0xFFFFFFFF (initial value)
+    l1_bitmap: u64,       // l1_bitmap = 0xFFFF FFFF (initial value)
     l2_bitmap: [u64; 32], // l2_bitmap[31] = 0b111111111 (initial value)
+}
+
+struct Page64 {
+    buf: [u8; 65392],
+    next: *mut Page64,
+    l1_bitmap: u64,       // l1_bitmap = 0xFFFF FFFF FFFF (initial value)
+    l2_bitmap: [u64; 16], // l2_bitmap[15] = 0b111 (initial value)
+}
+
+struct Page128 {
+    buf: [u8; 65456],
+    next: *mut Page128,
+    l1_bitmap: u64,      // l1_bitmap = 0xFFFF FFFF FFFF FF (initial value)
+    l2_bitmap: [u64; 8], // l2_bitmap[7] = 0b11 (initial value)
+}
+
+struct Page256 {
+    buf: [u8; 65488],
+    next: *mut Page256,
+    l1_bitmap: u64,      // l1_bitmap = 0xFFFF FFFF FFFF FFF (initial value)
+    l2_bitmap: [u64; 4], // l2_bitmap[3] = 0b1 (initial value)
+}
+
+struct Page511 {
+    buf: [u8; 65512],
+    next: *mut Page511,
+    l1_bitmap: [u64; 2], // 0 (initial value)
+}
+
+struct Page1023 {
+    buf: [u8; 65520],
+    next: *mut Page1023,
+    l1_bitmap: u64, // l1_bitmap = 0 (initial value)
+}
+
+struct Page2047 {
+    buf: [u8; 65520],
+    next: *mut Page2047,
+    l1_bitmap: u64, // l1_bitmap = 0xFFFF FFFF (initial value)
+}
+
+struct Page4095 {
+    buf: [u8; 65520],
+    next: *mut Page4095,
+    l1_bitmap: u64, // l1_bitmap = 0xFFFF FFFF FFFF (initial value)
+}
+
+struct Page8190 {
+    buf: [u8; 65520],
+    next: *mut Page8190,
+    l1_bitmap: u64, // l1_bitmap = 0xFFFF FFFF FFFF FF (initial value)
+}
+
+struct Page32760 {
+    buf: [u8; 65520],
+    next: *mut Page32760,
+    l1_bitmap: u64, // l1_bitmap = 0xFFFF FFFF FFFF FFFC (initial value)
 }
