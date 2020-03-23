@@ -12,6 +12,7 @@ mod aarch64;
 mod el1;
 mod el2;
 mod el3;
+mod slab;
 
 use core::panic::PanicInfo;
 

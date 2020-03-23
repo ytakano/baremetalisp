@@ -2,6 +2,7 @@ use core::slice;
 
 use super::el;
 use super::lock;
+use super::helper::clz;
 use crate::driver;
 
 extern "C" {
@@ -42,13 +43,6 @@ struct PageManager {
     vacancy_pages: [u64; 64],
     book: [Book; 64],
     lock: u64
-}
-
-/// counting leading zero
-fn clz(n: u64) -> u64 {
-    let rd: u64;
-    unsafe { asm!("clz $0, $1": "=r"(rd) : "r"(n)) }
-    rd
 }
 
 impl PageManager {
