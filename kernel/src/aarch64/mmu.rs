@@ -2,7 +2,7 @@ use core::slice;
 
 use super::el;
 use super::lock;
-use super::helper::clz;
+use super::bits::clz;
 use crate::driver;
 
 extern "C" {
