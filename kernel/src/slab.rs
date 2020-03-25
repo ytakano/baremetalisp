@@ -2,10 +2,11 @@ use crate::aarch64::bits::clz;
 
 trait Slab {
     fn alloc(&mut self) -> *mut u8;
+    fn free(&mut self, ptr: *mut u8);
 }
 
 macro_rules! SlabSmall {
-    ($id:ident, $n:expr) => {
+    ($id:ident, $n:expr, $shift:expr) => {
         #[repr(C)]
         struct $id {
             buf: [u8; 65536 - 32 - 8 * $n],
@@ -41,6 +42,19 @@ macro_rules! SlabSmall {
 
                 &mut (self.buf[idx + 8]) as *mut u8
             }
+
+            fn free(&mut self, ptr: *mut u8) {
+                let addr = ptr as usize - 8;
+                let org = self as *mut $id as usize;
+                let len = addr - org;
+                let idx = (len >> $shift) as usize;
+
+                let idx1 = idx >> 6; // divide by 64
+                let idx2 = idx & 0b111111;
+
+                self.l1_bitmap &= !(1 << (63 - idx1));
+                self.l2_bitmap[idx1] &= !(1 << (63 - idx2));
+            }
         }
     }
 }
@@ -48,37 +62,37 @@ macro_rules! SlabSmall {
 // l1_bitmap = 0 (initial value)
 // l2_bitmap[63] = 0xFFFF FFFF | 0b11 << 32 (initial value)
 // size = 16
-SlabSmall!(Slab16, 64);
+SlabSmall!(Slab16, 64, 4);
 
 // l1_bitmap = 0xFFFF FFFF (initial value)
 // l2_bitmap[31] = 0b111111111 (initial value)
 // size = 32
-SlabSmall!(Slab32, 32);
+SlabSmall!(Slab32, 32, 5);
 
 // l1_bitmap = 0xFFFF FFFF FFFF (initial value)
 // l2_bitmap[15] = 0b111 (initial value)
 // size = 64
-SlabSmall!(Slab64, 16);
+SlabSmall!(Slab64, 16, 6);
 
 // l1_bitmap = 0xFFFF FFFF FFFF FF (initial value)
 // l2_bitmap[7] = 0b1 (initial value)
 // size = 128
-SlabSmall!(Slab128, 8);
+SlabSmall!(Slab128, 8, 7);
 
 // l1_bitmap = 0xFFFF FFFF FFFF FFF (initial value)
 // l2_bitmap[3] = 0b1 (initial value)
 // size = 256
-SlabSmall!(Slab256, 4);
+SlabSmall!(Slab256, 4, 8);
 
 // l1_bitmap = 0x3FFF FFFF FFFF FFFF (initial value)
 // l2_bitmap[1] = 0b1 (initial value)
 // size = 512
-SlabSmall!(Slab512, 2);
+SlabSmall!(Slab512, 2, 9);
 
 // l1_bitmap = 0x7FFF FFFF FFFF FFFF (initial value)
 // l2_bitmap[0] = 0b1 (initial value)
 // size = 1024
-SlabSmall!(Slab1024, 1);
+SlabSmall!(Slab1024, 1, 10);
 
 #[repr(C)]
 struct SlabMemory {
@@ -102,7 +116,7 @@ macro_rules! SlabLarge {
             // | pointer to slab |
             // |    (64 bits)    |
             // +-----------------+
-            // |     index       |
+            // |      index      |
             // |    (64 bits)    |
             // +-----------------+ <- return value
             // |      data       |
@@ -122,6 +136,13 @@ macro_rules! SlabLarge {
                 }
 
                 &mut (self.buf[idx + 16]) as *mut u8
+            }
+
+            fn free(&mut self, ptr: *mut u8) {
+                let addr = ptr as usize;
+                let idx1 = unsafe { *((addr - 8) as *mut usize) };
+
+                self.l1_bitmap &= !(1 << (63 - idx1))
             }
         }
     }
@@ -170,5 +191,8 @@ impl Slab for Slab65512 {
         unsafe { *ptr64 = self as *mut Slab65512 as usize; }
 
         &mut (self.buf[8]) as *mut u8
+    }
+
+    fn free(&mut self, _ptr: *mut u8) {
     }
 }
