@@ -6,6 +6,7 @@ trait Slab {
 
 macro_rules! SlabSmall {
     ($id:ident, $n:expr) => {
+        #[repr(C)]
         struct $id {
             buf: [u8; 65536 - 32 - 8 * $n],
             l1_bitmap: u64,
@@ -16,6 +17,12 @@ macro_rules! SlabSmall {
         }
 
         impl Slab for $id {
+            // +-----------------+
+            // | pointer to slab |
+            // |    (64 bits)    |
+            // +-----------------+ <- return value
+            // |      data       |
+            // |                 |
             fn alloc(&mut self) -> *mut u8 {
                 let idx1 = clz(!self.l1_bitmap) as usize;
                 let idx2 = clz(!self.l2_bitmap[idx1]) as usize;
@@ -25,7 +32,14 @@ macro_rules! SlabSmall {
                     self.l1_bitmap |= 1 << (63 - idx1);
                 }
 
-                &mut (self.buf[idx1 * self.size * 64 + idx2 * self.size]) as *mut u8
+                let idx = idx1 * self.size * 64 + idx2 * self.size;
+                let ptr = &mut (self.buf[idx]) as *mut u8;
+                let ptr64 = ptr as *mut usize;
+
+                // first 64 bits points the slab
+                unsafe { *ptr64 = self as *mut $id as usize; }
+
+                &mut (self.buf[idx + 8]) as *mut u8
             }
         }
     }
@@ -66,49 +80,95 @@ SlabSmall!(Slab512, 2);
 // size = 1024
 SlabSmall!(Slab1024, 1);
 
+#[repr(C)]
+struct SlabMemory {
+    slab: usize,
+    idx1: usize,
+}
+
 macro_rules! SlabLarge {
-    ($id:ident, $size:expr) => {
+    ($id:ident) => {
+        #[repr(C)]
         struct $id {
-            buf: [u8; 65520],
+            buf: [u8; 65504],
+            prev: *mut $id,
             next: *mut $id,
             l1_bitmap: u64,
+            size: usize,
         }
 
         impl Slab for $id {
+            // +-----------------+
+            // | pointer to slab |
+            // |    (64 bits)    |
+            // +-----------------+
+            // |     index       |
+            // |    (64 bits)    |
+            // +-----------------+ <- return value
+            // |      data       |
+            // |                 |
             fn alloc(&mut self) -> *mut u8 {
                 let idx1 = clz(!self.l1_bitmap) as usize;
                 self.l1_bitmap |= 1 << (63 - idx1);
-                &mut (self.buf[idx1 * $size * 64]) as *mut u8
+
+                let idx = idx1 * self.size * 64;
+                let ptr = &mut (self.buf[idx]) as *mut u8;
+                let mem = ptr as *mut SlabMemory;
+
+                // first 128 bits contain meta information
+                unsafe {
+                    (*mem).slab = self as *mut $id as usize;
+                    (*mem).idx1 = idx1;
+                }
+
+                &mut (self.buf[idx + 16]) as *mut u8
             }
         }
     }
 }
 
-// l1_bitmap = 0 (initial value)
-SlabLarge!(Slab1023, 1023);
-
 // l1_bitmap = 0xFFFF FFFF (initial value)
-SlabLarge!(Slab2047, 2047);
+// size = 2047
+SlabLarge!(Slab2047);
 
 // l1_bitmap = 0xFFFF FFFF FFFF (initial value)
-SlabLarge!(Slab4095, 4095);
+// size = 4094
+SlabLarge!(Slab4094);
 
 // l1_bitmap = 0xFFFF FFFF FFFF FF (initial value)
-SlabLarge!(Slab8190, 8190);
+// size = 8188
+SlabLarge!(Slab8188);
 
 // l1_bitmap = 0xFFFF FFFF FFFF FFF (initial value)
-SlabLarge!(Slab16380, 16380);
+// size = 16376
+SlabLarge!(Slab16376);
 
-// l1_bitmap = 0xFFFF FFFF FFFF FFFC (initial value)
-SlabLarge!(Slab32760, 32760);
+// l1_bitmap = 0x3FFF FFFF FFFF FFFF (initial value)
+// size = 32752
+SlabLarge!(Slab32752);
 
-struct Slab65528 {
-    buf: [u8; 65528],
-    next: *mut Slab65528,
+#[repr(C)]
+struct Slab65512 {
+    buf: [u8; 65512],
+    prev: *mut Slab65512,
+    next: *mut Slab65512,
+    size: usize,
 }
 
-impl Slab for Slab65528 {
+impl Slab for Slab65512 {
+    // +-----------------+
+    // | pointer to slab |
+    // |    (64 bits)    |
+    // +-----------------+ <- return value
+    // |      data       |
+    // |                 |
     fn alloc(&mut self) -> *mut u8 {
-        &mut (self.buf[0]) as *mut u8
+        let ptr = &mut (self.buf[0]) as *mut u8;
+        let ptr64 = ptr as *mut usize;
+
+        // first 64 bits points the slab
+        unsafe { *ptr64 = self as *mut Slab65512 as usize; }
+
+        &mut (self.buf[8]) as *mut u8
     }
 }
