@@ -18,12 +18,14 @@ macro_rules! SlabSmall {
         }
 
         impl Slab for $id {
-            // +-----------------+
-            // | pointer to slab |
-            // |    (64 bits)    |
-            // +-----------------+ <- return value
-            // |      data       |
-            // |                 |
+            // +------------------+
+            // | pointer to slab  |
+            // |    (8 bytes)     |
+            // +------------------+ <- return value
+            // |       data       |
+            // | (size - 8 bytes) |
+            // |                  |
+            /// allocate a memory region whose size is self.size - 8 bytes
             fn alloc(&mut self) -> *mut u8 {
                 let idx1 = clz(!self.l1_bitmap) as usize;
                 let idx2 = clz(!self.l2_bitmap[idx1]) as usize;
@@ -43,6 +45,7 @@ macro_rules! SlabSmall {
                 &mut (self.buf[idx + 8]) as *mut u8
             }
 
+            /// deallocate the memory region pointed by ptr which is returned by alloc
             fn free(&mut self, ptr: *mut u8) {
                 let addr = ptr as usize - 8;
                 let org = self as *mut $id as usize;
@@ -112,15 +115,17 @@ macro_rules! SlabLarge {
         }
 
         impl Slab for $id {
-            // +-----------------+
-            // | pointer to slab |
-            // |    (64 bits)    |
-            // +-----------------+
-            // |      index      |
-            // |    (64 bits)    |
-            // +-----------------+ <- return value
-            // |      data       |
-            // |                 |
+            // +-------------------+
+            // |  pointer to slab  |
+            // |     (8 bytes)     |
+            // +-------------------+
+            // |       index       |
+            // |     (8 bytes)     |
+            // +-------------------+ <- return value
+            // |       data        |
+            // | (size - 16 bytes) |
+            // |                   |
+            /// allocate a memory region whose size is self.size - 16 bytes
             fn alloc(&mut self) -> *mut u8 {
                 let idx1 = clz(!self.l1_bitmap) as usize;
                 self.l1_bitmap |= 1 << (63 - idx1);
@@ -138,6 +143,7 @@ macro_rules! SlabLarge {
                 &mut (self.buf[idx + 16]) as *mut u8
             }
 
+            /// deallocate the memory region pointed by ptr which is returned by alloc
             fn free(&mut self, ptr: *mut u8) {
                 let addr = ptr as usize;
                 let idx1 = unsafe { *((addr - 8) as *mut usize) };
@@ -173,16 +179,18 @@ struct Slab65512 {
     buf: [u8; 65512],
     prev: *mut Slab65512,
     next: *mut Slab65512,
-    size: usize,
+    size: usize, // must be 65512
 }
 
 impl Slab for Slab65512 {
-    // +-----------------+
-    // | pointer to slab |
-    // |    (64 bits)    |
-    // +-----------------+ <- return value
-    // |      data       |
-    // |                 |
+    // +------------------+
+    // | pointer to slab  |
+    // |    (8 bytes)     |
+    // +------------------+ <- return value
+    // |       data       |
+    // | (size - 8 bytes) |
+    // |                  |
+    /// allocate a memory region whose size is 65504 bytes
     fn alloc(&mut self) -> *mut u8 {
         let ptr = &mut (self.buf[0]) as *mut u8;
         let ptr64 = ptr as *mut usize;
@@ -193,6 +201,7 @@ impl Slab for Slab65512 {
         &mut (self.buf[8]) as *mut u8
     }
 
+    /// do nothing
     fn free(&mut self, _ptr: *mut u8) {
     }
 }
