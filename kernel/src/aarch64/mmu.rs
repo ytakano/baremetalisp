@@ -1,8 +1,6 @@
 use core::slice;
 
 use super::el;
-use super::lock;
-use super::bits::clz;
 use crate::driver;
 
 extern "C" {
@@ -27,78 +25,11 @@ extern "C" {
     static mut __tt_el1_end: u64;
     static mut __tt_el1_start: u64;
 
+    static mut __el0_heap_start: u64;
+    static mut __el0_heap_end: u64;
+
     static mut _end: u64;
 }
-
-#[derive(Copy, Clone)]
-struct Book {
-    pages: [u64; 64]
-}
-
-/// 64 * 64 * 64 pages = 64 * 64 * 64 * 64KiB = 16GiB
-struct PageManager {
-    addr_min: usize,
-    addr_max: usize,
-    vacancy_books: u64,
-    vacancy_pages: [u64; 64],
-    book: [Book; 64],
-    lock: u64
-}
-
-impl PageManager {
-    fn alloc(&mut self) -> Option<usize> {
-        let _lock = lock::SpinLock::new(&mut self.lock);
-
-        if self.vacancy_books == !0 {
-            return None;
-        }
-
-        let idx1 = clz(!self.vacancy_books) as usize;
-        let idx2 = clz(!self.vacancy_pages[idx1]) as usize;
-        let idx3 = clz(!self.book[idx1].pages[idx2]) as usize;
-
-        let addr = 64 * 1024 * 64 * 64 * idx1 + 64 * 1024 * 64 * idx2 + 64 * 1024 * idx3 + self.addr_min;
-
-        if addr >= self.addr_max {
-            return None;
-        }
-
-        self.book[idx1].pages[idx2] |= 1 << (63 - idx3);
-        if self.book[idx1].pages[idx2] == !0 {
-            self.vacancy_pages[idx1] |= 1 << (63 - idx2);
-            if self.vacancy_pages[idx1] == !0 {
-                self.vacancy_books |= 1 << (63 - idx1);
-            }
-        }
-
-        return Some(addr);
-    }
-
-    fn free(&mut self, addr: usize) {
-        if addr & 0xFFFF != 0 || addr >= self.addr_max {
-            panic!("invalid address");
-        }
-
-        let idx1 = (addr >> 28) & 0b111111;
-        let idx2 = (addr >> 22) & 0b111111;
-        let idx3 = (addr >> 16) & 0b111111;
-
-        let _lock = lock::SpinLock::new(&mut self.lock);
-
-        self.book[idx1].pages[idx2] &= !(1 << (63 - idx3));
-        self.vacancy_pages[idx1] &= !(1 << (63 - idx2));
-        self.vacancy_books &= !(1 << (63 - idx1));
-    }
-}
-
-static mut PAGEMNG: PageManager = PageManager{
-    addr_min: 0,
-    addr_max: 64 * 1024 * 1024 * 512,
-    vacancy_books: 0,
-    vacancy_pages: [0; 64],
-    book: [Book{pages: [0; 64]}; 64],
-    lock: 0
-};
 
 pub struct VMTables {
     el1: &'static mut [u64],
@@ -291,6 +222,16 @@ pub fn print_addr() {
 
     let addr = unsafe { &mut __tt_el1_start as *mut u64 as u64 };
     driver::uart::puts("__tt_el1_start    = ");
+    driver::uart::decimal(addr as u64);
+    driver::uart::puts("\n");
+
+    let addr = unsafe { &mut __el0_heap_start as *mut u64 as u64 };
+    driver::uart::puts("__el0_heap_start  = ");
+    driver::uart::decimal(addr as u64);
+    driver::uart::puts("\n");
+
+    let addr = unsafe { &mut __el0_heap_end as *mut u64 as u64 };
+    driver::uart::puts("__el0_heap_end    = ");
     driver::uart::decimal(addr as u64);
     driver::uart::puts("\n");
 

@@ -1,24 +1,64 @@
 use core::alloc::{GlobalAlloc, Layout};
 use core::ptr::null_mut;
 
+use crate::driver;
 use crate::aarch64::bits::clz;
+use crate::pager;
+use crate::aarch64::lock;
 
-struct SlabAllocator {
-    start: usize,
-    end: usize
+extern "C" {
+    static mut __el0_heap_start: u64;
+    static mut __el0_heap_end: u64;
 }
 
-unsafe impl GlobalAlloc for SlabAllocator {
-    unsafe fn alloc(&self, _layout: Layout) -> *mut u8 { null_mut() }
+struct Allocator;
+
+struct SlabAllocator {
+    lock: u64,
+    pages: pager::PageManager,
+}
+
+unsafe impl GlobalAlloc for Allocator {
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        driver::uart::puts("alloc:\n");
+        driver::uart::puts("  layout.size: ");
+        driver::uart::decimal(layout.size() as u64);
+        driver::uart::puts("\n  layout.align: ");
+        driver::uart::decimal(layout.align() as u64);
+        driver::uart::puts("\n");
+
+        let _lock = lock::SpinLock::new(&mut SLAB_ALLOC.lock);
+
+        null_mut()
+    }
+
     unsafe fn dealloc(&self, _ptr: *mut u8, _layout: Layout) {}
 }
 
 #[global_allocator]
-static GLOBAL: SlabAllocator = SlabAllocator;
+static GLOBAL: Allocator = Allocator;
+
+static mut SLAB_ALLOC: SlabAllocator = SlabAllocator {
+    lock: 0,
+    pages: pager::PageManager {
+        start: 0,
+        end: 0,
+        vacancy_books: 0,
+        vacancy_pages: [0; 64],
+        book: [pager::Book{pages: [0; 64]}; 64],
+    },
+};
 
 #[alloc_error_handler]
 fn on_oom(_layout: Layout) -> ! {
     loop {}
+}
+
+pub fn init() {
+    unsafe {
+        SLAB_ALLOC.pages.start = __el0_heap_start as usize;
+        SLAB_ALLOC.pages.end   = __el0_heap_end as usize;
+    }
 }
 
 trait Slab {

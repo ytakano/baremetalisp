@@ -38,7 +38,10 @@ SECTIONS
     __tt_el1_start = __tt_el2_end;
     __tt_el1_end   = __tt_el1_start + 1024 * 64 * 10;
 
-    _end = __tt_el1_end;
+    __el0_heap_start = __tt_el1_end;
+    __el0_heap_end   = 64 * 1024 * 1024;
+
+    _end = __el0_heap_end;
 
    /DISCARD/ : { *(.comment) *(.gnu*) *(.note*) *(.eh_frame*) }
 }
