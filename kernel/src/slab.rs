@@ -1,4 +1,25 @@
+use core::alloc::{GlobalAlloc, Layout};
+use core::ptr::null_mut;
+
 use crate::aarch64::bits::clz;
+
+struct SlabAllocator {
+    start: usize,
+    end: usize
+}
+
+unsafe impl GlobalAlloc for SlabAllocator {
+    unsafe fn alloc(&self, _layout: Layout) -> *mut u8 { null_mut() }
+    unsafe fn dealloc(&self, _ptr: *mut u8, _layout: Layout) {}
+}
+
+#[global_allocator]
+static GLOBAL: SlabAllocator = SlabAllocator;
+
+#[alloc_error_handler]
+fn on_oom(_layout: Layout) -> ! {
+    loop {}
+}
 
 trait Slab {
     fn alloc(&mut self) -> *mut u8;
@@ -155,16 +176,16 @@ macro_rules! SlabLarge {
 }
 
 // l1_bitmap = 0xFFFF FFFF (initial value)
-// size = 2047
-SlabLarge!(Slab2047);
+// size = 2040
+SlabLarge!(Slab2040);
 
 // l1_bitmap = 0xFFFF FFFF FFFF (initial value)
-// size = 4094
-SlabLarge!(Slab4094);
+// size = 4088
+SlabLarge!(Slab4088);
 
 // l1_bitmap = 0xFFFF FFFF FFFF FF (initial value)
-// size = 8188
-SlabLarge!(Slab8188);
+// size = 8184
+SlabLarge!(Slab8184);
 
 // l1_bitmap = 0xFFFF FFFF FFFF FFF (initial value)
 // size = 16376

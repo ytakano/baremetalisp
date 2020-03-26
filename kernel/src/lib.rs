@@ -2,6 +2,7 @@
 #![feature(lang_items)]
 #![feature(start)]
 #![feature(asm)]
+#![feature(alloc_error_handler)]
 #![no_std]
 #![allow(dead_code)]
 
@@ -14,10 +15,15 @@ mod el2;
 mod el3;
 mod slab;
 
+extern crate alloc;
+
+use alloc::vec::Vec;
 use core::panic::PanicInfo;
 
 #[no_mangle]
 fn func() {
+    let mut xs = Vec::new();
+    xs.push(42);
     ()
 }
 
