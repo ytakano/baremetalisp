@@ -5,7 +5,7 @@ pub struct LockVar {
 }
 
 impl LockVar {
-    pub fn new() -> LockVar {
+    pub const fn new() -> LockVar {
         LockVar{var: 0}
     }
 
@@ -19,7 +19,7 @@ pub struct SpinLock<'a> {
 }
 
 impl<'a> SpinLock<'a> {
-    pub fn new(n: &'a mut u64) -> SpinLock<'a> {
+    fn new(n: &'a mut u64) -> SpinLock<'a> {
         loop {
             if 0 == unsafe { volatile_load(n) } {
                 if test_and_set(n) {

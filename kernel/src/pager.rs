@@ -25,6 +25,16 @@ pub struct Book {
 }
 
 impl PageManager {
+    pub const fn new() -> PageManager {
+        PageManager {
+            start: 0,
+            end: 0,
+            vacancy_books: 0,
+            vacancy_pages: [0; 64],
+            book: [Book{pages: [0; 64]}; 64],
+        }
+    }
+
     pub fn alloc(&mut self) -> Option<usize> {
         if self.vacancy_books == !0 {
             return None;

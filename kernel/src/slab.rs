@@ -14,8 +14,35 @@ extern "C" {
 struct Allocator;
 
 struct SlabAllocator {
-    lock: u64,
+    lock: lock::LockVar,
     pages: pager::PageManager,
+
+       slab16_partial: *mut    Slab16,
+       slab32_partial: *mut    Slab32,
+       slab64_partial: *mut    Slab64,
+      slab128_partial: *mut   Slab128,
+      slab256_partial: *mut   Slab256,
+      slab512_partial: *mut   Slab512,
+     slab1024_partial: *mut  Slab1024,
+     slab2040_partial: *mut  Slab2040,
+     slab4088_partial: *mut  Slab4088,
+     slab8184_partial: *mut  Slab8184,
+    slab16376_partial: *mut Slab16376,
+    slab32752_partial: *mut Slab32752,
+
+       slab16_full: *mut    Slab16,
+       slab32_full: *mut    Slab32,
+       slab64_full: *mut    Slab64,
+      slab128_full: *mut   Slab128,
+      slab256_full: *mut   Slab256,
+      slab512_full: *mut   Slab512,
+     slab1024_full: *mut  Slab1024,
+     slab2040_full: *mut  Slab2040,
+     slab4088_full: *mut  Slab4088,
+     slab8184_full: *mut  Slab8184,
+    slab16376_full: *mut Slab16376,
+    slab32752_full: *mut Slab32752,
+    slab65512_full: *mut Slab65512,
 }
 
 unsafe impl GlobalAlloc for Allocator {
@@ -27,7 +54,7 @@ unsafe impl GlobalAlloc for Allocator {
         driver::uart::decimal(layout.align() as u64);
         driver::uart::puts("\n");
 
-        let _lock = lock::SpinLock::new(&mut SLAB_ALLOC.lock);
+        let _lock = SLAB_ALLOC.lock.lock();
 
         null_mut()
     }
@@ -39,14 +66,33 @@ unsafe impl GlobalAlloc for Allocator {
 static GLOBAL: Allocator = Allocator;
 
 static mut SLAB_ALLOC: SlabAllocator = SlabAllocator {
-    lock: 0,
-    pages: pager::PageManager {
-        start: 0,
-        end: 0,
-        vacancy_books: 0,
-        vacancy_pages: [0; 64],
-        book: [pager::Book{pages: [0; 64]}; 64],
-    },
+    lock: lock::LockVar::new(),
+    pages: pager::PageManager::new(),
+       slab16_partial: null_mut(),
+       slab32_partial: null_mut(),
+       slab64_partial: null_mut(),
+      slab128_partial: null_mut(),
+      slab256_partial: null_mut(),
+      slab512_partial: null_mut(),
+     slab1024_partial: null_mut(),
+     slab2040_partial: null_mut(),
+     slab4088_partial: null_mut(),
+     slab8184_partial: null_mut(),
+    slab16376_partial: null_mut(),
+    slab32752_partial: null_mut(),
+       slab16_full: null_mut(),
+       slab32_full: null_mut(),
+       slab64_full: null_mut(),
+      slab128_full: null_mut(),
+      slab256_full: null_mut(),
+      slab512_full: null_mut(),
+     slab1024_full: null_mut(),
+     slab2040_full: null_mut(),
+     slab4088_full: null_mut(),
+     slab8184_full: null_mut(),
+    slab16376_full: null_mut(),
+    slab32752_full: null_mut(),
+    slab65512_full: null_mut(),
 };
 
 #[alloc_error_handler]
