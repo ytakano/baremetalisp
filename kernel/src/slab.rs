@@ -45,6 +45,72 @@ struct SlabAllocator {
     slab65512_full: *mut Slab65512,
 }
 
+macro_rules! AllocMemory {
+    ($t:ident, $slab_partial:ident, $slab_full:ident) => {
+        let _lock = SLAB_ALLOC.lock.lock();
+
+        match SLAB_ALLOC.$slab_partial.as_mut() {
+            Some(partial) => {
+                let ret = partial.alloc();
+                if partial.is_full() {
+                    let ptr = SLAB_ALLOC.$slab_partial;
+                    match partial.next.as_mut() {
+                        Some(next) => {
+                            next.prev = null_mut();
+                        }
+                        None => {}
+                    }
+
+                    SLAB_ALLOC.$slab_partial = partial.next;
+                    match SLAB_ALLOC.$slab_full.as_mut() {
+                        Some(full) => {
+                            full.prev = ptr;
+                        }
+                        None => {}
+                    }
+
+                    partial.next = SLAB_ALLOC.$slab_full;
+                    SLAB_ALLOC.$slab_full = ptr;
+                }
+                return ret;
+            }
+            None => {
+                match SLAB_ALLOC.pages.alloc() {
+                    Some(addr) => {
+                        let ptr = addr as *mut $t;
+                        match ptr.as_mut() {
+                            Some(slab) => {
+                                slab.init();
+                                let ret = slab.alloc();
+                                if slab.is_full() {
+                                    // for only Slab65512
+                                    match SLAB_ALLOC.$slab_full.as_mut() {
+                                        Some(full) => {
+                                            full.prev = ptr;
+                                        }
+                                        None => {}
+                                    }
+                                    slab.next = SLAB_ALLOC.$slab_full;
+                                    SLAB_ALLOC.$slab_full = ptr;
+                                } else {
+                                    SLAB_ALLOC.$slab_partial = ptr;
+                                }
+                                return ret;
+                            }
+                            None => {
+                                return null_mut();
+                            }
+                        }
+                    }
+                    None => {
+                        return null_mut();
+                    }
+                }
+            }
+        }
+    }
+}
+
 unsafe impl GlobalAlloc for Allocator {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         driver::uart::puts("alloc:\n");
@@ -54,7 +120,61 @@ unsafe impl GlobalAlloc for Allocator {
         driver::uart::decimal(layout.align() as u64);
         driver::uart::puts("\n");
 
-        let _lock = SLAB_ALLOC.lock.lock();
+        let size = layout.size();
+        let n = clz(size as u64 + 8 - 1);
+
+        if n < 60 {
+            // Slab16
+        } else {
+            match n {
+                61 => {
+                    AllocMemory!(Slab16, slab16_partial, slab16_full);
+                }
+                60 => {
+                    AllocMemory!(Slab16, slab16_partial, slab16_full);
+                }
+                59 => {
+                    AllocMemory!(Slab32, slab32_partial, slab32_full);
+                }
+                58 => {
+                    AllocMemory!(Slab64, slab64_partial, slab64_full);
+                }
+                57 => {
+                    AllocMemory!(Slab128, slab128_partial, slab128_full);
+                }
+                56 => {
+                    AllocMemory!(Slab256, slab256_partial, slab256_full);
+                }
+                55 => {
+                    AllocMemory!(Slab1024, slab1024_partial, slab1024_full);
+                }
+                _ => {
+                    if size <= 4088 - 16 {
+                        if size <= 2040 - 16 {
+                            // Slab2040
+                        } else {
+                            // Slab4088
+                        }
+                    } else {
+                        if size <= 16376 - 16 {
+                            if size <= 8184 - 16 {
+                                // Slab8184
+                            } else {
+                                // Slab16376
+                            }
+                        } else {
+                            if size <= 32752 - 16 {
+                                // Slab32752
+                            } else if size <= 65512 - 16 {
+                                // Slab65512
+                            } else {
+                                return null_mut();
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         null_mut()
     }
@@ -110,10 +230,12 @@ pub fn init() {
 trait Slab {
     fn alloc(&mut self) -> *mut u8;
     fn free(&mut self, ptr: *mut u8);
+    fn is_full(&self) -> bool;
+    fn init(&mut self);
 }
 
 macro_rules! SlabSmall {
-    ($id:ident, $n:expr, $shift:expr) => {
+    ($id:ident, $n:expr, $shift:expr, $l1val:expr, $l2val:expr, $size:expr) => {
         #[repr(C)]
         struct $id {
             buf: [u8; 65536 - 32 - 8 * $n],
@@ -165,6 +287,21 @@ macro_rules! SlabSmall {
                 self.l1_bitmap &= !(1 << (63 - idx1));
                 self.l2_bitmap[idx1] &= !(1 << (63 - idx2));
             }
+
+            fn is_full(&self) -> bool {
+                self.l1_bitmap == !0
+            }
+
+            fn init(&mut self) {
+                self.l1_bitmap = $l1val;
+                for it in self.l2_bitmap.iter_mut() {
+                    *it = 0;
+                }
+                self.l2_bitmap[$n - 1] = $l2val;
+                self.prev = null_mut();
+                self.next = null_mut();
+                self.size = $size;
+            }
         }
     }
 }
@@ -172,42 +309,42 @@ macro_rules! SlabSmall {
 // l1_bitmap = 0 (initial value)
 // l2_bitmap[63] = 0xFFFF FFFF | 0b11 << 32 (initial value)
 // size = 16
-SlabSmall!(Slab16, 64, 4);
+SlabSmall!(Slab16, 64, 4, 0, 0xFFFFFFFF, 16);
 
 // l1_bitmap = 0xFFFF FFFF (initial value)
 // l2_bitmap[31] = 0b111111111 (initial value)
 // size = 32
-SlabSmall!(Slab32, 32, 5);
+SlabSmall!(Slab32, 32, 5, 0xFFFFFFFF, 0b111111111, 32);
 
 // l1_bitmap = 0xFFFF FFFF FFFF (initial value)
 // l2_bitmap[15] = 0b111 (initial value)
 // size = 64
-SlabSmall!(Slab64, 16, 6);
+SlabSmall!(Slab64, 16, 6, 0xFFFFFFFFFFFF, 0b111, 64);
 
 // l1_bitmap = 0xFFFF FFFF FFFF FF (initial value)
 // l2_bitmap[7] = 0b1 (initial value)
 // size = 128
-SlabSmall!(Slab128, 8, 7);
+SlabSmall!(Slab128, 8, 7, 0xFFFFFFFFFFFFFF, 1, 128);
 
 // l1_bitmap = 0xFFFF FFFF FFFF FFF (initial value)
 // l2_bitmap[3] = 0b1 (initial value)
 // size = 256
-SlabSmall!(Slab256, 4, 8);
+SlabSmall!(Slab256, 4, 8, 0xFFFFFFFFFFFFFFF, 1, 256);
 
 // l1_bitmap = 0x3FFF FFFF FFFF FFFF (initial value)
 // l2_bitmap[1] = 0b1 (initial value)
 // size = 512
-SlabSmall!(Slab512, 2, 9);
+SlabSmall!(Slab512, 2, 9, 0x3FFFFFFFFFFFFFFF, 1, 512);
 
 // l1_bitmap = 0x7FFF FFFF FFFF FFFF (initial value)
 // l2_bitmap[0] = 0b1 (initial value)
 // size = 1024
-SlabSmall!(Slab1024, 1, 10);
+SlabSmall!(Slab1024, 1, 10, 0x7FFFFFFFFFFFFFFF, 1, 1024);
 
 #[repr(C)]
 struct SlabMemory {
-    slab: usize,
     idx1: usize,
+    slab: usize,
 }
 
 macro_rules! SlabLarge {
@@ -223,10 +360,10 @@ macro_rules! SlabLarge {
 
         impl Slab for $id {
             // +-------------------+
-            // |  pointer to slab  |
+            // |       index       |
             // |     (8 bytes)     |
             // +-------------------+
-            // |       index       |
+            // |  pointer to slab  |
             // |     (8 bytes)     |
             // +-------------------+ <- return value
             // |       data        |
@@ -243,8 +380,8 @@ macro_rules! SlabLarge {
 
                 // first 128 bits contain meta information
                 unsafe {
-                    (*mem).slab = self as *mut $id as usize;
                     (*mem).idx1 = idx1;
+                    (*mem).slab = self as *mut $id as usize;
                 }
 
                 &mut (self.buf[idx + 16]) as *mut u8
@@ -253,9 +390,17 @@ macro_rules! SlabLarge {
             /// deallocate the memory region pointed by ptr which is returned by alloc
             fn free(&mut self, ptr: *mut u8) {
                 let addr = ptr as usize;
-                let idx1 = unsafe { *((addr - 8) as *mut usize) };
+                let idx1 = unsafe { *((addr - 16) as *mut usize) };
 
                 self.l1_bitmap &= !(1 << (63 - idx1))
+            }
+
+            fn is_full(&self) -> bool {
+                self.l1_bitmap == !0
+            }
+
+            fn init(&mut self) {
+                // TODO
             }
         }
     }
@@ -310,5 +455,13 @@ impl Slab for Slab65512 {
 
     /// do nothing
     fn free(&mut self, _ptr: *mut u8) {
+    }
+
+    fn is_full(&self) -> bool {
+        true
+    }
+
+    fn init(&mut self) {
+        // TODO
     }
 }
