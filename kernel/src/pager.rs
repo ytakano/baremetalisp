@@ -12,16 +12,16 @@ use crate::aarch64::bits::clz;
 /// };
 /// ```
 pub struct PageManager {
-    pub start: usize,
-    pub end: usize,
-    pub vacancy_books: u64,
-    pub vacancy_pages: [u64; 64],
-    pub book: [Book; 64],
+    start: usize,
+    end: usize,
+    vacancy_books: u64,
+    vacancy_pages: [u64; 64],
+    book: [Book; 64],
 }
 
 #[derive(Copy, Clone)]
 pub struct Book {
-    pub pages: [u64; 64]
+    pages: [u64; 64]
 }
 
 impl PageManager {
@@ -33,6 +33,11 @@ impl PageManager {
             vacancy_pages: [0; 64],
             book: [Book{pages: [0; 64]}; 64],
         }
+    }
+
+    pub fn set_range(&mut self, start: usize, end: usize) {
+        self.start = start;
+        self.end = end;
     }
 
     pub fn alloc(&mut self) -> Option<usize> {

@@ -140,10 +140,6 @@ _start:
     /* All set bits below are res1; bit 10 (TFP) is set to 0 */
     mov x0, #(1 << 8)
     msr CPTR_EL3, x0
-    mov x0, #(0x32FF)
-    msr CPTR_EL2, x0
-    mov x0, #(0b110011 << 16)
-    msr CPACR_EL1, x0
 
     /* Set up SCR */
     mov x0, #SCR_VAL
@@ -157,6 +153,12 @@ _start:
     bl      setup_gic
 #endif
 #endif // NOEL3
+
+    // enable FP/SIMD on EL2 and EL1
+    mov x0, #(0x32FF)
+    msr CPTR_EL2, x0
+    mov x0, #(0b110011 << 16)
+    msr CPACR_EL1, x0
 
 #endif // raspi4
 
