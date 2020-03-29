@@ -11,15 +11,24 @@ pub fn el1_entry() -> ! {
     boot::run();
 
     slab::init();
+    {
+        let mut list = LinkedList::new();
 
-    let mut list = LinkedList::new();
+        for _ in 0..8 {
+            driver::uart::puts("PUSH:\n");
+            for i in 0..911 {
+                list.push_back([i as u64; 4]);
+            }
+            slab::print_slabs();
+            driver::uart::puts("---------------------------------------\n");
 
-    for _ in 0..8 {
-        for i in 0..128 {
-            list.push_back([i as u64; 23]);
+            driver::uart::puts("POP:\n");
+            for _ in 0..419 {
+                list.pop_front();
+            }
+            slab::print_slabs();
+            driver::uart::puts("---------------------------------------\n");
         }
-        driver::uart::puts("---------------------------------------\n");
-        slab::print_slabs();
     }
 
     let p = 0x400000000 as *mut u64;

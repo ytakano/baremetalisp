@@ -120,6 +120,71 @@ macro_rules! AllocMemory {
     }
 }
 
+macro_rules! DeallocMemory {
+    ($ptr:expr, $addr_slab:expr, $t:ident, $slab_partial:ident, $slab_full:ident) => {
+        match ($addr_slab as *mut $t).as_mut() {
+            Some(slab) => {
+                let is_full = slab.is_full();
+                slab.free($ptr);
+                if is_full {
+                    match slab.prev.as_mut() {
+                        Some(prev) => {
+                            prev.next = slab.next;
+                        }
+                        None => {
+                            SLAB_ALLOC.$slab_full = slab.next;
+                        }
+                    }
+
+                    match slab.next.as_mut() {
+                        Some(next) => {
+                            next.prev = slab.prev;
+                        }
+                        None => {}
+                    }
+
+                    if slab.is_empty() {
+                        SLAB_ALLOC.pages.free($addr_slab as usize);
+                    } else {
+                        match SLAB_ALLOC.$slab_partial.as_mut() {
+                            Some(partial) => {
+                                partial.prev = slab;
+                                slab.next = partial;
+                            }
+                            None => {
+                                slab.next = null_mut();
+                            }
+                        }
+                        slab.prev = null_mut();
+                        SLAB_ALLOC.$slab_partial = slab;
+                    }
+                } else {
+                    if slab.is_empty() {
+                        match slab.prev.as_mut() {
+                            Some(prev) => {
+                                prev.next = slab.next;
+                            }
+                            None => {
+                                SLAB_ALLOC.$slab_partial = slab.next;
+                            }
+                        }
+
+                        match slab.next.as_mut() {
+                            Some(next) => {
+                                next.prev = slab.prev;
+                            }
+                            None => {}
+                        }
+
+                        SLAB_ALLOC.pages.free($addr_slab as usize);
+                    }
+                }
+            }
+            None => {}
+        }
+    }
+}
+
 unsafe impl GlobalAlloc for Allocator {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
 /*
@@ -192,7 +257,64 @@ unsafe impl GlobalAlloc for Allocator {
         }
     }
 
-    unsafe fn dealloc(&self, _ptr: *mut u8, _layout: Layout) {}
+    unsafe fn dealloc(&self, ptr: *mut u8, _layout: Layout) {
+        let addr_slab = *((ptr as usize - 8) as *const u64);
+        let size = *((addr_slab + 65532) as *const u32);
+/*
+        driver::uart::puts("dealloc:\n");
+        driver::uart::puts("  ptr: 0x");
+        driver::uart::hex(ptr as u64);
+        driver::uart::puts("\n");
+        driver::uart::puts("  addr_slab: 0x");
+        driver::uart::hex(addr_slab);
+        driver::uart::puts("\n");
+        driver::uart::puts("  size: ");
+        driver::uart::decimal(size as u64);
+        driver::uart::puts("\n");
+*/
+        match size {
+            16 => {
+                DeallocMemory!(ptr, addr_slab, Slab16, slab16_partial, slab16_full);
+            }
+            32 => {
+                DeallocMemory!(ptr, addr_slab, Slab32, slab32_partial, slab32_full);
+            }
+            64 => {
+                DeallocMemory!(ptr, addr_slab, Slab64, slab64_partial, slab64_full);
+            }
+            128 => {
+                DeallocMemory!(ptr, addr_slab, Slab128, slab128_partial, slab128_full);
+            }
+            256 => {
+                DeallocMemory!(ptr, addr_slab, Slab256, slab256_partial, slab256_full);
+            }
+            512 => {
+                DeallocMemory!(ptr, addr_slab, Slab512, slab512_partial, slab512_full);
+            }
+            1024 => {
+                DeallocMemory!(ptr, addr_slab, Slab1024, slab1024_partial, slab1024_full);
+            }
+            2040 => {
+                DeallocMemory!(ptr, addr_slab, Slab2040, slab2040_partial, slab2040_full);
+            }
+            4088 => {
+                DeallocMemory!(ptr, addr_slab, Slab4088, slab4088_partial, slab4088_full);
+            }
+            8184 => {
+                DeallocMemory!(ptr, addr_slab, Slab8184, slab8184_partial, slab8184_full);
+            }
+            16376 => {
+                DeallocMemory!(ptr, addr_slab, Slab16376, slab16376_partial, slab16376_full);
+            }
+            32752 => {
+                DeallocMemory!(ptr, addr_slab, Slab32752, slab32752_partial, slab32752_full);
+            }
+            65512 => {
+                DeallocMemory!(ptr, addr_slab, Slab65512, slab65512_partial, slab65512_full);
+            }
+            _ => {}
+        }
+    }
 }
 
 #[global_allocator]
@@ -247,6 +369,7 @@ trait Slab {
     fn alloc(&mut self) -> *mut u8;
     fn free(&mut self, ptr: *mut u8);
     fn is_full(&self) -> bool;
+    fn is_empty(&self) -> bool;
     fn init(&mut self);
     fn print(&self);
 }
@@ -260,7 +383,8 @@ macro_rules! SlabSmall {
             l2_bitmap: [u64; $n],
             prev: *mut $id,
             next: *mut $id,
-            size: usize
+            num: u32,
+            size: u32
         }
 
         impl Slab for $id {
@@ -281,12 +405,15 @@ macro_rules! SlabSmall {
                     self.l1_bitmap |= 1 << (63 - idx1);
                 }
 
-                let idx = idx1 * self.size * 64 + idx2 * self.size;
+                let size = self.size as usize;
+                let idx = idx1 * size * 64 + idx2 * size;
                 let ptr = &mut (self.buf[idx]) as *mut u8;
                 let ptr64 = ptr as *mut usize;
 
                 // first 64 bits points the slab
                 unsafe { *ptr64 = self as *mut $id as usize; }
+
+                self.num += 1;
 
                 &mut (self.buf[idx + 8]) as *mut u8
             }
@@ -303,10 +430,15 @@ macro_rules! SlabSmall {
 
                 self.l1_bitmap &= !(1 << (63 - idx1));
                 self.l2_bitmap[idx1] &= !(1 << (63 - idx2));
+                self.num -= 1;
             }
 
             fn is_full(&self) -> bool {
                 self.l1_bitmap == !0
+            }
+
+            fn is_empty(&self) -> bool {
+                self.num == 0
             }
 
             fn init(&mut self) {
@@ -399,7 +531,8 @@ macro_rules! SlabLarge {
             prev: *mut $id,
             next: *mut $id,
             l1_bitmap: u64,
-            size: usize,
+            num: u32,
+            size: u32,
         }
 
         impl Slab for $id {
@@ -418,7 +551,7 @@ macro_rules! SlabLarge {
                 let idx1 = clz(!self.l1_bitmap) as usize;
                 self.l1_bitmap |= 1 << (63 - idx1);
 
-                let idx = idx1 * self.size;
+                let idx = idx1 * self.size as usize;
                 let ptr = &mut (self.buf[idx]) as *mut u8;
                 let mem = ptr as *mut SlabMemory;
 
@@ -428,6 +561,8 @@ macro_rules! SlabLarge {
                     (*mem).slab = self as *mut $id as usize;
                 }
 
+                self.num += 1;
+
                 &mut (self.buf[idx + 16]) as *mut u8
             }
 
@@ -436,11 +571,16 @@ macro_rules! SlabLarge {
                 let addr = ptr as usize;
                 let idx1 = unsafe { *((addr - 16) as *mut usize) };
 
-                self.l1_bitmap &= !(1 << (63 - idx1))
+                self.l1_bitmap &= !(1 << (63 - idx1));
+                self.num -= 1;
             }
 
             fn is_full(&self) -> bool {
                 self.l1_bitmap == !0
+            }
+
+            fn is_empty(&self) -> bool {
+                self.num == 0
             }
 
             fn init(&mut self) {
@@ -448,6 +588,7 @@ macro_rules! SlabLarge {
                 self.next = null_mut();
                 self.l1_bitmap = $l1val;
                 self.size = $size;
+                self.num  = 0;
             }
 
             fn print(&self) {
@@ -492,7 +633,8 @@ struct Slab65512 {
     buf: [u8; 65512],
     prev: *mut Slab65512,
     next: *mut Slab65512,
-    size: usize, // must be 65512
+    num: u32,
+    size: u32, // must be 65512
 }
 
 impl Slab for Slab65512 {
@@ -511,21 +653,28 @@ impl Slab for Slab65512 {
         // first 64 bits points the slab
         unsafe { *ptr64 = self as *mut Slab65512 as usize; }
 
+        self.num = 1;
+
         &mut (self.buf[8]) as *mut u8
     }
 
-    /// do nothing
     fn free(&mut self, _ptr: *mut u8) {
+        self.num = 0;
     }
 
     fn is_full(&self) -> bool {
         true
     }
 
+    fn is_empty(&self) -> bool {
+        self.num == 0
+    }
+
     fn init(&mut self) {
         self.next = null_mut();
         self.prev = null_mut();
         self.size = 65512;
+        self.num  = 0;
     }
 
     fn print(&self) {
