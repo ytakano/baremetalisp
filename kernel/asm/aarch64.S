@@ -178,7 +178,7 @@ _start:
     // if cpu id == 0
 .L2:
     // set stack before _start
-    ldr     x1, =__stack_el3_start
+    ldr     x1, =__stack_firm_start
     mov     sp, x1
 
     // clear bss

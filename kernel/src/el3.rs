@@ -13,7 +13,7 @@ pub fn el3_to_el1() {
     let size = (start - end) / nc;
 
     let aff = aarch64::cpu::get_affinity_lv0();
-    let addr = start - size * aff as usize;
+    let addr = start - size * aff as usize + aarch64::mmu::EL1_ADDR_OFFSET;
 
     unsafe {
         asm!(

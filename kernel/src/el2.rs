@@ -1,5 +1,4 @@
 use crate::aarch64;
-use crate::driver;
 
 extern "C" {
     static mut __stack_el1_end: u64;
@@ -14,12 +13,7 @@ pub fn el2_to_el1() {
     let size = (start - end) / nc;
 
     let aff = aarch64::cpu::get_affinity_lv0();
-//    let addr = start - size * aff as usize + (0x3FFFFF << 42);
-    let addr = start - size * aff as usize;
-
-    driver::uart::puts("stack addr = 0x");
-    driver::uart::hex(addr as u64);
-    driver::uart::puts("\n");
+    let addr = start - size * aff as usize + aarch64::mmu::EL1_ADDR_OFFSET;
 
     unsafe {
         asm!(
