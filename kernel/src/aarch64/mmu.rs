@@ -16,14 +16,18 @@ extern "C" {
     static mut __stack_el2_start: u64;
     static mut __stack_el1_end: u64;
     static mut __stack_el1_start: u64;
+    static mut __stack_el0_end: u64;
+    static mut __stack_el0_start: u64;
     static mut __stack_end: u64;
 
-    static mut __tt_el3_end: u64;
     static mut __tt_el3_start: u64;
-    static mut __tt_el2_end: u64;
+    static mut __tt_el3_end: u64;
     static mut __tt_el2_start: u64;
-    static mut __tt_el1_end: u64;
-    static mut __tt_el1_start: u64;
+    static mut __tt_el2_end: u64;
+    static mut __tt_el1_ttbr0_start: u64;
+    static mut __tt_el1_ttbr0_end: u64;
+    static mut __tt_el1_ttbr1_start: u64;
+    static mut __tt_el1_ttbr1_end: u64;
 
     static mut __el0_heap_start: u64;
     static mut __el0_heap_end: u64;
@@ -210,6 +214,16 @@ pub fn print_addr() {
     driver::uart::decimal(addr as u64);
     driver::uart::puts("\n");
 
+    let addr = unsafe { &mut __stack_el0_end as *mut u64 as u64 };
+    driver::uart::puts("__stack_el0_end   = ");
+    driver::uart::decimal(addr as u64);
+    driver::uart::puts("\n");
+
+    let addr = unsafe { &mut __stack_el0_start as *mut u64 as u64 };
+    driver::uart::puts("__stack_el0_start = ");
+    driver::uart::decimal(addr as u64);
+    driver::uart::puts("\n");
+
     let addr = unsafe { &mut __tt_el3_start as *mut u64 as u64 };
     driver::uart::puts("__tt_el3_start    = ");
     driver::uart::decimal(addr as u64);
@@ -220,8 +234,13 @@ pub fn print_addr() {
     driver::uart::decimal(addr as u64);
     driver::uart::puts("\n");
 
-    let addr = unsafe { &mut __tt_el1_start as *mut u64 as u64 };
-    driver::uart::puts("__tt_el1_start    = ");
+    let addr = unsafe { &mut __tt_el1_ttbr0_start as *mut u64 as u64 };
+    driver::uart::puts("__tt_el1_ttbr0_start    = ");
+    driver::uart::decimal(addr as u64);
+    driver::uart::puts("\n");
+
+    let addr = unsafe { &mut __tt_el1_ttbr1_start as *mut u64 as u64 };
+    driver::uart::puts("__tt_el1_ttbr1_start    = ");
     driver::uart::decimal(addr as u64);
     driver::uart::puts("\n");
 
@@ -387,16 +406,16 @@ fn mask_el3(tt: &'static mut [u64]) -> &'static mut [u64] {
 
 /// mask EL1's stack and transition table
 fn mask_el1(tt: &'static mut [u64]) -> &'static mut [u64] {
-    // mask EL1's stack
+    // mask stack of EL1 and EL0
     let end = unsafe { &mut __stack_el1_end as *mut u64 as usize } >> 16; // div by 64KiB
-    let start = unsafe { &mut __stack_el1_start as *mut u64 as usize } >> 16; // div by 64KiB
+    let start = unsafe { &mut __stack_el0_start as *mut u64 as usize } >> 16; // div by 64KiB
     for i in end..(start - 1) {
         tt[i + 8192] = 0;
     }
 
     // mask EL1's transition table
-    let end = unsafe { &mut __tt_el1_end as *mut u64 as usize } >> 16; // div by 64KiB
-    let start = unsafe { &mut __tt_el1_start as *mut u64 as usize } >> 16; // div by 64KiB
+    let start = unsafe { &mut __tt_el1_ttbr0_start as *mut u64 as usize } >> 16; // div by 64KiB
+    let end = unsafe { &mut __tt_el1_ttbr1_end as *mut u64 as usize } >> 16; // div by 64KiB
     for i in start..(end - 1) {
         tt[i + 8192] = 0;
     }
@@ -485,14 +504,15 @@ fn init_el2() -> &'static mut [u64] {
 /// set up EL1's page table, 64KB page, level 2 and 3 translation tables,
 /// assume 2MiB stack space per CPU
 fn init_el1() -> &'static mut [u64] {
-    let addr = unsafe { &mut __tt_el1_start as *mut u64 as u64 };
-    let ptr  = addr as *mut u64;
+    // TTBR0: user space
+    let ttbr0 = unsafe { &mut __tt_el1_ttbr0_start as *mut u64 as u64 };
+    let ptr  = ttbr0 as *mut u64;
     let tt   = unsafe { slice::from_raw_parts_mut(ptr, 8192 * 10) };
-    let tt   = init_table_flat(tt, addr);
+    let tt   = init_table_flat(tt, ttbr0);
 
     // detect stack over flow
-    let end = unsafe { &mut __stack_el1_end as *mut u64 as usize };
-    let start = unsafe { &mut __stack_el1_start as *mut u64 as usize };
+    let end = unsafe { &mut __stack_el0_end as *mut u64 as usize };
+    let start = unsafe { &mut __stack_el0_start as *mut u64 as usize };
 
     // #CPU
     let nc = (start - end) >> 21; // div by 2MiB (32 pages)
@@ -502,6 +522,50 @@ fn init_el1() -> &'static mut [u64] {
 
     let tt = mask_el3(tt);
     let tt = mask_el2(tt);
+/*
+    // mask EL1's stack
+    let end = unsafe { &mut __stack_el1_end as *mut u64 as usize } >> 16; // div by 64KiB
+    let start = unsafe { &mut __stack_el1_start as *mut u64 as usize } >> 16; // div by 64KiB
+    for i in end..(start - 1) {
+        tt[i + 8192] = 0;
+    }
+*/
+    //-------------------------------------------------------------------------
+    // TTBR1: kernel space
+
+    // kernel space memory
+    let ttbr1 = unsafe { &mut __tt_el1_ttbr1_start as *mut u64 as u64 };
+    let ptr  = ttbr1 as *mut u64;
+    let tt   = unsafe { slice::from_raw_parts_mut(ptr, 8192 * 2) };
+
+    // zero clear
+    for v in tt.iter_mut() {
+        *v = 0;
+    }
+
+    // kernel stack
+    let stack_end = unsafe { &mut __stack_el1_end as *mut u64 as usize } >> 16;
+    let stack_start = unsafe { &mut __stack_el1_start as *mut u64 as usize } >> 16;
+    for i in stack_end..stack_start {
+        tt[i + 8192] = (i << 16) as u64 | 0b11 |
+            FLAG_L3_AF | FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_MEM;
+    }
+/*
+    // detect stack over flow
+    let end = unsafe { &mut __stack_el1_end as *mut u64 as usize };
+    for i in 0..(nc - 1) {
+        tt[(end >> 16) + i * 32 + 8192] = 0;
+    }
+*/
+    // user space transition table
+    let start = unsafe { &mut __tt_el1_ttbr0_start as *mut u64 as usize } >> 16;
+    let end = unsafe { &mut __tt_el1_ttbr0_end as *mut u64 as usize } >> 16;
+    for i in start..end {
+        tt[i + 8192] = (i * 64 * 1024) as u64 | 0b11 |
+            FLAG_L3_NS | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_NC;
+    }
+
+    //-------------------------------------------------------------------------
 
     // first, set Memory Attributes array, indexed by PT_MEM, PT_DEV, PT_NC in our example
     unsafe { asm!("msr mair_el1, $0" : : "r" (get_mair())) };
@@ -527,8 +591,8 @@ fn init_el1() -> &'static mut [u64] {
     unsafe { asm!("msr tcr_el1, $0" : : "r" (tcr)) };
 
     // tell the MMU where our translation tables are.
-    // TTBR1_EL1 is kernel space
-    unsafe { asm!("msr ttbr0_el1, $0" : : "r" (addr + 1)) };
+    unsafe { asm!("msr ttbr0_el1, $0" : : "r" (ttbr0 + 1)) };
+    unsafe { asm!("msr ttbr1_el1, $0" : : "r" (ttbr1 + 1)) };
 
     // finally, toggle some bits in system control register to enable page translation
     let mut sctlr: u64;
