@@ -1,20 +1,12 @@
 use crate::aarch64;
-use crate::driver;
-use crate::boot;
-use crate::slab;
 
 extern "C" {
     static mut __stack_el0_end: u64;
     static mut __stack_el0_start: u64;
 }
 
-//use alloc::vec::Vec;
-use alloc::collections::linked_list::LinkedList;
-
 #[no_mangle]
 pub fn el1_entry() -> ! {
-    driver::uart::puts("entered EL1\n");
-
     let end = unsafe { &mut __stack_el0_end as *mut u64 as usize };
     let start = unsafe { &mut __stack_el0_start as *mut u64 as usize };
 
@@ -23,10 +15,6 @@ pub fn el1_entry() -> ! {
 
     let aff = aarch64::cpu::get_affinity_lv0();
     let addr = start - size * aff as usize;
-
-    driver::uart::puts("addr = 0x");
-    driver::uart::hex(start as u64);
-    driver::uart::puts("\n");
 
     unsafe {
         asm!("
@@ -43,31 +31,6 @@ pub fn el1_entry() -> ! {
             : "x0"
         );
     }
-    boot::run();
-
-    slab::init();
-    {
-        let mut list = LinkedList::new();
-
-        for _ in 0..8 {
-            driver::uart::puts("PUSH:\n");
-            for i in 0..911 {
-                list.push_back([i as u64; 4]);
-            }
-            slab::print_slabs();
-            driver::uart::puts("---------------------------------------\n");
-
-            driver::uart::puts("POP:\n");
-            for _ in 0..419 {
-                list.pop_front();
-            }
-            slab::print_slabs();
-            driver::uart::puts("---------------------------------------\n");
-        }
-    }
-
-    let p = 0x400000000 as *mut u64;
-    unsafe { *p = 10 };
 
     loop{}
 }

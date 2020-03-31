@@ -283,6 +283,7 @@ pub fn init() -> Option<VMTables> {
 
 fn init_table_flat(tt: &'static mut [u64], addr: u64) -> &'static mut [u64] {
     let data_start = unsafe { &mut __data_start as *mut u64 as usize } >> 16;
+    let stack_start = unsafe { &mut __stack_start as *mut u64 as usize } >> 16;
     let stack_end = unsafe { &mut __stack_end as *mut u64 as usize } >> 16;
     let no_cache = unsafe { &mut __no_cache as *mut u64 as usize } >> 16;
 
@@ -298,17 +299,23 @@ fn init_table_flat(tt: &'static mut [u64], addr: u64) -> &'static mut [u64] {
     // L3 table, instructions and read only data
     for i in 0..data_start {
         tt[i + 8192] = (i * 64 * 1024) as u64 | 0b11 |
-            FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_R_N | FLAG_L3_ATTR_MEM;
+            FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_R_R | FLAG_L3_ATTR_MEM;
     }
 
-    // L3 table, data, bss, and stack
-    for i in data_start..stack_end {
+    // L3 table, data and bss
+    for i in data_start..no_cache {
         tt[i + 8192] = (i * 64 * 1024) as u64 | 0b11 |
-            FLAG_L3_AF | FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_MEM;
+            FLAG_L3_AF | FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_ISH | FLAG_L3_SH_RW_RW | FLAG_L3_ATTR_MEM;
     }
 
     tt[no_cache + 8192] = no_cache as u64 * 64 * 1024 | 0b11 |
         FLAG_L3_AF | FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_ISH | FLAG_L3_SH_RW_RW | FLAG_L3_ATTR_NC;
+
+    // L3 table, stack
+    for i in stack_start..stack_end {
+        tt[i + 8192] = (i * 64 * 1024) as u64 | 0b11 |
+            FLAG_L3_AF | FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_MEM;
+    }
 
     // L3 table
     for i in stack_end..(8192 * 8) {

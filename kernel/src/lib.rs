@@ -31,6 +31,8 @@ pub fn entry() -> ! {
     let ctx = driver::init();
     aarch64::mmu::init();
 
+    boot::run();
+
     match ctx.graphics0 {
         Some(mut gr) => {
             driver::uart::puts("drawing mandelbrot set...\n");

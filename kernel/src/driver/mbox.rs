@@ -91,22 +91,20 @@ struct Mbox<T>(T);
 
 /// get board's serial number
 pub fn get_serial() -> Option<u64> {
-    let _dc = mmu::DisableCache::new();
+    let m = mmu::get_no_cache::<[u32; 8]>();
 
     // get the board's unique serial number with a mailbox call
-    let mut m = Mbox::<[u32; 8]>([
-        8 * 4,              // length of the message
-        MBOX_REQUEST,       // this is a request message
-        MBOX_TAG_GETSERIAL, // get serial number command
-        8,                  // buffer size
-        8,
-        0,                  // clear output buffer
-        0,
-        MBOX_TAG_LAST
-    ]);
+    m[0] = 8 * 4;              // length of the message
+    m[1] = MBOX_REQUEST;       // this is a request message
+    m[2] = MBOX_TAG_GETSERIAL; // get serial number command
+    m[3] = 8;                  // buffer size
+    m[4] = 8;
+    m[5] = 0;                  // clear output buffer
+    m[6] = 0;
+    m[7] = MBOX_TAG_LAST;
 
-    if call(&mut(m.0[0]) as *mut u32, MBOX_CH_PROP) {
-        let serial: u64 = m.0[5] as u64 | ((m.0[6] as u64) << 32);
+    if call(&mut(m[0]) as *mut u32, MBOX_CH_PROP) {
+        let serial: u64 = m[5] as u64 | ((m[6] as u64) << 32);
         Some(serial)
     } else {
         None
@@ -114,20 +112,17 @@ pub fn get_serial() -> Option<u64> {
 }
 
 fn get_len7_u32(tag: u32) -> Option<u32> {
-    let _dc = mmu::DisableCache::new();
+    let m = mmu::get_no_cache::<[u32; 7]>();
+    m[0] = 7 * 4;        // length of the message
+    m[1] = MBOX_REQUEST; // this is a request message
+    m[2] = tag;          // get firmware version
+    m[3] = 4;            // buffer size
+    m[4] = 4;
+    m[5] = 0;            // clear output buffer
+    m[6] = MBOX_TAG_LAST;
 
-    let mut m = Mbox::<[u32; 7]>([
-        7 * 4,        // length of the message
-        MBOX_REQUEST, // this is a request message
-        tag,          // get firmware version
-        4,            // buffer size
-        4,
-        0,            // clear output buffer
-        MBOX_TAG_LAST
-    ]);
-
-    if call(&mut(m.0[0]) as *mut u32, MBOX_CH_PROP) {
-        Some(m.0[5])
+    if call(&mut(m[0]) as *mut u32, MBOX_CH_PROP) {
+        Some(m[5])
     } else {
         None
     }
@@ -150,25 +145,22 @@ pub fn get_board_rev() -> Option<u32> {
 
 /// get memory size
 pub fn get_memory() -> usize {
-    let _dc = mmu::DisableCache::new();
-
     match get_board_rev() {
         Some(rev) => {
             // https://www.raspberrypi.org/documentation/hardware/raspberrypi/revision-codes/README.md
             if (rev >> 23) & 1 == 0 {
-                let mut m = Mbox::<[u32; 8]>([
-                    8 * 4,           // length of the message
-                    MBOX_REQUEST,    // this is a request message
-                    MBOX_TAG_GETMEM, // get memory
-                    8,               // buffer size
-                    8,
-                    0,               // clear output buffer
-                    0,
-                    MBOX_TAG_LAST
-                ]);
+                let m = mmu::get_no_cache::<[u32; 8]>();
+                m[0] = 8 * 4;           // length of the message
+                m[1] = MBOX_REQUEST;    // this is a request message
+                m[2] = MBOX_TAG_GETMEM; // get memory
+                m[3] = 8;               // buffer size
+                m[4] = 8;
+                m[5] = 0;               // clear output buffer
+                m[6] = 0;
+                m[7] = MBOX_TAG_LAST;
 
-                if call(&mut(m.0[0]) as *mut u32, MBOX_CH_PROP) {
-                    m.0[6] as usize
+                if call(&mut(m[0]) as *mut u32, MBOX_CH_PROP) {
+                    m[6] as usize
                 } else {
                     256 * 1024 * 1024 // 256MiB
                 }
@@ -188,104 +180,94 @@ pub fn get_memory() -> usize {
 }
 
 pub fn set_uart_clock(clock: u32) {
-    let _dc = mmu::DisableCache::new();
+    let m = mmu::get_no_cache::<[u32; 9]>();
+    m[0] = 9 * 4;
+    m[1] = MBOX_REQUEST;
+    m[2] = MBOX_TAG_SETCLKRATE; // set clock rate
+    m[3] = 12;
+    m[4] = 8;
+    m[5] = 2;     // UART clock
+    m[6] = clock;
+    m[7] = 0;     // clear turbo
+    m[8] = MBOX_TAG_LAST;
 
-    let mut m = Mbox::<[u32; 9]>([
-        9 * 4,
-        MBOX_REQUEST,
-        MBOX_TAG_SETCLKRATE, // set clock rate
-        12,
-        8,
-        2,     // UART clock
-        clock,
-        0,     // clear turbo
-        MBOX_TAG_LAST
-    ]);
-
-    call(&mut(m.0[0]) as *mut u32, MBOX_CH_PROP);
+    call(&mut(m[0]) as *mut u32, MBOX_CH_PROP);
 }
 
 /// power off a device
 pub fn set_power_off(n: u32) {
-    let _dc = mmu::DisableCache::new();
+    let m = mmu::get_no_cache::<[u32; 8]>();
+    m[0] = 8 * 4;             // length of the message
+    m[1] = MBOX_REQUEST;      // this is a request message
+    m[2] = MBOX_TAG_SETPOWER; // get power state
+    m[3] = 8;                 // buffer size
+    m[4] = 8;
+    m[5] = n;                 // device id
+    m[6] = 0;                 // bit 0: off, bit 1: no wait
+    m[7] = MBOX_TAG_LAST;
 
-    let mut m = Mbox::<[u32; 8]>([
-        8 * 4,             // length of the message
-        MBOX_REQUEST,      // this is a request message
-        MBOX_TAG_SETPOWER, // get power state
-        8,                 // buffer size
-        8,
-        n,                 // device id
-        0,                 // bit 0: off, bit 1: no wait
-        MBOX_TAG_LAST
-    ]);
-
-    call(&mut(m.0[0]) as *mut u32, MBOX_CH_PROP);
+    call(&mut(m[0]) as *mut u32, MBOX_CH_PROP);
 }
 
 /// set display's setting
 pub fn set_display(width_phy: u32, height_phy: u32, width_virt: u32, height_virt: u32,
                    offset_x: u32, offset_y: u32) -> Option<graphics::Display> {
-    let _dc = mmu::DisableCache::new();
+    let m = mmu::get_no_cache::<[u32; 35]>();
+    m[ 0] = 35 * 4;
+    m[ 1] = MBOX_REQUEST;
 
-    let mut m = Mbox::<[u32; 35]>([
-        35 * 4,
-        MBOX_REQUEST,
+    m[ 2] = MBOX_TAG_SETPHY_WH;      // set physical display's width and height
+    m[ 3] = 8;
+    m[ 4] = 8;
+    m[ 5] = width_phy;
+    m[ 6] = height_phy;
 
-        MBOX_TAG_SETPHY_WH,      // set physical display's width and height
-        8,
-        8,
-        width_phy,
-        height_phy,
+    m[ 7] = MBOX_TAG_SETVIRT_WH;     // set virttual display's width and height
+    m[ 8] = 8;
+    m[ 9] = 8;
+    m[10] = width_virt;
+    m[11] = height_virt;
 
-        MBOX_TAG_SETVIRT_WH,     // set virttual display's width and height
-        8,
-        8,
-        width_virt,
-        height_virt,
+    m[12] = MBOX_TAG_SETVIRT_OFFSET; // set virtual display's offset
+    m[13] = 8;
+    m[14] = 8;
+    m[15] = offset_x;
+    m[16] = offset_y;
 
-        MBOX_TAG_SETVIRT_OFFSET, // set virtual display's offset
-        8,
-        8,
-        offset_x,
-        offset_y,
+    m[17] = MBOX_TAG_SETDEPTH;       // set depth
+    m[18] = 4;
+    m[19] = 4;
+    m[20] = 32;   // 32 bits per pixel
 
-        MBOX_TAG_SETDEPTH,       // set depth
-        4,
-        4,
-        32,   // 32 bits per pixel
+    m[21] = MBOX_TAG_SETPIXELORDER;  // set pixel order
+    m[22] = 4;
+    m[23] = 4;
+    m[24] = 1;    // 0: BGR, 1: RGB
 
-        MBOX_TAG_SETPIXELORDER,  // set pixel order
-        4,
-        4,
-        1,    // 0: BGR, 1: RGB
+    m[25] = MBOX_TAG_ALLOCFB;        // allocate frame buffer
+    m[26] = 8;
+    m[27] = 8;
+    m[28] = 4096; // request: align 4096 bytes, responce: frame buffer base address
+    m[29] = 0;    // responce: frame buffer size
 
-        MBOX_TAG_ALLOCFB,        // allocate frame buffer
-        8,
-        8,
-        4096, // request: align 4096 bytes, responce: frame buffer base address
-        0,    // responce: frame buffer size
+    m[30] = MBOX_TAG_GETPITCH;       // get pitch
+    m[31] = 4;
+    m[32] = 4;
+    m[33] = 0;    // bytes per line
 
-        MBOX_TAG_GETPITCH,       // get pitch
-        4,
-        4,
-        0,    // bytes per line
+    m[34] = MBOX_TAG_LAST;
 
-        MBOX_TAG_LAST
-    ]);
-
-
-    if call(&mut(m.0[0]) as *mut u32, MBOX_CH_PROP) && m.0[20] == 32 && m.0[28] != 0 {
-        let ptr = m.0[28] & 0x3FFFFFFF;
+    if call(&mut(m[0]) as *mut u32, MBOX_CH_PROP) && m[20] == 32 && m[28] != 0 {
+        let ptr = m[28] & 0x3FFFFFFF;
         let slice = unsafe {
             slice::from_raw_parts_mut(ptr as *mut u8,
-                                  m.0[33] as usize * m.0[11] as usize) };
+                                  m[33] as usize * m[11] as usize) };
         Some(graphics::Display{
-            size_phy: (m.0[5], m.0[6]),
-            size_virt: (m.0[10], m.0[11]),
-            offset: (m.0[15], m.0[16]),
-            depth: m.0[20],
-            pitch: m.0[33],
+            size_phy: (m[5], m[6]),
+            size_virt: (m[10], m[11]),
+            offset: (m[15], m[16]),
+            depth: m[20],
+            pitch: m[33],
             ptr: ptr,
             buffer: slice
         })
