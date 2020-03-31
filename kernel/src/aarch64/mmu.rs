@@ -11,6 +11,8 @@ extern "C" {
     static mut __bss_start: u64;
     static mut __bss_end: u64;
 
+    static mut __no_cache: u64;
+
     static mut __stack_start: u64;
     static mut __stack_firm_end: u64;
     static mut __stack_firm_start: u64;
@@ -53,6 +55,13 @@ pub fn enabled() -> Option<bool> {
         Some((sctlr & 1) == 1)
     } else {
         None
+    }
+}
+
+pub fn get_no_cache<T>() -> &'static mut T {
+    unsafe {
+        let addr = &mut __no_cache as *mut u64 as usize;
+        (addr as *mut T).as_mut().unwrap()
     }
 }
 
@@ -161,83 +170,88 @@ pub const DRIVER_MEM_END:   usize = 0x100000000; // maybe...
 
 pub fn print_addr() {
     let addr = unsafe { &mut __data_start as *mut u64 as u64 };
-    driver::uart::puts("__data_start         = ");
-    driver::uart::decimal(addr as u64);
+    driver::uart::puts("__data_start         = 0x");
+    driver::uart::hex(addr as u64);
     driver::uart::puts("\n");
 
     let addr = unsafe { &mut __data_end as *mut u64 as u64 };
-    driver::uart::puts("__data_end           = ");
-    driver::uart::decimal(addr as u64);
+    driver::uart::puts("__data_end           = 0x");
+    driver::uart::hex(addr as u64);
     driver::uart::puts("\n");
 
     let addr = unsafe { &mut __bss_start as *mut u64 as u64 };
-    driver::uart::puts("__bss_start          = ");
-    driver::uart::decimal(addr as u64);
+    driver::uart::puts("__bss_start          = 0x");
+    driver::uart::hex(addr as u64);
     driver::uart::puts("\n");
 
     let addr = unsafe { &mut __bss_end as *mut u64 as u64 };
-    driver::uart::puts("__bss_end            = ");
-    driver::uart::decimal(addr as u64);
+    driver::uart::puts("__bss_end            = 0x");
+    driver::uart::hex(addr as u64);
+    driver::uart::puts("\n");
+
+    let addr = unsafe { &mut __no_cache as *mut u64 as u64 };
+    driver::uart::puts("__no_cache           = 0x");
+    driver::uart::hex(addr as u64);
     driver::uart::puts("\n");
 
     let addr = unsafe { &mut __stack_firm_end as *mut u64 as u64 };
-    driver::uart::puts("__stack_firm_end     = ");
-    driver::uart::decimal(addr as u64);
+    driver::uart::puts("__stack_firm_end     = 0x");
+    driver::uart::hex(addr as u64);
     driver::uart::puts("\n");
 
     let addr = unsafe { &mut __stack_firm_start as *mut u64 as u64 };
-    driver::uart::puts("__stack_firm_start   = ");
-    driver::uart::decimal(addr as u64);
+    driver::uart::puts("__stack_firm_start   = 0x");
+    driver::uart::hex(addr as u64);
     driver::uart::puts("\n");
 
     let addr = unsafe { &mut __stack_el1_end as *mut u64 as u64 };
-    driver::uart::puts("__stack_el1_end      = ");
-    driver::uart::decimal(addr as u64);
+    driver::uart::puts("__stack_el1_end      = 0x");
+    driver::uart::hex(addr as u64);
     driver::uart::puts("\n");
 
     let addr = unsafe { &mut __stack_el1_start as *mut u64 as u64 };
-    driver::uart::puts("__stack_el1_start    = ");
-    driver::uart::decimal(addr as u64);
+    driver::uart::puts("__stack_el1_start    = 0x");
+    driver::uart::hex(addr as u64);
     driver::uart::puts("\n");
 
     let addr = unsafe { &mut __stack_el0_end as *mut u64 as u64 };
-    driver::uart::puts("__stack_el0_end      = ");
-    driver::uart::decimal(addr as u64);
+    driver::uart::puts("__stack_el0_end      = 0x");
+    driver::uart::hex(addr as u64);
     driver::uart::puts("\n");
 
     let addr = unsafe { &mut __stack_el0_start as *mut u64 as u64 };
-    driver::uart::puts("__stack_el0_start    = ");
-    driver::uart::decimal(addr as u64);
+    driver::uart::puts("__stack_el0_start    = 0x");
+    driver::uart::hex(addr as u64);
     driver::uart::puts("\n");
 
     let addr = unsafe { &mut __tt_firm_start as *mut u64 as u64 };
-    driver::uart::puts("__tt_firm_start      = ");
-    driver::uart::decimal(addr as u64);
+    driver::uart::puts("__tt_firm_start      = 0x");
+    driver::uart::hex(addr as u64);
     driver::uart::puts("\n");
 
     let addr = unsafe { &mut __tt_el1_ttbr0_start as *mut u64 as u64 };
-    driver::uart::puts("__tt_el1_ttbr0_start = ");
-    driver::uart::decimal(addr as u64);
+    driver::uart::puts("__tt_el1_ttbr0_start = 0x");
+    driver::uart::hex(addr as u64);
     driver::uart::puts("\n");
 
     let addr = unsafe { &mut __tt_el1_ttbr1_start as *mut u64 as u64 };
-    driver::uart::puts("__tt_el1_ttbr1_start = ");
-    driver::uart::decimal(addr as u64);
+    driver::uart::puts("__tt_el1_ttbr1_start = 0x");
+    driver::uart::hex(addr as u64);
     driver::uart::puts("\n");
 
     let addr = unsafe { &mut __el0_heap_start as *mut u64 as u64 };
-    driver::uart::puts("__el0_heap_start     = ");
-    driver::uart::decimal(addr as u64);
+    driver::uart::puts("__el0_heap_start     = 0x");
+    driver::uart::hex(addr as u64);
     driver::uart::puts("\n");
 
     let addr = unsafe { &mut __el0_heap_end as *mut u64 as u64 };
-    driver::uart::puts("__el0_heap_end       = ");
-    driver::uart::decimal(addr as u64);
+    driver::uart::puts("__el0_heap_end       = 0x");
+    driver::uart::hex(addr as u64);
     driver::uart::puts("\n");
 
     let addr = unsafe { &mut _end as *mut u64 as u64 };
-    driver::uart::puts("_end                 = ");
-    driver::uart::decimal(addr as u64);
+    driver::uart::puts("_end                 = 0x");
+    driver::uart::hex(addr as u64);
     driver::uart::puts("\n");
 }
 
@@ -270,6 +284,7 @@ pub fn init() -> Option<VMTables> {
 fn init_table_flat(tt: &'static mut [u64], addr: u64) -> &'static mut [u64] {
     let data_start = unsafe { &mut __data_start as *mut u64 as usize } >> 16;
     let stack_end = unsafe { &mut __stack_end as *mut u64 as usize } >> 16;
+    let no_cache = unsafe { &mut __no_cache as *mut u64 as usize } >> 16;
 
     for t in tt.iter_mut() {
         *t = 0;
@@ -291,6 +306,9 @@ fn init_table_flat(tt: &'static mut [u64], addr: u64) -> &'static mut [u64] {
         tt[i + 8192] = (i * 64 * 1024) as u64 | 0b11 |
             FLAG_L3_AF | FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_MEM;
     }
+
+    tt[no_cache + 8192] = no_cache as u64 * 64 * 1024 | 0b11 |
+        FLAG_L3_AF | FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_ISH | FLAG_L3_SH_RW_RW | FLAG_L3_ATTR_NC;
 
     // L3 table
     for i in stack_end..(8192 * 8) {
@@ -475,6 +493,14 @@ fn init_el1() -> &'static mut [u64] {
 
     let tt = mask_firm(tt);
 
+    // user space stack
+    let end = unsafe { &mut __stack_el0_end as *mut u64 as usize } >> 16;
+    let start = unsafe { &mut __stack_el0_start as *mut u64 as usize } >> 16;
+    for i in end..start {
+        tt[i + 8192] = (i << 16) as u64 | 0b11 |
+            FLAG_L3_AF | FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_ISH | FLAG_L3_SH_RW_RW | FLAG_L3_ATTR_MEM;
+    }
+
     // mask EL1's stack
     let end = unsafe { &mut __stack_el1_end as *mut u64 as usize } >> 16; // div by 64KiB
     let start = unsafe { &mut __stack_el1_start as *mut u64 as usize } >> 16; // div by 64KiB
@@ -506,9 +532,9 @@ fn init_el1() -> &'static mut [u64] {
     tt[0] = (ttbr1 + 65536) | 0b11;
 
     // kernel stack
-    let stack_end = unsafe { &mut __stack_el1_end as *mut u64 as usize } >> 16;
-    let stack_start = unsafe { &mut __stack_el1_start as *mut u64 as usize } >> 16;
-    for i in stack_end..stack_start {
+    let end = unsafe { &mut __stack_el1_end as *mut u64 as usize } >> 16;
+    let start = unsafe { &mut __stack_el1_start as *mut u64 as usize } >> 16;
+    for i in end..start {
         tt[i + 8192] = (i << 16) as u64 | 0b11 |
             FLAG_L3_AF | FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_MEM;
     }

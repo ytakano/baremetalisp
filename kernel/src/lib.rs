@@ -10,6 +10,7 @@ mod parser;
 mod boot;
 mod driver;
 mod aarch64;
+mod el0;
 mod el1;
 mod el2;
 mod el3;

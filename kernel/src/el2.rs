@@ -29,7 +29,7 @@ pub fn el2_to_el1() {
              msr cntvoff_el2, xzr
 
              // change execution level to EL1
-             mov x0, $0;
+             mov x0, $0
              msr sp_el1, x0    // set stack pointer
              mov x0, #0b101    // EL1h
              msr spsr_el2, x0
