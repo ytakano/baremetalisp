@@ -307,8 +307,15 @@ pub fn curr_el_spx_serror_el1(_ctx: *mut Context) {
 
 // from lower EL (AArch64)
 #[no_mangle]
-pub fn lower_el_aarch64_sync_el1(_ctx: *mut Context) {
-
+pub fn lower_el_aarch64_sync_el1(ctx: *mut Context) {
+    let r = unsafe { &*ctx };
+    driver::uart::puts("EL1 exception: lower EL Sync\nELR = 0x");
+    driver::uart::hex(r.elr);
+    driver::uart::puts("\nSPSR = 0x");
+    driver::uart::hex(r.spsr as u64);
+    driver::uart::puts("\nESR = 0x");
+    driver::uart::hex(get_esr_el1() as u64);
+    driver::uart::puts("\n");
 }
 
 #[no_mangle]

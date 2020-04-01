@@ -62,8 +62,6 @@ pub fn entry() -> ! {
 //    driver::uart::puts("reseting...\n");
 //    driver::power::reset();
 
-    parser::test(10);
-
     loop {}
 }
 
