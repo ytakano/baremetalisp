@@ -34,9 +34,7 @@ pub fn parse(code: &str) -> Option<Expr> {
             driver::uart::puts(&msg);
             Some(e)
         }
-        None => {
-            None
-        }
+        None => { None }
     }
 }
 
@@ -45,6 +43,12 @@ fn parse_expr(code: &str) -> Option<(Expr, &str)> {
     match (*c).chars().nth(0) {
         Some('(') => {
             parse_apply(c)
+        }
+        Some('\'') => {
+            parse_list(c)
+        }
+        Some('[') => {
+            parse_tuple(c)
         }
         Some(a) => {
             if '0' <= a && a <= '9' || a == '-' {
@@ -76,7 +80,7 @@ fn skip_spaces(code: &str) -> &str {
 fn parse_id_bool(code: &str) -> Option<(Expr, &str)> {
     let mut i = 0;
     for s in code.chars() {
-        if s == ')' || s == '(' || is_space(s) {
+        if is_paren(s) || is_space(s) {
             break;
         }
         i += 1;
@@ -107,9 +111,7 @@ fn parse_apply(code: &str) -> Option<(Expr, &str)> {
                 None
             }
         }
-        None => {
-            None
-        }
+        None => { None }
     }
 }
 
@@ -129,7 +131,8 @@ fn parse_exprs(code: &str) -> Option<(LinkedList<Expr>, &str)> {
         }
 
         c = skip_spaces(c);
-        if c.len() == 0 || c.chars().nth(0) == Some(')') {
+        let c0 = c.chars().nth(0);
+        if c.len() == 0 || c0 == Some(')') || c0 == Some(']') {
             break;
         }
     }
@@ -162,9 +165,7 @@ fn parse_num(code: &str) -> Option<(Expr, &str)> {
             Ok(num) => {
                 Some((Expr::Num(num), c))
             }
-            Err(_msg) => {
-                None
-            }
+            Err(_msg) => { None }
         }
     };
 
@@ -174,7 +175,7 @@ fn parse_num(code: &str) -> Option<(Expr, &str)> {
 
     match c.chars().nth(0) {
         Some(c0) => {
-            if c0 == ')' || c0 == '(' || is_space(c0) {
+            if is_paren(c0) || is_space(c0) {
                 fun()
             } else {
                 None
@@ -186,4 +187,44 @@ fn parse_num(code: &str) -> Option<(Expr, &str)> {
 
 fn is_space(c: char) -> bool {
     c == ' ' || c == '\r' || c == '\n' || c == '\t'
+}
+
+fn is_paren(c: char) -> bool {
+    c == '(' || c == ')' || c == '[' || c == ']'
+}
+
+fn parse_list(code: &str) -> Option<(Expr, &str)> {
+    let c = &code[1..]; // skip '\''
+
+    match c.chars().nth(0) {
+        Some('(') => {
+            let c = &c[1..];
+            match parse_exprs(c) {
+                Some((list, c)) => {
+                    if c.chars().nth(0) == Some(')') {
+                        Some((Expr::List(list), c))
+                    } else {
+                        None
+                    }
+                }
+                None => { None }
+            }
+        }
+        _ => { None }
+    }
+}
+
+fn parse_tuple(code: &str) -> Option<(Expr, &str)> {
+    let c = &code[1..]; // skip '['
+
+    match parse_exprs(c) {
+        Some((list, c)) => {
+            if c.chars().nth(0) == Some(']') {
+                Some((Expr::Tuple(list), &c[1..]))
+            } else {
+                None
+            }
+        }
+        None => { None }
+    }
 }

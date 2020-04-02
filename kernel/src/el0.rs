@@ -6,7 +6,7 @@ pub fn el0_entry() -> ! {
     // initialize memory allocator
     slab::init();
 
-    parser::parse("(if true (add (sub -100 -49) 2) 300)");
+    parser::parse("(if true [(add (sub -100 -49) 2) 200] [300 400])");
 
     let p = 0x400000000 as *mut u64;
     unsafe { *p = 10 };
