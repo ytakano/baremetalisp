@@ -17,6 +17,7 @@ mod el3;
 mod slab;
 mod pager;
 
+#[macro_use]
 extern crate alloc;
 
 use core::panic::PanicInfo;
