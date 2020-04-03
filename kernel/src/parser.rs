@@ -15,6 +15,19 @@ use alloc::string::{String, ToString};
 use alloc::collections::linked_list::LinkedList;
 
 #[derive(Debug)]
+pub struct SyntaxErr {
+    line: usize,
+    column: usize,
+    msg: &'static str
+}
+
+pub struct Parser<'a> {
+    line: usize,
+    column: usize,
+    remain: &'a str,
+}
+
+#[derive(Debug)]
 pub enum Expr {
     Num(i64),
     ID(String),
@@ -24,164 +37,222 @@ pub enum Expr {
     Apply(LinkedList<Expr>)
 }
 
-pub fn parse(code: &str) -> Option<Expr> {
-    driver::uart::puts(code);
-    driver::uart::puts("\n");
-
-    match parse_expr(code) {
-        Some((e, _c)) => {
-            let msg = format!("AST: {:?}\n", e);
-            driver::uart::puts(&msg);
-            Some(e)
-        }
-        None => { None }
+impl<'a> Parser<'a> {
+    pub fn new(code: &'a str) -> Parser<'a> {
+        Parser{line: 0, column:0, remain: code}
     }
-}
 
-fn parse_expr(code: &str) -> Option<(Expr, &str)> {
-    let c = skip_spaces(code);
-    match (*c).chars().nth(0) {
-        Some('(') => {
-            parse_apply(c)
+    pub fn parse(&mut self) -> Result<Expr, SyntaxErr> {
+        self.parse_expr()
+    }
+
+    fn parse_id_bool(&mut self) -> Result<Expr, SyntaxErr> {
+        let mut i = 0;
+
+        for s in self.remain.chars() {
+            if is_paren(s) || is_space(s) {
+                break;
+            }
+            i += 1;
         }
-        Some('\'') => {
-            parse_list(c)
-        }
-        Some('[') => {
-            parse_tuple(c)
-        }
-        Some(a) => {
-            if '0' <= a && a <= '9' || a == '-' {
-                parse_num(c)
+
+        if i == 0 {
+            Err(SyntaxErr{line: self.line, column: self.column, msg: "unexpected EOF"})
+        } else {
+            let c = self.remain[..i].to_string();
+            self.remain = &self.remain[i..];
+            self.column += i;
+
+            if c == "true" {
+                Ok(Expr::Bool(true))
+            } else if c == "false" {
+                Ok(Expr::Bool(false))
             } else {
-                match parse_id_bool(c) {
-                    None => { None }
-                    ret => { ret }
+                Ok(Expr::ID(c))
+            }
+        }
+    }
+
+    fn parse_num(&mut self) -> Result<Expr, SyntaxErr> {
+        let mut i = 0;
+
+        let c = if self.remain.chars().nth(0) == Some('-') {
+            i += 1;
+            &self.remain[1..]
+        } else {
+            self.remain
+        };
+
+        for a in c.chars() {
+            if '0' <= a && a <= '9' {
+                i += 1;
+            } else {
+                break;
+            }
+        }
+
+        let expr;
+
+        match self.remain[0..i].parse::<i64>() {
+            Ok(num) => {
+                expr = Ok(Expr::Num(num));
+            }
+            Err(_msg) => {
+                return Err(SyntaxErr{line: self.line, column: self.column, msg: "failed to parse number"})
+            }
+        };
+
+        self.column += i;
+        self.remain = &self.remain[i..];
+
+        if self.remain.len() == 0 {
+            return expr;
+        }
+
+        match self.remain.chars().nth(0) {
+            Some(c0) => {
+                if is_paren(c0) || is_space(c0) {
+                    expr
+                } else {
+                    Err(SyntaxErr{line: self.line, column: self.column, msg: "expected '(', ')', '[', ']' or space"})
                 }
             }
-        }
-        _ => { None }
-    }
-}
-
-fn skip_spaces(code: &str) -> &str {
-    let mut i = 0;
-    for s in code.chars() {
-        if is_space(s) {
-            i += 1;
-            continue;
-        } else {
-            break;
-        }
-    }
-    &code[i..]
-}
-
-fn parse_id_bool(code: &str) -> Option<(Expr, &str)> {
-    let mut i = 0;
-    for s in code.chars() {
-        if is_paren(s) || is_space(s) {
-            break;
-        }
-        i += 1;
-    }
-
-    if i == 0 {
-        None
-    } else {
-        let c = code[..i].to_string();
-        if c == "true" {
-            Some((Expr::Bool(true), &code[i..]))
-        } else if c == "false" {
-            Some((Expr::Bool(false), &code[i..]))
-        } else {
-            Some((Expr::ID(c), &code[i..]))
-        }
-    }
-}
-
-fn parse_apply(code: &str) -> Option<(Expr, &str)> {
-    let c = &code[1..]; // skip '('
-
-    match parse_exprs(c) {
-        Some((list, c)) => {
-            if c.chars().nth(0) == Some(')') {
-                Some((Expr::Apply(list), &c[1..]))
-            } else {
-                None
-            }
-        }
-        None => { None }
-    }
-}
-
-fn parse_exprs(code: &str) -> Option<(LinkedList<Expr>, &str)> {
-    let mut exprs = LinkedList::<Expr>::new();
-    let mut c = skip_spaces(code);
-
-    loop {
-        match parse_expr(c) {
-            Some((e, c2)) => {
-                exprs.push_back(e);
-                c = c2;
-            }
             None => {
-                return None;
+                Err(SyntaxErr{line: self.line, column: self.column, msg: "unexpected EOF"})
             }
         }
-
-        c = skip_spaces(c);
-        let c0 = c.chars().nth(0);
-        if c.len() == 0 || c0 == Some(')') || c0 == Some(']') {
-            break;
-        }
     }
 
-    Some((exprs, c))
-}
 
-fn parse_num(code: &str) -> Option<(Expr, &str)> {
-    let mut i = 0;
-
-    let c = if code.chars().nth(0) == Some('-') {
-        i += 1;
-        &code[1..]
-    } else {
-        code
-    };
-
-    for a in c.chars() {
-        if '0' <= a && a <= '9' {
-            i += 1;
-        } else {
-            break;
-        }
-    }
-
-    let c = &code[i..];
-
-    let fun = || {
-        match code[0..i].parse::<i64>() {
-            Ok(num) => {
-                Some((Expr::Num(num), c))
-            }
-            Err(_msg) => { None }
-        }
-    };
-
-    if c.len() == 0 {
-        return fun();
-    }
-
-    match c.chars().nth(0) {
-        Some(c0) => {
-            if is_paren(c0) || is_space(c0) {
-                fun()
+    fn skip_spaces(&mut self) {
+        let mut i = 0;
+        let mut prev = ' ';
+        for s in self.remain.chars() {
+            if is_space(s) {
+                if s == '\r' || (s == '\n' && prev != '\r') {
+                    self.line += 1;
+                    self.column = 0;
+                } else {
+                    self.column += 1;
+                }
+                i += 1;
+                prev = s;
             } else {
-                None
+                break;
             }
         }
-        None => { None }
+        self.remain = &self.remain[i..]
+    }
+
+    fn parse_exprs(&mut self) -> Result<LinkedList<Expr>, SyntaxErr> {
+        let mut exprs = LinkedList::<Expr>::new();
+        self.skip_spaces();
+
+        loop {
+            match self.parse_expr() {
+                Ok(e) => {
+                    exprs.push_back(e);
+                }
+                Err(err) => {
+                    return Err(err);
+                }
+            }
+
+            self.skip_spaces();
+            let c0 = self.remain.chars().nth(0);
+            if self.remain.len() == 0 || c0 == Some(')') || c0 == Some(']') {
+                break;
+            }
+        }
+
+        Ok(exprs)
+    }
+
+    fn parse_expr(&mut self) -> Result<Expr, SyntaxErr> {
+        self.skip_spaces();
+        match self.remain.chars().nth(0) {
+            Some('(') => {
+                self.parse_apply()
+            }
+            Some('\'') => {
+                self.parse_list()
+            }
+            Some('[') => {
+                self.parse_tuple()
+            }
+            Some(a) => {
+                if '0' <= a && a <= '9' || a == '-' {
+                    self.parse_num()
+                } else {
+                    self.parse_id_bool()
+                }
+            }
+            _ => {
+                Err(SyntaxErr{line: self.line, column: self.column, msg: "unexpected character"})
+            }
+        }
+    }
+
+    fn parse_apply(&mut self) -> Result<Expr, SyntaxErr> {
+        self.remain = &self.remain[1..]; // skip '('
+        self.column += 1;
+
+        match self.parse_exprs() {
+            Ok(exprs) => {
+                if self.remain.chars().nth(0) == Some(')') {
+                    self.remain = &self.remain[1..];
+                    self.column += 1;
+                    Ok(Expr::Apply(exprs))
+                } else {
+                    Err(SyntaxErr{line: self.line, column: self.column, msg: "expected ')'"})
+                }
+            }
+            Err(err) => { Err(err) }
+        }
+    }
+
+    fn parse_list(&mut self) -> Result<Expr, SyntaxErr> {
+        let c = &self.remain[1..]; // skip '\''
+        self.column += 1;
+
+        match c.chars().nth(0) {
+            Some('(') => {
+                self.remain = &c[1..];
+                match self.parse_exprs() {
+                    Ok(exprs) => {
+                        if self.remain.chars().nth(0) == Some(')') {
+                            self.remain = &self.remain[1..];
+                            self.column += 1;
+                            Ok(Expr::List(exprs))
+                        } else {
+                            Err(SyntaxErr{line: self.line, column: self.column, msg: "expected ')'"})
+                        }
+                    }
+                    Err(err) => { Err(err) }
+                }
+            }
+            _ => {
+                Err(SyntaxErr{line: self.line, column: self.column, msg: "expected '('"})
+            }
+        }
+    }
+
+    fn parse_tuple(&mut self) -> Result<Expr, SyntaxErr> {
+        self.remain = &self.remain[1..]; // skip '['
+        self.column += 1;
+
+        match self.parse_exprs() {
+            Ok(exprs) => {
+                if self.remain.chars().nth(0) == Some(']') {
+                    self.remain = &self.remain[1..];
+                    self.column += 1;
+                    Ok(Expr::Tuple(exprs))
+                } else {
+                    Err(SyntaxErr{line: self.line, column: self.column, msg: "expected ']'"})
+                }
+            }
+            Err(err) => { Err(err) }
+        }
     }
 }
 
@@ -191,40 +262,4 @@ fn is_space(c: char) -> bool {
 
 fn is_paren(c: char) -> bool {
     c == '(' || c == ')' || c == '[' || c == ']'
-}
-
-fn parse_list(code: &str) -> Option<(Expr, &str)> {
-    let c = &code[1..]; // skip '\''
-
-    match c.chars().nth(0) {
-        Some('(') => {
-            let c = &c[1..];
-            match parse_exprs(c) {
-                Some((list, c)) => {
-                    if c.chars().nth(0) == Some(')') {
-                        Some((Expr::List(list), c))
-                    } else {
-                        None
-                    }
-                }
-                None => { None }
-            }
-        }
-        _ => { None }
-    }
-}
-
-fn parse_tuple(code: &str) -> Option<(Expr, &str)> {
-    let c = &code[1..]; // skip '['
-
-    match parse_exprs(c) {
-        Some((list, c)) => {
-            if c.chars().nth(0) == Some(']') {
-                Some((Expr::Tuple(list), &c[1..]))
-            } else {
-                None
-            }
-        }
-        None => { None }
-    }
 }
