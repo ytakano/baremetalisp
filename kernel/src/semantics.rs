@@ -9,7 +9,8 @@ enum TypedExpr<'t> {
     LitNum(NumNode<'t>),
     LitBool(BoolNode<'t>),
     IDExpr(IDNode<'t>),
-    MatchExpr(Box::<MatchNode<'t>>)
+    MatchExpr(Box::<MatchNode<'t>>),
+    ApplyExpr(ApplyNode<'t>)
 }
 
 struct NumNode<'t> {
@@ -87,5 +88,95 @@ struct MatchPatTupleNode<'t> {
 struct MatchPatDataNode<'t> {
     ty: TypedExpr<'t>,
     pattern: LinkedList<MatchPat<'t>>,
+    ast: &'t parser::Expr
+}
+
+struct ApplyNode<'t> {
+    exprs: LinkedList<TypedExpr<'t>>,
+    ast: &'t parser::Expr
+}
+
+struct TIDNode<'t> {
+    ast: &'t parser::Expr
+}
+
+enum PrimType<'t> {
+    PrimTypeBool(TypeBoolNode<'t>),
+    PrimTypeInt(TypeIntNode<'t>),
+    PrimTypeList(PrimTypeListNode<'t>),
+    PrimTypeTuple(PrimTypeTupleNode<'t>)
+}
+
+struct TypeBoolNode<'t> {
+    ast: &'t parser::Expr
+}
+
+struct TypeIntNode<'t> {
+    ast: &'t parser::Expr
+}
+
+struct PrimTypeListNode<'t> {
+    ty: Box::<PrimType<'t>>,
+    ast: &'t parser::Expr
+}
+
+struct PrimTypeTupleNode<'t> {
+    ty: LinkedList<PrimType<'t>>,
+    ast: &'t parser::Expr
+}
+
+struct DataType<'t> {
+    name: DataTypeName<'t>,
+    member: DataTypeMem<'t>,
+    ast: &'t parser::Expr
+}
+
+struct DataTypeName<'t> {
+    id: TIDNode<'t>,
+    type_args: LinkedList<IDNode<'t>>,
+    ast: &'t parser::Expr
+}
+
+struct DataTypeMem<'t> {
+    id: TIDNode<'t>,
+    types: LinkedList<PrimType<'t>>,
+    ast: &'t parser::Expr
+}
+
+enum Type<'t> {
+    TypeBool(TypeBoolNode<'t>),
+    TypeInt(TypeIntNode<'t>),
+    TypeList(TypeListNode<'t>),
+    TypeTuple(TypeTupleNode<'t>),
+    TypeFun(TypeFunNode<'t>),
+}
+
+struct TypeListNode<'t> {
+    ty: Box::<Type<'t>>,
+    ast: &'t parser::Expr
+}
+
+struct TypeTupleNode<'t> {
+    ty: LinkedList<Type<'t>>,
+    ast: &'t parser::Expr
+}
+
+struct TypeFunNode<'t> {
+    args: LinkedList<Type<'t>>,
+    ret: LinkedList<Type<'t>>,
+    ast: &'t parser::Expr
+}
+
+struct TypeDataNode<'t> {
+    id: TIDNode<'t>,
+    type_args: LinkedList<PrimType<'t>>,
+    ast: &'t parser::Expr
+}
+
+struct Defun<'t> {
+    id: IDNode<'t>,
+    args: LinkedList<IDNode<'t>>,
+    fun_type: Type<'t>,
+    expr: TypedExpr<'t>,
     ast: &'t parser::Expr
 }
