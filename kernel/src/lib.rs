@@ -16,6 +16,7 @@ mod el2;
 mod el3;
 mod slab;
 mod pager;
+mod semantics;
 
 #[macro_use]
 extern crate alloc;

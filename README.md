@@ -6,47 +6,106 @@
 - no parity
 - 1 stop bit
 
-## Semantics of Typed Lisp
+# Semantics of Typed Lisp
 
-### Identifier
+## Literal
+
+- $LITERAL := $DECIMAL | $BOOL
+- $DECIMAL
+  - decimal number
+  - examples: 0, 100, 224, -130, 4457
+- $BOOL := true | false
+
+## Identifier
 
 - $ID
   - a string whose first character is small
+  - excludes "true" and "false"
 
-### Type Identifier
+## Type Identifier
 
 - $TID
   - a string whose first character is captal
 
-### Primitive Type
+## Primitive Type
 
 - $PRIM := Int | Bool | $PRIM_LIST | $PRIM_TUPLE
 - $PRIM_LIST := '( $PRIM* )
 - $PRIM_TUPLE := \[ $PRIM+ \]
 
-### Type
+## Type
 
-- $TYPE := Int | Bool | $TYPE_LIST | $TYPE_TUPLE | $TYPE_FUN
-- $TYPE_LIST := '( $TID )
-- $TYPE_TUPLE := \[ $TID+ \]
+- $TYPE := Int | Bool | $TYPE_LIST | $TYPE_TUPLE | $TYPE_FUN | $TYPE_DATA
+- $TYPE_LIST := '( $TYPE )
+- $TYPE_TUPLE := \[ $TYPE+ \]
+- $TYPE_DATA := $TID | ( $TID $PRIM* )
 - $TYPE_FUN := ( $EFFECT ( -> $TYPES $TYPES ) )
 - $EFFECT := Pure | IO
 - $TYPES := $TYPE | ( $TYPE* )
 
-### Data Type
+examples:
+```common-lisp
+'(Int)
+[Int Bool]
+(Pure (-> (Int INT) Bool))
+'('(Int Bool))
+[Int Int '([Int Bool])]
+```
+
+## Data Type
 
 - $DATA := ( data $DATA_NAME $MEMBER+ )
 - $DATA_NAME := $TID | ( $TID $ID* )
 - $MEMBER := $TID | ( $TID $PRIM* )
 
-example:
+examples:
 ```common-lisp
+(data 2dim
+  (X Int)
+  (Y Int))
+
 (data (Maybe t)
     (Just t)
     Nothing)
 ```
 
-### Function Definition
+## Function Definition
 
-- $DEFUN := ( $HEAD_DEFUN $ID $TYPE_FUN $EXPRS )
+- $DEFUN := ( $HEAD_DEFUN $ID ( $ID* ) $TYPE_FUN $EXPR )
 - $HEAD_DEFUN := export defun | defun
+
+## Expression
+
+- $EXPR := $LITERAL | $ID | $LET | $IF | $MATCH | $LIST | $TUPLE | $APPLY
+
+### Let Expression
+
+- $LET := ( let ( $DEFVAR+ ) $EXPR )
+- $DEFVAR := ( $LETPAT $EXPR ) | ( $LETPAT $TYPE $EXPR )
+- $LETPAT := _ | $ID | ( $TID $LETPAT+ ) | [ $LETPAT ]
+
+### If Expression
+
+- $IF := ( if $EXPR $EXPR $EXPR )
+
+### List Expression
+
+- $LIST := '( $EXPR* )
+
+### Tuple Expression
+
+- $TUPLE := [ $EXPR+ ]
+
+### Match Expression
+
+- $MATCH := ( match $EXPR $MBODY+ )
+- $MBODY := ( $PATTERN $EXPR )
+- $PATTERN := _ | $LITERAL | $ID | \[ $PATTERN+ \] | ( $TID $PATTERN+ )
+
+## Built-in Functions
+
+- cons: (-> (T '(T) '(T))
+- car: (-> '(T) (Maybe T))
+- cdr: (-> '(T) (Maybe '(T)))
+- nth: (-> (Int \[T\]) (Maybe T))
+- nth: (-> (Int '(T)) (Maybe T))
