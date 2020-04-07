@@ -1,7 +1,13 @@
 use crate::parser;
 
 use alloc::collections::linked_list::LinkedList;
+use alloc::vec::Vec;
 use alloc::boxed::Box;
+
+struct TypingErr<'t> {
+    msg: &'static str,
+    ast: &'t parser::Expr
+}
 
 enum TypedExpr<'t> {
     IfExpr(Box::<IfNode<'t>>),
@@ -24,6 +30,7 @@ struct BoolNode<'t> {
 }
 
 struct IDNode<'t> {
+    id: &'t str,
     ast: &'t parser::Expr
 }
 
@@ -97,6 +104,7 @@ struct ApplyNode<'t> {
 }
 
 struct TIDNode<'t> {
+    id: &'t str,
     ast: &'t parser::Expr
 }
 
@@ -133,13 +141,13 @@ struct DataType<'t> {
 
 struct DataTypeName<'t> {
     id: TIDNode<'t>,
-    type_args: LinkedList<IDNode<'t>>,
+    type_args: Vec<IDNode<'t>>,
     ast: &'t parser::Expr
 }
 
 struct DataTypeMem<'t> {
     id: TIDNode<'t>,
-    types: LinkedList<PrimType<'t>>,
+    types: Vec<PrimType<'t>>,
     ast: &'t parser::Expr
 }
 
@@ -179,4 +187,113 @@ struct Defun<'t> {
     fun_type: Type<'t>,
     expr: TypedExpr<'t>,
     ast: &'t parser::Expr
+}
+
+/// $DATA := ( data $DATA_NAME $MEMBER+ )
+fn expr2data(expr: &parser::Expr) -> Result<DataType,TypingErr> {
+    match expr {
+        parser::Expr::Apply(exprs) => {
+            let mut iter = exprs.iter();
+            iter.next(); // must be "data"
+
+            // $DATA_NAME
+            let data_name;
+            match iter.next() {
+                Some(e) => {
+                    data_name = expr2data_name(e)?;
+                }
+                _ => {
+                    return Err(TypingErr{msg: "error: require data name", ast: expr})
+                }
+            }
+
+            // TODO:
+            // $MEMBER+
+
+            // Ok(DataType{name: data_name, ast: expr})
+
+            Err(TypingErr{msg: "error", ast: expr})
+        }
+        _ => {
+            Err(TypingErr{msg: "error", ast: expr})
+        }
+    }
+}
+
+/// $DATA_NAME := $TID | ( $TID $ID* )
+fn expr2data_name(expr: &parser::Expr) -> Result<DataTypeName, TypingErr> {
+    match expr {
+        parser::Expr::ID(_) => {
+            let tid = expr2type_id(expr)?;
+            Ok(DataTypeName{id: tid, type_args: Vec::new(), ast: expr})
+        }
+        parser::Expr::Apply(exprs) => {
+            let mut args = Vec::new();
+            let mut iter = exprs.iter();
+            let tid;
+
+            match iter.next() {
+                Some(e) => {
+                    tid = expr2type_id(e)?;
+                }
+                _ => {
+                    return Err(TypingErr{msg: "error: must type identifier (with type arguments)", ast: expr})
+                }
+            }
+
+            for it in iter {
+                let id = expr2id(it)?;
+                args.push(id);
+            }
+
+            Ok(DataTypeName{id: tid, type_args: args, ast: expr})
+        }
+        _ => {
+            Err(TypingErr{msg: "error: must type identifier (with type arguments)", ast: expr})
+        }
+    }
+}
+
+fn expr2type_id(expr: &parser::Expr) -> Result<TIDNode,TypingErr> {
+    match expr {
+        parser::Expr::ID(id) => {
+            match id.chars().nth(0) {
+                Some(c) => {
+                    if 'A' <= c && c <= 'Z' {
+                        Ok(TIDNode{id: id, ast: expr})
+                    } else {
+                        Err(TypingErr{msg: "error: the first character must be captal", ast: expr})
+                    }
+                }
+                _ => {
+                    Err(TypingErr{msg: "error", ast: expr})
+                }
+            }
+        }
+        _ => {
+            Err(TypingErr{msg: "error: must be type identifier", ast: expr})
+        }
+    }
+}
+
+fn expr2id(expr: &parser::Expr) -> Result<IDNode,TypingErr> {
+    match expr {
+        parser::Expr::ID(id) => {
+            match id.chars().nth(0) {
+                Some(c) => {
+                    if 'A' <= c && c <= 'Z' {
+                        Err(TypingErr{msg: "error: the first character must not be captal", ast: expr})
+                    } else {
+                        Ok(IDNode{id: id, ast: expr})
+                    }
+                }
+                _ => {
+                    Err(TypingErr{msg: "error", ast: expr})
+                }
+            }
+        }
+        _ => {
+            Err(TypingErr{msg: "error: must be identifier", ast: expr})
+        }
+    }
 }
