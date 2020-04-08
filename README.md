@@ -30,7 +30,7 @@
 ## Primitive Type
 
 - $PRIM := Int | Bool | $PRIM_LIST | $PRIM_TUPLE
-- $PRIM_LIST := '( $PRIM* )
+- $PRIM_LIST := '( $PRIM )
 - $PRIM_TUPLE := \[ $PRIM+ \]
 
 ## Type
@@ -54,13 +54,13 @@ examples:
 
 ## Data Type
 
-- $DATA := ( data $DATA_NAME $MEMBER+ )
+- $DATA := ( data $DATA_NAME $MEMBER* )
 - $DATA_NAME := $TID | ( $TID $ID* )
 - $MEMBER := $TID | ( $TID $PRIM* )
 
 examples:
 ```common-lisp
-(data 2dim
+(data Dim2
   (X Int)
   (Y Int))
 
