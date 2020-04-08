@@ -72,7 +72,7 @@ examples:
 ## Function Definition
 
 - $DEFUN := ( $HEAD_DEFUN $ID ( $ID* ) $TYPE_FUN $EXPR )
-- $HEAD_DEFUN := export defun | defun
+- $HEAD_DEFUN := export | defun
 
 ## Expression
 

@@ -169,9 +169,15 @@ struct TypeTupleNode<'t> {
     ast: &'t parser::Expr
 }
 
+enum Effect {
+    IO,
+    Pure
+}
+
 struct TypeFunNode<'t> {
-    args: LinkedList<Type<'t>>,
-    ret: LinkedList<Type<'t>>,
+    effect: Effect,
+    args: Vec<Type<'t>>,
+    ret: Vec<Type<'t>>,
     ast: &'t parser::Expr
 }
 
@@ -183,7 +189,7 @@ struct TypeDataNode<'t> {
 
 struct Defun<'t> {
     id: IDNode<'t>,
-    args: LinkedList<IDNode<'t>>,
+    args: Vec<IDNode<'t>>,
     fun_type: Type<'t>,
     expr: TypedExpr<'t>,
     ast: &'t parser::Expr
@@ -383,6 +389,121 @@ fn expr2prim(expr: &parser::Expr) -> Result<PrimType, TypingErr> {
         }
         _ => {
             Err(TypingErr{msg: "error: must be primitive type", ast: expr})
+        }
+    }
+}
+
+/// $DEFUN := ( $HEAD_DEFUN $ID ( $ID* ) $TYPE_FUN $EXPR )
+fn expr2defun(expr: &parser::Expr) -> Result<Defun, TypingErr> {
+    match expr {
+        parser::Expr::Apply(exprs) => {
+            let mut iter = exprs.iter();
+
+            // $HEAD_DEFUN := export | defun
+            iter.next(); // must be "export" or "defun"
+
+            // $ID
+            let id;
+            match iter.next() {
+                Some(e) => {
+                    id = expr2id(e)?;
+                }
+                _ => {
+                    return Err(TypingErr{msg: "error: require function name", ast: expr});
+                }
+            }
+
+            // ( $ID* )
+            let mut args = Vec::new();
+            match iter.next() {
+                Some(parser::Expr::Apply(exprs)) => {
+                    for it in exprs.iter() {
+                        let arg = expr2id(it)?;
+                        args.push(arg);
+                    }
+                }
+                _ => {
+                    return Err(TypingErr{msg: "error: require arguments", ast: expr});
+                }
+            }
+
+            // TODO:
+            // $TYPE_FUN
+
+            Err(TypingErr{msg: "not yet implemented", ast: expr})
+        }
+        _ => {
+            Err(TypingErr{msg: "error", ast: expr})
+        }
+    }
+}
+
+/// $TYPE_FUN := ( $EFFECT ( -> $TYPES $TYPES ) )
+fn expr2type_fun(expr: &parser::Expr) -> Result<TypeFunNode, TypingErr> {
+    match expr {
+        parser::Expr::Apply(exprs) => {
+            let mut iter = exprs.iter();
+
+            // $EFFECT := Pure | IO
+            let effect;
+            match iter.next() {
+                Some(e@parser::Expr::ID(eff)) => {
+                    if eff == "IO" {
+                        effect = Effect::IO;
+                    } else if eff == "Pure" {
+                        effect = Effect::Pure;
+                    } else {
+                        return Err(TypingErr{msg: "error: effect must be \"Pure\" or \"IO\"", ast: e});
+                    }
+                }
+                _ => {
+                    return Err(TypingErr{msg: "error: invalid effect", ast: expr});
+                }
+            }
+
+            // ( -> $TYPES $TYPES )
+            match iter.next() {
+                Some(e1@parser::Expr::Apply(exprs)) => {
+                    let mut iter2 = exprs.iter();
+                    match iter2.next() {
+                        Some(e2@parser::Expr::ID(arr)) => {
+                            if arr != "->" {
+                                return Err(TypingErr{msg: "error: must be \"->\"", ast: e2});
+                            }
+                        }
+                        _ => {
+                            return Err(TypingErr{msg: "error: require function type", ast: e1});
+                        }
+                    }
+
+                    // $TYPES := $TYPE | ( $TYPE* )
+                    let mut args = Vec::new();
+                    match iter2.next() {
+                        Some(parser::Expr::Apply(types)) => {
+                            // TODO:
+                            // $TYPES
+                            for it in types {
+
+                            }
+                        }
+                        Some(t) => {
+                            // TODO:
+                            // $TYPE
+                        }
+                        _ => {
+                            return Err(TypingErr{msg: "error: require types for arguments", ast: e1});
+                        }
+                    }
+                }
+                _ => {
+                    return Err(TypingErr{msg: "error: require function type", ast: expr});
+                }
+            }
+
+            Err(TypingErr{msg: "error", ast: expr})
+        }
+        _ => {
+            Err(TypingErr{msg: "error", ast: expr})
         }
     }
 }
