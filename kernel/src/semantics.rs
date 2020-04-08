@@ -157,6 +157,7 @@ enum Type<'t> {
     TypeList(TypeListNode<'t>),
     TypeTuple(TypeTupleNode<'t>),
     TypeFun(TypeFunNode<'t>),
+    TypeData(TypeDataNode<'t>)
 }
 
 struct TypeListNode<'t> {
@@ -165,7 +166,7 @@ struct TypeListNode<'t> {
 }
 
 struct TypeTupleNode<'t> {
-    ty: LinkedList<Type<'t>>,
+    ty: Vec<Type<'t>>,
     ast: &'t parser::Expr
 }
 
@@ -177,13 +178,13 @@ enum Effect {
 struct TypeFunNode<'t> {
     effect: Effect,
     args: Vec<Type<'t>>,
-    ret: Vec<Type<'t>>,
+    ret: Box<Type<'t>>,
     ast: &'t parser::Expr
 }
 
 struct TypeDataNode<'t> {
     id: TIDNode<'t>,
-    type_args: LinkedList<PrimType<'t>>,
+    type_args: Vec<PrimType<'t>>,
     ast: &'t parser::Expr
 }
 
@@ -427,8 +428,19 @@ fn expr2defun(expr: &parser::Expr) -> Result<Defun, TypingErr> {
                 }
             }
 
-            // TODO:
             // $TYPE_FUN
+            let fun;
+            match iter.next() {
+                Some(e) => {
+                    fun = expr2type_fun(e)?;
+                }
+                _ => {
+                    return Err(TypingErr{msg: "error: require function type", ast: expr});
+                }
+            }
+
+            // TODO:
+            // $EXPR
 
             Err(TypingErr{msg: "not yet implemented", ast: expr})
         }
@@ -446,14 +458,15 @@ fn expr2type_fun(expr: &parser::Expr) -> Result<TypeFunNode, TypingErr> {
 
             // $EFFECT := Pure | IO
             let effect;
-            match iter.next() {
-                Some(e@parser::Expr::ID(eff)) => {
+            let e = iter.next();
+            match e {
+                Some(parser::Expr::ID(eff)) => {
                     if eff == "IO" {
                         effect = Effect::IO;
                     } else if eff == "Pure" {
                         effect = Effect::Pure;
                     } else {
-                        return Err(TypingErr{msg: "error: effect must be \"Pure\" or \"IO\"", ast: e});
+                        return Err(TypingErr{msg: "error: effect must be \"Pure\" or \"IO\"", ast: e.unwrap()});
                     }
                 }
                 _ => {
@@ -461,37 +474,42 @@ fn expr2type_fun(expr: &parser::Expr) -> Result<TypeFunNode, TypingErr> {
                 }
             }
 
-            // ( -> $TYPES $TYPES )
-            match iter.next() {
-                Some(e1@parser::Expr::Apply(exprs)) => {
+            // ( -> $TYPES $TYPE )
+            let e1 = iter.next();
+            let args;
+            let ret;
+            match e1 {
+                Some(parser::Expr::Apply(exprs)) => {
                     let mut iter2 = exprs.iter();
-                    match iter2.next() {
-                        Some(e2@parser::Expr::ID(arr)) => {
+                    let e2 = iter.next();
+                    match e2 {
+                        Some(parser::Expr::ID(arr)) => {
                             if arr != "->" {
-                                return Err(TypingErr{msg: "error: must be \"->\"", ast: e2});
+                                return Err(TypingErr{msg: "error: must be \"->\"", ast: e2.unwrap()});
                             }
                         }
                         _ => {
-                            return Err(TypingErr{msg: "error: require function type", ast: e1});
+                            return Err(TypingErr{msg: "error: require function type", ast: e1.unwrap()});
                         }
                     }
 
                     // $TYPES := $TYPE | ( $TYPE* )
-                    let mut args = Vec::new();
                     match iter2.next() {
-                        Some(parser::Expr::Apply(types)) => {
-                            // TODO:
-                            // $TYPES
-                            for it in types {
-
-                            }
-                        }
                         Some(t) => {
-                            // TODO:
-                            // $TYPE
+                            args = expr2types(t)?;
                         }
                         _ => {
-                            return Err(TypingErr{msg: "error: require types for arguments", ast: e1});
+                            return Err(TypingErr{msg: "error: require types for arguments", ast: e1.unwrap()});
+                        }
+                    }
+
+                    // $TYPE
+                    match iter2.next() {
+                        Some(t) => {
+                            ret = expr2type(t)?;
+                        }
+                        _ => {
+                            return Err(TypingErr{msg: "error: require type for return value", ast: e1.unwrap()});
                         }
                     }
                 }
@@ -500,10 +518,113 @@ fn expr2type_fun(expr: &parser::Expr) -> Result<TypeFunNode, TypingErr> {
                 }
             }
 
-            Err(TypingErr{msg: "error", ast: expr})
+            Ok(TypeFunNode{effect: effect, args: args, ret: Box::new(ret), ast: expr})
         }
         _ => {
             Err(TypingErr{msg: "error", ast: expr})
         }
     }
+}
+
+/// $TYPES := $TYPE | ( $TYPE* )
+fn expr2types(expr: &parser::Expr) -> Result<Vec<Type>, TypingErr> {
+    match expr {
+        parser::Expr::Apply(types) => {
+            // ( $TYPES* )
+            Ok(list_types2vec_types(types)?)
+        }
+        t => {
+            // $TYPE
+            let mut v = Vec::new();
+            v.push(expr2type(t)?);
+            Ok(v)
+        }
+    }
+}
+
+/// $TYPE := Int | Bool | $TYPE_LIST | $TYPE_TUPLE | $TYPE_FUN | $TYPE_DATA
+fn expr2type(expr: &parser::Expr) -> Result<Type, TypingErr> {
+    match expr {
+        parser::Expr::ID(id) => {
+            // Int | Bool | $TID
+            if id == "Int" {
+                Ok(Type::TypeInt(TypeIntNode{ast: expr}))
+            } else if id == "Bool" {
+                Ok(Type::TypeBool(TypeBoolNode{ast: expr}))
+            } else {
+                let tid = expr2type_id(expr)?;
+                Ok(Type::TypeData(TypeDataNode{id: tid, type_args: Vec::new(), ast: expr}))
+            }
+        }
+        parser::Expr::List(list) => {
+            // $TYPE_LIST := '( $TYPE )
+            if list.len() != 1 {
+                return Err(TypingErr{msg: "error: require exactly one type as a type argument for list type", ast: expr});
+            }
+
+            match list.iter().next() {
+                Some(e) => {
+                    let ty = Box::new(expr2type(e)?);
+                    Ok(Type::TypeList(TypeListNode{ty: ty, ast: e}))
+                }
+                _ => {
+                    Err(TypingErr{msg: "error: require primitive type", ast: expr})
+                }
+            }
+        }
+        parser::Expr::Tuple(tuple) => {
+            // $TYPE_TUPLE := [ $TYPE+ ]
+            if tuple.len() < 1 {
+                return Err(TypingErr{msg: "error: require more than or equal to oen type", ast: expr});
+            }
+
+            let mut types = Vec::new();
+            for it in tuple {
+                types.push(expr2type(it)?);
+            }
+
+            Ok(Type::TypeTuple(TypeTupleNode{ty: types, ast: expr}))
+        }
+        parser::Expr::Apply(exprs) => {
+            // ( $TID $PRIM* )
+            let mut iter = exprs.iter();
+
+            // $TID
+            let tid;
+            let e = iter.next();
+            match e {
+                Some(parser::Expr::ID(id)) => {
+                    // $TYPE_FUN
+                    if id == "Pure" || id == "IO" {
+                        let ty = expr2type_fun(e.unwrap())?;
+                        return Ok(Type::TypeFun(ty));
+                    }
+                    tid = expr2type_id(e.unwrap())?;
+                }
+                _ => {
+                    return Err(TypingErr{msg: "error: require type", ast: expr});
+                }
+            }
+
+            // $PRIM*
+            let mut args = Vec::new();
+            for it in iter {
+                args.push(expr2prim(it)?);
+            }
+
+            Ok(Type::TypeData(TypeDataNode{id: tid, type_args: args, ast: expr}))
+        }
+        _ => {
+            Err(TypingErr{msg: "error: must be type", ast: expr})
+        }
+    }
+}
+
+fn list_types2vec_types(exprs: &LinkedList<parser::Expr>) -> Result<Vec<Type>, TypingErr> {
+    let mut v = Vec::new();
+    for e in exprs {
+        v.push(expr2type(e)?);
+    }
+
+    Ok(v)
 }

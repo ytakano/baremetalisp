@@ -39,7 +39,7 @@
 - $TYPE_LIST := '( $TYPE )
 - $TYPE_TUPLE := \[ $TYPE+ \]
 - $TYPE_DATA := $TID | ( $TID $PRIM* )
-- $TYPE_FUN := ( $EFFECT ( -> $TYPES $TYPES ) )
+- $TYPE_FUN := ( $EFFECT ( -> $TYPES $TYPE ) )
 - $EFFECT := Pure | IO
 - $TYPES := $TYPE | ( $TYPE* )
 
