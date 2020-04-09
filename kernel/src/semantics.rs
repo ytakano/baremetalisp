@@ -439,10 +439,18 @@ fn expr2defun(expr: &parser::Expr) -> Result<Defun, TypingErr> {
                 }
             }
 
-            // TODO:
             // $EXPR
+            let body;
+            match iter.next() {
+                Some(e) => {
+                    body = expr2typed_expr(e)?;
+                }
+                _ => {
+                    return Err(TypingErr{msg: "error: require expression", ast: expr});
+                }
+            }
 
-            Err(TypingErr{msg: "not yet implemented", ast: expr})
+            Ok(Defun{id: id, args: args, fun_type: fun, expr: body, ast: expr})
         }
         _ => {
             Err(TypingErr{msg: "error", ast: expr})
@@ -451,7 +459,7 @@ fn expr2defun(expr: &parser::Expr) -> Result<Defun, TypingErr> {
 }
 
 /// $TYPE_FUN := ( $EFFECT ( -> $TYPES $TYPES ) )
-fn expr2type_fun(expr: &parser::Expr) -> Result<TypeFunNode, TypingErr> {
+fn expr2type_fun(expr: &parser::Expr) -> Result<Type, TypingErr> {
     match expr {
         parser::Expr::Apply(exprs) => {
             let mut iter = exprs.iter();
@@ -518,7 +526,7 @@ fn expr2type_fun(expr: &parser::Expr) -> Result<TypeFunNode, TypingErr> {
                 }
             }
 
-            Ok(TypeFunNode{effect: effect, args: args, ret: Box::new(ret), ast: expr})
+            Ok(Type::TypeFun(TypeFunNode{effect: effect, args: args, ret: Box::new(ret), ast: expr}))
         }
         _ => {
             Err(TypingErr{msg: "error", ast: expr})
@@ -597,7 +605,7 @@ fn expr2type(expr: &parser::Expr) -> Result<Type, TypingErr> {
                     // $TYPE_FUN
                     if id == "Pure" || id == "IO" {
                         let ty = expr2type_fun(e.unwrap())?;
-                        return Ok(Type::TypeFun(ty));
+                        return Ok(ty);
                     }
                     tid = expr2type_id(e.unwrap())?;
                 }
@@ -627,4 +635,74 @@ fn list_types2vec_types(exprs: &LinkedList<parser::Expr>) -> Result<Vec<Type>, T
     }
 
     Ok(v)
+}
+
+/// $EXPR := $LITERAL | $ID | $LET | $IF | $MATCH | $LIST | $TUPLE | $APPLY
+fn expr2typed_expr(expr: &parser::Expr) -> Result<TypedExpr, TypingErr> {
+    match expr {
+        parser::Expr::Num(num) => {
+            Ok(TypedExpr::LitNum(NumNode{num: *num, ast: expr}))
+        }
+        parser::Expr::Bool(val) => {
+            Ok(TypedExpr::LitBool(BoolNode{val: *val, ast: expr}))
+        }
+        parser::Expr::ID(id) => {
+            Ok(TypedExpr::IDExpr(IDNode{id: id, ast: expr}))
+        }
+        parser::Expr::List(_list) => {
+            Err(TypingErr{msg: "not yet implemented", ast: expr})
+        }
+        parser::Expr::Tuple(_tuple) => {
+            Err(TypingErr{msg: "not yet implemented", ast: expr})
+        }
+        parser::Expr::Apply(exprs) => {
+            let mut iter = exprs.iter();
+
+            match iter.next() {
+                Some(parser::Expr::ID(id)) => {
+                    if id == "if" {
+                        return Ok(expr2if(expr)?);
+                    } else {
+                        return Err(TypingErr{msg: "not yet implemented", ast: expr});
+                    }
+                }
+                _ => {
+                    return Err(TypingErr{msg: "error: require function", ast: expr});
+                }
+            }
+        }
+    }
+}
+
+/// $IF := ( if $EXPR $EXPR $EXPR )
+fn expr2if(expr: &parser::Expr) -> Result<TypedExpr, TypingErr> {
+    let exprs;
+    match expr {
+        parser::Expr::Apply(e) => {
+            exprs = e;
+        }
+        _ => {
+            return Err(TypingErr{msg: "error: if expression", ast: expr});
+        }
+    }
+
+    let mut iter = exprs.iter();
+    iter.next(); // must be "if"
+
+    let f = |next, msg| {
+        match next {
+            Some(e) => {
+                return expr2typed_expr(e);
+            }
+            _ => {
+                return Err(TypingErr{msg: msg, ast: expr});
+            }
+        }
+    };
+
+    let cond = f(iter.next(), "error: if requires condition")?;
+    let then = f(iter.next(), "error: if requires then expression")?;
+    let else_expr = f(iter.next(), "error: if requires else expression")?;
+
+    Ok(TypedExpr::IfExpr(Box::new(IfNode{cond_expr: cond, then_expr: then, else_expr: else_expr, ast: expr})))
 }

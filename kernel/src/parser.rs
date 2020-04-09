@@ -149,14 +149,7 @@ impl<'a> Parser<'a> {
         self.skip_spaces();
 
         loop {
-            match self.parse_expr() {
-                Ok(e) => {
-                    exprs.push_back(e);
-                }
-                Err(err) => {
-                    return Err(err);
-                }
-            }
+            exprs.push_back(self.parse_expr()?);
 
             self.skip_spaces();
             let c0 = self.remain.chars().nth(0);
@@ -197,17 +190,13 @@ impl<'a> Parser<'a> {
         self.remain = &self.remain[1..]; // skip '('
         self.column += 1;
 
-        match self.parse_exprs() {
-            Ok(exprs) => {
-                if self.remain.chars().nth(0) == Some(')') {
-                    self.remain = &self.remain[1..];
-                    self.column += 1;
-                    Ok(Expr::Apply(exprs))
-                } else {
-                    Err(SyntaxErr{line: self.line, column: self.column, msg: "expected ')'"})
-                }
-            }
-            Err(err) => { Err(err) }
+        let exprs = self.parse_exprs()?;
+        if self.remain.chars().nth(0) == Some(')') {
+            self.remain = &self.remain[1..];
+            self.column += 1;
+            Ok(Expr::Apply(exprs))
+        } else {
+            Err(SyntaxErr{line: self.line, column: self.column, msg: "expected ')'"})
         }
     }
 
@@ -218,17 +207,13 @@ impl<'a> Parser<'a> {
         match c.chars().nth(0) {
             Some('(') => {
                 self.remain = &c[1..];
-                match self.parse_exprs() {
-                    Ok(exprs) => {
-                        if self.remain.chars().nth(0) == Some(')') {
-                            self.remain = &self.remain[1..];
-                            self.column += 1;
-                            Ok(Expr::List(exprs))
-                        } else {
-                            Err(SyntaxErr{line: self.line, column: self.column, msg: "expected ')'"})
-                        }
-                    }
-                    Err(err) => { Err(err) }
+                let exprs = self.parse_exprs()?;
+                if self.remain.chars().nth(0) == Some(')') {
+                    self.remain = &self.remain[1..];
+                    self.column += 1;
+                    Ok(Expr::List(exprs))
+                } else {
+                    Err(SyntaxErr{line: self.line, column: self.column, msg: "expected ')'"})
                 }
             }
             _ => {
@@ -241,17 +226,13 @@ impl<'a> Parser<'a> {
         self.remain = &self.remain[1..]; // skip '['
         self.column += 1;
 
-        match self.parse_exprs() {
-            Ok(exprs) => {
-                if self.remain.chars().nth(0) == Some(']') {
-                    self.remain = &self.remain[1..];
-                    self.column += 1;
-                    Ok(Expr::Tuple(exprs))
-                } else {
-                    Err(SyntaxErr{line: self.line, column: self.column, msg: "expected ']'"})
-                }
-            }
-            Err(err) => { Err(err) }
+        let exprs = self.parse_exprs()?;
+        if self.remain.chars().nth(0) == Some(']') {
+            self.remain = &self.remain[1..];
+            self.column += 1;
+            Ok(Expr::Tuple(exprs))
+        } else {
+            Err(SyntaxErr{line: self.line, column: self.column, msg: "expected ']'"})
         }
     }
 }
