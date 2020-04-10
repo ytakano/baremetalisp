@@ -19,13 +19,13 @@
 ## Identifier
 
 - $ID
-  - a string whose first character is small
+  - a string whose first character is not captal (not 'A' to 'Z')
   - excludes "true" and "false"
 
 ## Type Identifier
 
 - $TID
-  - a string whose first character is captal
+  - a string whose first character is captal ('A' to 'Z')
 
 ## Primitive Type
 
@@ -81,8 +81,8 @@ examples:
 ### Let Expression
 
 - $LET := ( let ( $DEFVAR+ ) $EXPR )
-- $DEFVAR := ( $LETPAT $EXPR ) | ( $LETPAT $TYPE $EXPR )
-- $LETPAT := _ | $ID | ( $TID $LETPAT+ ) | [ $LETPAT ]
+- $DEFVAR := ( $LETPAT $EXPR )
+- $LETPAT := $ID | [ $LETPAT ]
 
 ### If Expression
 

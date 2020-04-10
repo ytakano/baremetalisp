@@ -42,32 +42,23 @@ struct IfNode<'t> {
 }
 
 enum LetPat<'t> {
-    LetPatNone(TypedExpr<'t>),
-    LetPatID(TypedExpr<'t>),
-    LetPatData(LetPatDataNode<'t>),
+    LetPatID(IDNode<'t>),
     LetPatTuple(LetPatTupleNode<'t>)
 }
 
-struct LetPatDataNode<'t> {
-    ty: TypedExpr<'t>,
-    pattern: LinkedList::<LetPat<'t>>,
-    ast: &'t parser::Expr
-}
-
 struct LetPatTupleNode<'t> {
-    pattern: LinkedList::<LetPat<'t>>,
+    pattern: Vec::<LetPat<'t>>,
     ast: &'t parser::Expr
 }
 
 struct LetNode<'t> {
-    def_vars: LinkedList<DefVar<'t>>,
+    def_vars: Vec<DefVar<'t>>,
     expr: TypedExpr<'t>,
     ast: &'t parser::Expr
 }
 
 struct DefVar<'t> {
-    var: LetPat<'t>,
-    ty: Option<TypedExpr<'t>>,
+    pattern: LetPat<'t>,
     expr: TypedExpr<'t>,
     ast: &'t parser::Expr
 }
@@ -662,6 +653,8 @@ fn expr2typed_expr(expr: &parser::Expr) -> Result<TypedExpr, TypingErr> {
                 Some(parser::Expr::ID(id)) => {
                     if id == "if" {
                         return Ok(expr2if(expr)?);
+                    } else if id == "let" {
+                        return Ok(expr2let(expr)?);
                     } else {
                         return Err(TypingErr{msg: "not yet implemented", ast: expr});
                     }
@@ -705,4 +698,104 @@ fn expr2if(expr: &parser::Expr) -> Result<TypedExpr, TypingErr> {
     let else_expr = f(iter.next(), "error: if requires else expression")?;
 
     Ok(TypedExpr::IfExpr(Box::new(IfNode{cond_expr: cond, then_expr: then, else_expr: else_expr, ast: expr})))
+}
+
+/// $LET := ( let ( $DEFVAR+ ) $EXPR )
+fn expr2let(expr: &parser::Expr) -> Result<TypedExpr, TypingErr> {
+    let exprs;
+    match expr {
+        parser::Expr::Apply(e) => {
+            exprs = e;
+        }
+        _ => {
+            return Err(TypingErr{msg: "error: if expression", ast: expr});
+        }
+    }
+
+    let mut iter = exprs.iter();
+    iter.next(); // must be "let"
+
+    // ( $DEFVAR+ )
+    let mut def_vars = Vec::new();
+    let e = iter.next();
+    match e {
+        Some(parser::Expr::Apply(dvs)) => {
+            if dvs.len() == 0 {
+                return Err(TypingErr{msg: "error: require variable binding", ast: e.unwrap()});
+            }
+
+            for it in dvs.iter() {
+                def_vars.push(expr2def_vars(it)?);
+            }
+        }
+        _ => {
+            return Err(TypingErr{msg: "error: require variable binding", ast: expr});
+        }
+    }
+
+    // $EXPR
+    let body;
+    let e = iter.next();
+    match e {
+        Some(body_expr) => {
+            body = expr2typed_expr(body_expr)?;
+        }
+        _ => {
+            return Err(TypingErr{msg: "error: require body", ast: expr});
+        }
+    }
+
+    Ok(TypedExpr::LetExpr(Box::new(LetNode{def_vars: def_vars, expr: body, ast: expr})))
+}
+
+/// $LETPAT := $ID | [ $LETPAT ]
+fn expr2letpat(expr: &parser::Expr) -> Result<LetPat, TypingErr> {
+    match expr {
+        parser::Expr::ID(id) => {
+            // $ID
+            let c = id.chars().nth(0).unwrap();
+            if 'A' <= c && c <= 'Z' {
+                Err(TypingErr{msg: "error: invalid pattern", ast: expr})
+            } else {
+                Ok(LetPat::LetPatID(IDNode{id: id, ast: expr}))
+            }
+        }
+        parser::Expr::Tuple(tuple) => {
+            // [ $LETPAT ]
+            if tuple.len() == 0 {
+                return Err(TypingErr{msg: "error: require at least one pattern", ast: expr});
+            }
+
+            let mut pattern = Vec::new();
+            for it in tuple {
+                pattern.push(expr2letpat(it)?);
+            }
+
+            Ok(LetPat::LetPatTuple(LetPatTupleNode{pattern: pattern, ast: expr}))
+        }
+        _ => {
+            Err(TypingErr{msg: "error: invalid pattern", ast: expr})
+        }
+    }
+}
+
+/// $DEFVAR := ( $LETPAT $EXPR )
+fn expr2def_vars(expr: &parser::Expr) -> Result<DefVar, TypingErr> {
+    match expr {
+        parser::Expr::Apply(exprs) => {
+            if exprs.len() != 2 {
+                return Err(TypingErr{msg: "invalid variable definition", ast: expr})
+            }
+
+            let mut iter = exprs.iter();
+
+            let pattern = expr2letpat(iter.next().unwrap())?;  // $LETPAT
+            let body = expr2typed_expr(iter.next().unwrap())?; // $EXPR
+
+            Ok(DefVar{pattern: pattern, expr: body, ast: expr})
+        }
+        _ => {
+            Err(TypingErr{msg: "must be variable definition(s)", ast: expr})
+        }
+    }
 }
