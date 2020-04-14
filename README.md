@@ -98,9 +98,9 @@ examples:
 
 ### Match Expression
 
-- $MATCH := ( match $EXPR $MBODY+ )
-- $MBODY := ( $PATTERN $EXPR )
-- $PATTERN := _ | $LITERAL | $ID | \[ $PATTERN+ \] | ( $TID $PATTERN+ )
+- $MATCH := ( match $EXPR $CASE+ )
+- $CASE := ( $PATTERN $EXPR )
+- $PATTERN := $LITERAL | $ID | $TID | \[ $PATTERN+ \] | ( $TID $PATTERN* )
 
 ## Built-in Functions
 

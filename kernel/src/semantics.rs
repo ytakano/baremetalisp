@@ -64,28 +64,33 @@ struct DefVar<'t> {
 }
 
 struct MatchNode<'t> {
-    expr: &'t parser::Expr,
-    cases: LinkedList<(MatchPat<'t>, TypedExpr<'t>)>,
+    expr: TypedExpr<'t>,
+    cases: Vec<MatchCase<'t>>,
     ast: &'t parser::Expr
 }
 
 enum MatchPat<'t> {
-    MatchPatNone(TypedExpr<'t>),
-    MatchPatNum(TypedExpr<'t>),
-    MatchPatBool(TypedExpr<'t>),
-    MatchPatID(TypedExpr<'t>),
+    MatchPatNum(NumNode<'t>),
+    MatchPatBool(BoolNode<'t>),
+    MatchPatID(IDNode<'t>),
     MatchPatTuple(MatchPatTupleNode<'t>),
     MatchPatData(MatchPatDataNode<'t>)
 }
 
 struct MatchPatTupleNode<'t> {
-    pattern: LinkedList<MatchPat<'t>>,
+    pattern: Vec<MatchPat<'t>>,
     ast: &'t parser::Expr
 }
 
 struct MatchPatDataNode<'t> {
-    ty: TypedExpr<'t>,
-    pattern: LinkedList<MatchPat<'t>>,
+    ty: TIDNode<'t>,
+    pattern: Vec<MatchPat<'t>>,
+    ast: &'t parser::Expr
+}
+
+struct MatchCase<'t> {
+    pattern: MatchPat<'t>,
+    expr: TypedExpr<'t>,
     ast: &'t parser::Expr
 }
 
@@ -655,6 +660,8 @@ fn expr2typed_expr(expr: &parser::Expr) -> Result<TypedExpr, TypingErr> {
                         return Ok(expr2if(expr)?);
                     } else if id == "let" {
                         return Ok(expr2let(expr)?);
+                    } else if id == "match" {
+                        return Ok(expr2match(expr)?);
                     } else {
                         return Err(TypingErr{msg: "not yet implemented", ast: expr});
                     }
@@ -796,6 +803,116 @@ fn expr2def_vars(expr: &parser::Expr) -> Result<DefVar, TypingErr> {
         }
         _ => {
             Err(TypingErr{msg: "must be variable definition(s)", ast: expr})
+        }
+    }
+}
+
+/// $PATTERN := $LITERAL | $ID | $TID | [ $PATTERN+ ] | ( $TID $PATTERN* )
+fn expr2mpat(expr: &parser::Expr) -> Result<MatchPat, TypingErr> {
+    match expr {
+        parser::Expr::ID(id) => {
+            let c = id.chars().nth(0).unwrap();
+            if 'A' <= c && c <= 'Z' {
+                // $TID
+                let tid = expr2type_id(expr)?;
+                Ok(MatchPat::MatchPatData(MatchPatDataNode{ty: tid, pattern: Vec::new(), ast: expr}))
+            } else {
+                // $ID
+                let id_node = expr2id(expr)?;
+                Ok(MatchPat::MatchPatID(id_node))
+            }
+        }
+        parser::Expr::Bool(val) => {
+            // $LITERAL
+            Ok(MatchPat::MatchPatBool(BoolNode{val: *val, ast: expr}))
+        }
+        parser::Expr::Num(num) => {
+            // $LITERAL
+            Ok(MatchPat::MatchPatNum(NumNode{num: *num, ast: expr}))
+        }
+        parser::Expr::Tuple(exprs) => {
+            // [ $PATTERN+ ]
+            let mut pattern = Vec::new();
+            for it in exprs {
+                pattern.push(expr2mpat(it)?);
+            }
+
+            Ok(MatchPat::MatchPatTuple(MatchPatTupleNode{pattern: pattern, ast: expr}))
+        }
+        parser::Expr::Apply(exprs) => {
+            // ( $TID $PATTERN* )
+            let mut iter = exprs.iter();
+            let first = iter.next();
+            let tid;
+            match first {
+                Some(e) => {
+                    tid = expr2type_id(e)?
+                }
+                _ => {
+                    return Err(TypingErr{msg: "error: invalid pattern", ast: expr});
+                }
+            }
+
+            let mut pattern = Vec::new();
+            for it in iter {
+                pattern.push(expr2mpat(it)?);
+            }
+
+            Ok(MatchPat::MatchPatData(MatchPatDataNode{ty: tid, pattern: pattern, ast: expr}))
+        }
+        _ => {
+            Err(TypingErr{msg: "error: list pattern is not supported", ast: expr})
+        }
+    }
+}
+
+/// $CASE := ( $PATTERN $EXPR )
+fn expr2case(expr: &parser::Expr) -> Result<MatchCase, TypingErr> {
+    match expr {
+        parser::Expr::Apply(exprs) => {
+            if exprs.len() != 2 {
+                return Err(TypingErr{msg: "error: case require exactly 2 expressions", ast: expr});
+            }
+
+            let mut iter = exprs.iter();
+            let pattern = expr2mpat(iter.next().unwrap())?;
+            let body = expr2typed_expr(iter.next().unwrap())?;
+
+            Ok(MatchCase{pattern: pattern, expr: body, ast: expr})
+        }
+        _ => {
+            Err(TypingErr{msg: "error: invalid case", ast: expr})
+        }
+    }
+}
+
+/// $MATCH := ( match $EXPR $CASE+ )
+fn expr2match(expr: &parser::Expr) -> Result<TypedExpr, TypingErr> {
+    match expr {
+        parser::Expr::Apply(exprs) => {
+            let mut iter = exprs.iter();
+            iter.next(); // must be "match"
+
+            let cond;
+            match iter.next() {
+                Some(e) => {
+                    cond = expr2typed_expr(e)?;
+                }
+                _ => {
+                    return Err(TypingErr{msg: "error: no condition", ast: expr});
+                }
+            }
+
+            let mut cases = Vec::new();
+            for it in iter {
+                cases.push(expr2case(it)?);
+            }
+
+            let node = MatchNode{expr: cond, cases: cases, ast: expr};
+            Ok(TypedExpr::MatchExpr(Box::new(node)))
+        }
+        _ => {
+            Err(TypingErr{msg: "error: invalid match", ast: expr})
         }
     }
 }
