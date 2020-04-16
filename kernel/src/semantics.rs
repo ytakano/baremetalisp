@@ -16,7 +16,9 @@ enum TypedExpr<'t> {
     LitBool(BoolNode<'t>),
     IDExpr(IDNode<'t>),
     MatchExpr(Box::<MatchNode<'t>>),
-    ApplyExpr(ApplyNode<'t>)
+    ApplyExpr(Exprs<'t>),
+    ListExpr(Exprs<'t>),
+    TupleExpr(Exprs<'t>),
 }
 
 struct NumNode<'t> {
@@ -94,8 +96,8 @@ struct MatchCase<'t> {
     ast: &'t parser::Expr
 }
 
-struct ApplyNode<'t> {
-    exprs: LinkedList<TypedExpr<'t>>,
+struct Exprs<'t> {
+    exprs: Vec<TypedExpr<'t>>,
     ast: &'t parser::Expr
 }
 
@@ -645,11 +647,19 @@ fn expr2typed_expr(expr: &parser::Expr) -> Result<TypedExpr, TypingErr> {
         parser::Expr::ID(id) => {
             Ok(TypedExpr::IDExpr(IDNode{id: id, ast: expr}))
         }
-        parser::Expr::List(_list) => {
-            Err(TypingErr{msg: "not yet implemented", ast: expr})
+        parser::Expr::List(list) => {
+            let mut elms = Vec::new();
+            for it in list {
+                elms.push(expr2typed_expr(it)?);
+            }
+            Ok(TypedExpr::ListExpr(Exprs{exprs: elms, ast: expr}))
         }
-        parser::Expr::Tuple(_tuple) => {
-            Err(TypingErr{msg: "not yet implemented", ast: expr})
+        parser::Expr::Tuple(tuple) => {
+            let mut elms = Vec::new();
+            for it in tuple {
+                elms.push(expr2typed_expr(it)?);
+            }
+            Ok(TypedExpr::TupleExpr(Exprs{exprs: elms, ast: expr}))
         }
         parser::Expr::Apply(exprs) => {
             let mut iter = exprs.iter();
@@ -662,14 +672,19 @@ fn expr2typed_expr(expr: &parser::Expr) -> Result<TypedExpr, TypingErr> {
                         return Ok(expr2let(expr)?);
                     } else if id == "match" {
                         return Ok(expr2match(expr)?);
-                    } else {
-                        return Err(TypingErr{msg: "not yet implemented", ast: expr});
                     }
                 }
-                _ => {
-                    return Err(TypingErr{msg: "error: require function", ast: expr});
+                Some(_) => { () }
+                None => {
+                    return Err(TypingErr{msg: "error: require function application", ast: expr});
                 }
             }
+
+            let mut elms = Vec::new();
+            for it in exprs {
+                elms.push(expr2typed_expr(it)?);
+            }
+            Ok(TypedExpr::ApplyExpr(Exprs{exprs: elms, ast: expr}))
         }
     }
 }

@@ -61,8 +61,7 @@ examples:
 examples:
 ```common-lisp
 (data Dim2
-  (X Int)
-  (Y Int))
+  (Dim2 [Int Int]))
 
 (data (Maybe t)
     (Just t)
