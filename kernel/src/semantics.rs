@@ -133,6 +133,7 @@ struct TIDNode<'t> {
 
 #[derive(Debug)]
 enum PrimType<'t> {
+    PrimTypeID(IDNode<'t>),
     PrimTypeBool(TypeBoolNode<'t>),
     PrimTypeInt(TypeIntNode<'t>),
     PrimTypeList(PrimTypeListNode<'t>),
@@ -237,18 +238,18 @@ struct Defun<'t> {
 #[derive(Debug)]
 pub struct Context<'t> {
     funs: BTreeMap<&'t str, Defun<'t>>,
-    data: LinkedList<DataType<'t>>
+    data: BTreeMap<&'t str, DataType<'t>>
 }
 
 impl<'t> Context<'t> {
-    fn new(funs: BTreeMap<&'t str, Defun<'t>>, data: LinkedList<DataType<'t>>) -> Context<'t> {
+    fn new(funs: BTreeMap<&'t str, Defun<'t>>, data: BTreeMap<&'t str, DataType<'t>>) -> Context<'t> {
         Context{funs: funs, data: data}
     }
 }
 
 pub fn typing(exprs: &LinkedList<parser::Expr>) -> Result<Context, TypingErr> {
     let mut funs = BTreeMap::new();
-    let mut data = LinkedList::new();
+    let mut data = BTreeMap::new();
     let msg = "error: top expression must be data, defun, or export";
 
     for e in exprs {
@@ -260,14 +261,21 @@ pub fn typing(exprs: &LinkedList<parser::Expr>) -> Result<Context, TypingErr> {
                     Some(parser::Expr::ID(id)) => {
                         if id == "defun" || id == "export" {
                             let f = expr2defun(e)?;
-                            if !funs.contains_key(f.id.id) {
+
+                            if funs.contains_key(f.id.id) {
                                 let msg = format!("error:function {:?} is multiply defined\n", f.id.id);
                                 return Err(TypingErr{msg: msg, ast: e});
                             }
 
                             funs.insert(f.id.id, f);
                         } else if id == "data" {
-                            data.push_back(expr2data(e)?);
+                            let d = expr2data(e)?;
+                            if data.contains_key(d.name.id.id) {
+                                let msg = format!("error:data type {:?} is multiply defined\n", d.name.id.id);
+                                return Err(TypingErr{msg: msg, ast: e});
+                            }
+
+                            data.insert(d.name.id.id, d);
                         } else {
                             return Err(TypingErr::new(msg, e));
                         }
@@ -433,10 +441,15 @@ fn expr2data_mem(expr: &parser::Expr) -> Result<DataTypeMem, TypingErr> {
     }
 }
 
-/// $PRIM := Int | Bool | $PRIM_LIST | $PRIM_TUPLE
+/// $PRIM := $ID | Int | Bool | $PRIM_LIST | $PRIM_TUPLE
 fn expr2prim(expr: &parser::Expr) -> Result<PrimType, TypingErr> {
     match expr {
-        parser::Expr::ID(_) => {
+        parser::Expr::ID(id) => {
+            let c = id.chars().nth(0).unwrap();
+            if !('A' <= c && c <= 'Z') {
+                return Ok(PrimType::PrimTypeID(expr2id(expr)?));
+            }
+
             // Int | Bool
             let tid = expr2type_id(expr)?;
 

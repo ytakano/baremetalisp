@@ -29,7 +29,7 @@
 
 ## Primitive Type
 
-- $PRIM := Int | Bool | $PRIM_LIST | $PRIM_TUPLE
+- $PRIM := $ID | Int | Bool | $PRIM_LIST | $PRIM_TUPLE
 - $PRIM_LIST := '( $PRIM )
 - $PRIM_TUPLE := \[ $PRIM+ \]
 

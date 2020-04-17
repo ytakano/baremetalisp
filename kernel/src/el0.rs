@@ -10,6 +10,10 @@ pub fn el0_entry() -> ! {
 
     let code =
 "
+(data (Maybe t)
+    (Just t)
+    Nothing)
+
 (defun add (x y) (Pure (-> (Int Int) Int))
   (+ x y))
 ";
