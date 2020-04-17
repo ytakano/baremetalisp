@@ -1,13 +1,21 @@
 use crate::parser;
 
 use alloc::collections::linked_list::LinkedList;
+use alloc::collections::btree_map::BTreeMap;
 use alloc::vec::Vec;
 use alloc::boxed::Box;
+use alloc::string::{ToString, String};
 
 #[derive(Debug)]
 pub struct TypingErr<'t> {
-    msg: &'static str,
+    msg: String,
     ast: &'t parser::Expr
+}
+
+impl<'t> TypingErr<'t> {
+    fn new(msg: &str, ast: &'t parser::Expr) -> TypingErr<'t> {
+        TypingErr{msg: msg.to_string(), ast: ast}
+    }
 }
 
 #[derive(Debug)]
@@ -228,12 +236,18 @@ struct Defun<'t> {
 
 #[derive(Debug)]
 pub struct Context<'t> {
-    funs: LinkedList<Defun<'t>>,
+    funs: BTreeMap<&'t str, Defun<'t>>,
     data: LinkedList<DataType<'t>>
 }
 
+impl<'t> Context<'t> {
+    fn new(funs: BTreeMap<&'t str, Defun<'t>>, data: LinkedList<DataType<'t>>) -> Context<'t> {
+        Context{funs: funs, data: data}
+    }
+}
+
 pub fn typing(exprs: &LinkedList<parser::Expr>) -> Result<Context, TypingErr> {
-    let mut funs = LinkedList::new();
+    let mut funs = BTreeMap::new();
     let mut data = LinkedList::new();
     let msg = "error: top expression must be data, defun, or export";
 
@@ -245,25 +259,31 @@ pub fn typing(exprs: &LinkedList<parser::Expr>) -> Result<Context, TypingErr> {
                 match iter.next() {
                     Some(parser::Expr::ID(id)) => {
                         if id == "defun" || id == "export" {
-                            funs.push_back(expr2defun(e)?);
+                            let f = expr2defun(e)?;
+                            if !funs.contains_key(f.id.id) {
+                                let msg = format!("error:function {:?} is multiply defined\n", f.id.id);
+                                return Err(TypingErr{msg: msg, ast: e});
+                            }
+
+                            funs.insert(f.id.id, f);
                         } else if id == "data" {
                             data.push_back(expr2data(e)?);
                         } else {
-                            return Err(TypingErr{msg: msg, ast: e});
+                            return Err(TypingErr::new(msg, e));
                         }
                     }
                     _ => {
-                        return Err(TypingErr{msg: msg, ast: e});
+                        return Err(TypingErr::new(msg, e));
                     }
                 }
             }
             _ => {
-                return Err(TypingErr{msg: msg, ast: e});
+                return Err(TypingErr::new(msg, e));
             }
         }
     }
 
-    Ok(Context{funs: funs, data: data})
+    Ok(Context::new(funs, data))
 }
 
 /// $DATA := ( data $DATA_NAME $MEMBER+ )
@@ -280,7 +300,7 @@ fn expr2data(expr: &parser::Expr) -> Result<DataType, TypingErr> {
                     data_name = expr2data_name(e)?;
                 }
                 _ => {
-                    return Err(TypingErr{msg: "error: require data name", ast: expr})
+                    return Err(TypingErr::new("error: require data name", expr))
                 }
             }
 
@@ -294,7 +314,7 @@ fn expr2data(expr: &parser::Expr) -> Result<DataType, TypingErr> {
             Ok(DataType{name: data_name, members: mems, ast: expr})
         }
         _ => {
-            Err(TypingErr{msg: "error", ast: expr})
+            Err(TypingErr::new("error", expr))
         }
     }
 }
@@ -316,7 +336,7 @@ fn expr2data_name(expr: &parser::Expr) -> Result<DataTypeName, TypingErr> {
                     tid = expr2type_id(e)?;
                 }
                 _ => {
-                    return Err(TypingErr{msg: "error: must type identifier (with type arguments)", ast: expr})
+                    return Err(TypingErr::new("error: must type identifier (with type arguments)", expr))
                 }
             }
 
@@ -328,7 +348,7 @@ fn expr2data_name(expr: &parser::Expr) -> Result<DataTypeName, TypingErr> {
             Ok(DataTypeName{id: tid, type_args: args, ast: expr})
         }
         _ => {
-            Err(TypingErr{msg: "error: must type identifier (with type arguments)", ast: expr})
+            Err(TypingErr::new("error: must type identifier (with type arguments)", expr))
         }
     }
 }
@@ -341,16 +361,16 @@ fn expr2type_id(expr: &parser::Expr) -> Result<TIDNode, TypingErr> {
                     if 'A' <= c && c <= 'Z' {
                         Ok(TIDNode{id: id, ast: expr})
                     } else {
-                        Err(TypingErr{msg: "error: the first character must be captal", ast: expr})
+                        Err(TypingErr::new("error: the first character must be captal", expr))
                     }
                 }
                 _ => {
-                    Err(TypingErr{msg: "error", ast: expr})
+                    Err(TypingErr::new("error", expr))
                 }
             }
         }
         _ => {
-            Err(TypingErr{msg: "error: must be type identifier", ast: expr})
+            Err(TypingErr::new("error: must be type identifier", expr))
         }
     }
 }
@@ -361,18 +381,18 @@ fn expr2id(expr: &parser::Expr) -> Result<IDNode, TypingErr> {
             match id.chars().nth(0) {
                 Some(c) => {
                     if 'A' <= c && c <= 'Z' {
-                        Err(TypingErr{msg: "error: the first character must not be captal", ast: expr})
+                        Err(TypingErr::new("error: the first character must not be captal", expr))
                     } else {
                         Ok(IDNode{id: id, ast: expr})
                     }
                 }
                 _ => {
-                    Err(TypingErr{msg: "error", ast: expr})
+                    Err(TypingErr::new("error", expr))
                 }
             }
         }
         _ => {
-            Err(TypingErr{msg: "error: must be identifier", ast: expr})
+            Err(TypingErr::new("error: must be identifier", expr))
         }
     }
 }
@@ -395,7 +415,7 @@ fn expr2data_mem(expr: &parser::Expr) -> Result<DataTypeMem, TypingErr> {
                     tid = expr2type_id(e)?;
                 }
                 _ => {
-                    return Err(TypingErr{msg: "error: must type identifier", ast: expr})
+                    return Err(TypingErr::new("error: must type identifier", expr))
                 }
             }
 
@@ -408,7 +428,7 @@ fn expr2data_mem(expr: &parser::Expr) -> Result<DataTypeMem, TypingErr> {
             Ok(DataTypeMem{id: tid, types: types , ast: expr})
         }
         _ => {
-            Err(TypingErr{msg: "error: must be type identifier (with types)", ast: expr})
+            Err(TypingErr::new("error: must be type identifier (with types)", expr))
         }
     }
 }
@@ -426,12 +446,12 @@ fn expr2prim(expr: &parser::Expr) -> Result<PrimType, TypingErr> {
                 return Ok(PrimType::PrimTypeBool(TypeBoolNode{ast: expr}));
             }
 
-            Err(TypingErr{msg: "error: must be Int, Bool, list, or tuple", ast: expr})
+            Err(TypingErr::new("error: must be Int, Bool, list, or tuple", expr))
         }
         parser::Expr::List(list) => {
             // $PRIM_LIST := '( $PRIM )
             if list.len() != 1 {
-                return Err(TypingErr{msg: "error: require exactly one type as a type argument for list type", ast: expr});
+                return Err(TypingErr::new("error: require exactly one type as a type argument for list type", expr));
             }
 
             match list.iter().next() {
@@ -440,14 +460,14 @@ fn expr2prim(expr: &parser::Expr) -> Result<PrimType, TypingErr> {
                     Ok(PrimType::PrimTypeList(PrimTypeListNode{ty: ty, ast: e}))
                 }
                 _ => {
-                    Err(TypingErr{msg: "error: require primitive type", ast: expr})
+                    Err(TypingErr::new("error: require primitive type", expr))
                 }
             }
         }
         parser::Expr::Tuple(tuple) => {
             // $PRIM_TUPLE := [ $PRIM+ ]
             if tuple.len() < 1 {
-                return Err(TypingErr{msg: "error: require more than or equal to one for tuple type", ast: expr});
+                return Err(TypingErr::new("error: require more than or equal to one for tuple type", expr));
             }
 
             let mut types = Vec::new();
@@ -459,7 +479,7 @@ fn expr2prim(expr: &parser::Expr) -> Result<PrimType, TypingErr> {
             Ok(PrimType::PrimTypeTuple(PrimTypeTupleNode{ty: types, ast: expr}))
         }
         _ => {
-            Err(TypingErr{msg: "error: must be primitive type", ast: expr})
+            Err(TypingErr::new("error: must be primitive type", expr))
         }
     }
 }
@@ -480,7 +500,7 @@ fn expr2defun(expr: &parser::Expr) -> Result<Defun, TypingErr> {
                     id = expr2id(e)?;
                 }
                 _ => {
-                    return Err(TypingErr{msg: "error: require function name", ast: expr});
+                    return Err(TypingErr::new("error: require function name", expr));
                 }
             }
 
@@ -494,7 +514,7 @@ fn expr2defun(expr: &parser::Expr) -> Result<Defun, TypingErr> {
                     }
                 }
                 _ => {
-                    return Err(TypingErr{msg: "error: require arguments", ast: expr});
+                    return Err(TypingErr::new("error: require arguments", expr));
                 }
             }
 
@@ -505,7 +525,7 @@ fn expr2defun(expr: &parser::Expr) -> Result<Defun, TypingErr> {
                     fun = expr2type_fun(e)?;
                 }
                 _ => {
-                    return Err(TypingErr{msg: "error: require function type", ast: expr});
+                    return Err(TypingErr::new("error: require function type", expr));
                 }
             }
 
@@ -516,14 +536,14 @@ fn expr2defun(expr: &parser::Expr) -> Result<Defun, TypingErr> {
                     body = expr2typed_expr(e)?;
                 }
                 _ => {
-                    return Err(TypingErr{msg: "error: require expression", ast: expr});
+                    return Err(TypingErr::new("error: require expression", expr));
                 }
             }
 
             Ok(Defun{id: id, args: args, fun_type: fun, expr: body, ast: expr})
         }
         _ => {
-            Err(TypingErr{msg: "error", ast: expr})
+            Err(TypingErr::new("error", expr))
         }
     }
 }
@@ -544,11 +564,11 @@ fn expr2type_fun(expr: &parser::Expr) -> Result<Type, TypingErr> {
                     } else if eff == "Pure" {
                         effect = Effect::Pure;
                     } else {
-                        return Err(TypingErr{msg: "error: effect must be \"Pure\" or \"IO\"", ast: e.unwrap()});
+                        return Err(TypingErr::new("error: effect must be \"Pure\" or \"IO\"", e.unwrap()));
                     }
                 }
                 _ => {
-                    return Err(TypingErr{msg: "error: invalid effect", ast: expr});
+                    return Err(TypingErr::new("error: invalid effect", expr));
                 }
             }
 
@@ -563,11 +583,11 @@ fn expr2type_fun(expr: &parser::Expr) -> Result<Type, TypingErr> {
                     match e2 {
                         Some(parser::Expr::ID(arr)) => {
                             if arr != "->" {
-                                return Err(TypingErr{msg: "error: must be \"->\"", ast: e2.unwrap()});
+                                return Err(TypingErr::new("error: must be \"->\"", e2.unwrap()));
                             }
                         }
                         _ => {
-                            return Err(TypingErr{msg: "error: require \"->\"", ast: e1.unwrap()});
+                            return Err(TypingErr::new("error: require \"->\"", e1.unwrap()));
                         }
                     }
 
@@ -577,7 +597,7 @@ fn expr2type_fun(expr: &parser::Expr) -> Result<Type, TypingErr> {
                             args = expr2types(t)?;
                         }
                         _ => {
-                            return Err(TypingErr{msg: "error: require types for arguments", ast: e1.unwrap()});
+                            return Err(TypingErr::new("error: require types for arguments", e1.unwrap()));
                         }
                     }
 
@@ -587,19 +607,19 @@ fn expr2type_fun(expr: &parser::Expr) -> Result<Type, TypingErr> {
                             ret = expr2type(t)?;
                         }
                         _ => {
-                            return Err(TypingErr{msg: "error: require type for return value", ast: e1.unwrap()});
+                            return Err(TypingErr::new("error: require type for return value", e1.unwrap()));
                         }
                     }
                 }
                 _ => {
-                    return Err(TypingErr{msg: "error: require function type", ast: expr});
+                    return Err(TypingErr::new("error: require function type", expr));
                 }
             }
 
             Ok(Type::TypeFun(TypeFunNode{effect: effect, args: args, ret: Box::new(ret), ast: expr}))
         }
         _ => {
-            Err(TypingErr{msg: "error", ast: expr})
+            Err(TypingErr::new("error", expr))
         }
     }
 }
@@ -637,7 +657,7 @@ fn expr2type(expr: &parser::Expr) -> Result<Type, TypingErr> {
         parser::Expr::List(list) => {
             // $TYPE_LIST := '( $TYPE )
             if list.len() != 1 {
-                return Err(TypingErr{msg: "error: require exactly one type as a type argument for list type", ast: expr});
+                return Err(TypingErr::new("error: require exactly one type as a type argument for list type", expr));
             }
 
             match list.iter().next() {
@@ -646,14 +666,14 @@ fn expr2type(expr: &parser::Expr) -> Result<Type, TypingErr> {
                     Ok(Type::TypeList(TypeListNode{ty: ty, ast: e}))
                 }
                 _ => {
-                    Err(TypingErr{msg: "error: require primitive type", ast: expr})
+                    Err(TypingErr::new("error: require primitive type", expr))
                 }
             }
         }
         parser::Expr::Tuple(tuple) => {
             // $TYPE_TUPLE := [ $TYPE+ ]
             if tuple.len() < 1 {
-                return Err(TypingErr{msg: "error: require more than or equal to oen type", ast: expr});
+                return Err(TypingErr::new("error: require more than or equal to oen type", expr));
             }
 
             let mut types = Vec::new();
@@ -680,7 +700,7 @@ fn expr2type(expr: &parser::Expr) -> Result<Type, TypingErr> {
                     tid = expr2type_id(e.unwrap())?;
                 }
                 _ => {
-                    return Err(TypingErr{msg: "error: require type", ast: expr});
+                    return Err(TypingErr::new("error: require type", expr));
                 }
             }
 
@@ -693,7 +713,7 @@ fn expr2type(expr: &parser::Expr) -> Result<Type, TypingErr> {
             Ok(Type::TypeData(TypeDataNode{id: tid, type_args: args, ast: expr}))
         }
         _ => {
-            Err(TypingErr{msg: "error: must be type", ast: expr})
+            Err(TypingErr::new("error: must be type", expr))
         }
     }
 }
@@ -748,7 +768,7 @@ fn expr2typed_expr(expr: &parser::Expr) -> Result<TypedExpr, TypingErr> {
                 }
                 Some(_) => { () }
                 None => {
-                    return Err(TypingErr{msg: "error: require function application", ast: expr});
+                    return Err(TypingErr::new("error: require function application", expr));
                 }
             }
 
@@ -769,7 +789,7 @@ fn expr2if(expr: &parser::Expr) -> Result<TypedExpr, TypingErr> {
             exprs = e;
         }
         _ => {
-            return Err(TypingErr{msg: "error: if expression", ast: expr});
+            return Err(TypingErr::new("error: if expression", expr));
         }
     }
 
@@ -782,7 +802,7 @@ fn expr2if(expr: &parser::Expr) -> Result<TypedExpr, TypingErr> {
                 return expr2typed_expr(e);
             }
             _ => {
-                return Err(TypingErr{msg: msg, ast: expr});
+                return Err(TypingErr::new(msg, expr));
             }
         }
     };
@@ -802,7 +822,7 @@ fn expr2let(expr: &parser::Expr) -> Result<TypedExpr, TypingErr> {
             exprs = e;
         }
         _ => {
-            return Err(TypingErr{msg: "error: if expression", ast: expr});
+            return Err(TypingErr::new("error: if expression", expr));
         }
     }
 
@@ -815,7 +835,7 @@ fn expr2let(expr: &parser::Expr) -> Result<TypedExpr, TypingErr> {
     match e {
         Some(parser::Expr::Apply(dvs)) => {
             if dvs.len() == 0 {
-                return Err(TypingErr{msg: "error: require variable binding", ast: e.unwrap()});
+                return Err(TypingErr::new("error: require variable binding", e.unwrap()));
             }
 
             for it in dvs.iter() {
@@ -823,7 +843,7 @@ fn expr2let(expr: &parser::Expr) -> Result<TypedExpr, TypingErr> {
             }
         }
         _ => {
-            return Err(TypingErr{msg: "error: require variable binding", ast: expr});
+            return Err(TypingErr::new("error: require variable binding", expr));
         }
     }
 
@@ -835,7 +855,7 @@ fn expr2let(expr: &parser::Expr) -> Result<TypedExpr, TypingErr> {
             body = expr2typed_expr(body_expr)?;
         }
         _ => {
-            return Err(TypingErr{msg: "error: require body", ast: expr});
+            return Err(TypingErr::new("error: require body", expr));
         }
     }
 
@@ -849,7 +869,7 @@ fn expr2letpat(expr: &parser::Expr) -> Result<LetPat, TypingErr> {
             // $ID
             let c = id.chars().nth(0).unwrap();
             if 'A' <= c && c <= 'Z' {
-                Err(TypingErr{msg: "error: invalid pattern", ast: expr})
+                Err(TypingErr::new("error: invalid pattern", expr))
             } else {
                 Ok(LetPat::LetPatID(IDNode{id: id, ast: expr}))
             }
@@ -857,7 +877,7 @@ fn expr2letpat(expr: &parser::Expr) -> Result<LetPat, TypingErr> {
         parser::Expr::Tuple(tuple) => {
             // [ $LETPAT ]
             if tuple.len() == 0 {
-                return Err(TypingErr{msg: "error: require at least one pattern", ast: expr});
+                return Err(TypingErr::new("error: require at least one pattern", expr));
             }
 
             let mut pattern = Vec::new();
@@ -868,7 +888,7 @@ fn expr2letpat(expr: &parser::Expr) -> Result<LetPat, TypingErr> {
             Ok(LetPat::LetPatTuple(LetPatTupleNode{pattern: pattern, ast: expr}))
         }
         _ => {
-            Err(TypingErr{msg: "error: invalid pattern", ast: expr})
+            Err(TypingErr::new("error: invalid pattern", expr))
         }
     }
 }
@@ -878,7 +898,7 @@ fn expr2def_vars(expr: &parser::Expr) -> Result<DefVar, TypingErr> {
     match expr {
         parser::Expr::Apply(exprs) => {
             if exprs.len() != 2 {
-                return Err(TypingErr{msg: "invalid variable definition", ast: expr})
+                return Err(TypingErr::new("invalid variable definition", expr))
             }
 
             let mut iter = exprs.iter();
@@ -889,7 +909,7 @@ fn expr2def_vars(expr: &parser::Expr) -> Result<DefVar, TypingErr> {
             Ok(DefVar{pattern: pattern, expr: body, ast: expr})
         }
         _ => {
-            Err(TypingErr{msg: "must be variable definition(s)", ast: expr})
+            Err(TypingErr::new("must be variable definition(s)", expr))
         }
     }
 }
@@ -936,7 +956,7 @@ fn expr2mpat(expr: &parser::Expr) -> Result<MatchPat, TypingErr> {
                     tid = expr2type_id(e)?
                 }
                 _ => {
-                    return Err(TypingErr{msg: "error: invalid pattern", ast: expr});
+                    return Err(TypingErr::new("error: invalid pattern", expr));
                 }
             }
 
@@ -948,7 +968,7 @@ fn expr2mpat(expr: &parser::Expr) -> Result<MatchPat, TypingErr> {
             Ok(MatchPat::MatchPatData(MatchPatDataNode{ty: tid, pattern: pattern, ast: expr}))
         }
         _ => {
-            Err(TypingErr{msg: "error: list pattern is not supported", ast: expr})
+            Err(TypingErr::new("error: list pattern is not supported", expr))
         }
     }
 }
@@ -958,7 +978,7 @@ fn expr2case(expr: &parser::Expr) -> Result<MatchCase, TypingErr> {
     match expr {
         parser::Expr::Apply(exprs) => {
             if exprs.len() != 2 {
-                return Err(TypingErr{msg: "error: case require exactly 2 expressions", ast: expr});
+                return Err(TypingErr::new("error: case require exactly 2 expressions", expr));
             }
 
             let mut iter = exprs.iter();
@@ -968,7 +988,7 @@ fn expr2case(expr: &parser::Expr) -> Result<MatchCase, TypingErr> {
             Ok(MatchCase{pattern: pattern, expr: body, ast: expr})
         }
         _ => {
-            Err(TypingErr{msg: "error: invalid case", ast: expr})
+            Err(TypingErr::new("error: invalid case", expr))
         }
     }
 }
@@ -986,7 +1006,7 @@ fn expr2match(expr: &parser::Expr) -> Result<TypedExpr, TypingErr> {
                     cond = expr2typed_expr(e)?;
                 }
                 _ => {
-                    return Err(TypingErr{msg: "error: no condition", ast: expr});
+                    return Err(TypingErr::new("error: no condition", expr));
                 }
             }
 
@@ -999,7 +1019,7 @@ fn expr2match(expr: &parser::Expr) -> Result<TypedExpr, TypingErr> {
             Ok(TypedExpr::MatchExpr(Box::new(node)))
         }
         _ => {
-            Err(TypingErr{msg: "error: invalid match", ast: expr})
+            Err(TypingErr::new("error: invalid match", expr))
         }
     }
 }
