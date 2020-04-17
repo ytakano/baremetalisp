@@ -1,5 +1,6 @@
 use crate::slab;
 use crate::parser;
+use crate::semantics;
 use crate::driver;
 
 #[no_mangle]
@@ -7,7 +8,11 @@ pub fn el0_entry() -> ! {
     // initialize memory allocator
     slab::init();
 
-    let code = "(if true [(add (sub -100 -49) 2) 200] [300 400])";
+    let code =
+"
+(defun add (x y) (Pure (-> (Int Int) Int))
+  (+ x y))
+";
 
     driver::uart::puts("Input:\n  ");
     driver::uart::puts(code);
@@ -18,6 +23,17 @@ pub fn el0_entry() -> ! {
         Ok(e) => {
             let msg = format!("AST:\n  {:?}\n", e);
             driver::uart::puts(&msg);
+
+            match semantics::typing(&e) {
+                Ok(cxt) => {
+                    let msg = format!("Context:\n  {:?}\n", cxt);
+                    driver::uart::puts(&msg);
+                }
+                Err(err) => {
+                    let msg = format!("Typing Error:\n  {:?}\n", err);
+                    driver::uart::puts(&msg);
+                }
+            }
         }
         Err(err) => {
             let msg = format!("Syntax Error:\n  {:?}\n", err);

@@ -9,8 +9,6 @@
  * $EXPS  := $EXP | $EXP $EXPS
  */
 
-use crate::driver;
-
 use alloc::string::{String, ToString};
 use alloc::collections::linked_list::LinkedList;
 
@@ -42,8 +40,17 @@ impl<'a> Parser<'a> {
         Parser{line: 0, column:0, remain: code}
     }
 
-    pub fn parse(&mut self) -> Result<Expr, SyntaxErr> {
-        self.parse_expr()
+    pub fn parse(&mut self) -> Result<LinkedList<Expr>, SyntaxErr> {
+        let mut exprs = LinkedList::new();
+
+        loop {
+            self.skip_spaces();
+            if self.remain.len() == 0 {
+                return Ok(exprs);
+            }
+
+            exprs.push_back(self.parse_expr()?);
+        }
     }
 
     fn parse_id_bool(&mut self) -> Result<Expr, SyntaxErr> {
@@ -174,8 +181,21 @@ impl<'a> Parser<'a> {
                 self.parse_tuple()
             }
             Some(a) => {
-                if '0' <= a && a <= '9' || a == '-' {
+                if '0' <= a && a <= '9' {
                     self.parse_num()
+                } else if a == '-' {
+                    match self.remain.chars().nth(1) {
+                        Some(b) => {
+                            if '0' <= b && b <= '9' {
+                                self.parse_num()
+                            } else {
+                                self.parse_id_bool()
+                            }
+                        }
+                        _ => {
+                            self.parse_id_bool()
+                        }
+                    }
                 } else {
                     self.parse_id_bool()
                 }

@@ -4,11 +4,13 @@ use alloc::collections::linked_list::LinkedList;
 use alloc::vec::Vec;
 use alloc::boxed::Box;
 
-struct TypingErr<'t> {
+#[derive(Debug)]
+pub struct TypingErr<'t> {
     msg: &'static str,
     ast: &'t parser::Expr
 }
 
+#[derive(Debug)]
 enum TypedExpr<'t> {
     IfExpr(Box::<IfNode<'t>>),
     LetExpr(Box::<LetNode<'t>>),
@@ -21,21 +23,25 @@ enum TypedExpr<'t> {
     TupleExpr(Exprs<'t>),
 }
 
+#[derive(Debug)]
 struct NumNode<'t> {
     num: i64,
     ast: &'t parser::Expr
 }
 
+#[derive(Debug)]
 struct BoolNode<'t> {
     val: bool,
     ast: &'t parser::Expr
 }
 
+#[derive(Debug)]
 struct IDNode<'t> {
     id: &'t str,
     ast: &'t parser::Expr
 }
 
+#[derive(Debug)]
 struct IfNode<'t> {
     cond_expr: TypedExpr<'t>,
     then_expr: TypedExpr<'t>,
@@ -43,34 +49,40 @@ struct IfNode<'t> {
     ast: &'t parser::Expr
 }
 
+#[derive(Debug)]
 enum LetPat<'t> {
     LetPatID(IDNode<'t>),
     LetPatTuple(LetPatTupleNode<'t>)
 }
 
+#[derive(Debug)]
 struct LetPatTupleNode<'t> {
     pattern: Vec::<LetPat<'t>>,
     ast: &'t parser::Expr
 }
 
+#[derive(Debug)]
 struct LetNode<'t> {
     def_vars: Vec<DefVar<'t>>,
     expr: TypedExpr<'t>,
     ast: &'t parser::Expr
 }
 
+#[derive(Debug)]
 struct DefVar<'t> {
     pattern: LetPat<'t>,
     expr: TypedExpr<'t>,
     ast: &'t parser::Expr
 }
 
+#[derive(Debug)]
 struct MatchNode<'t> {
     expr: TypedExpr<'t>,
     cases: Vec<MatchCase<'t>>,
     ast: &'t parser::Expr
 }
 
+#[derive(Debug)]
 enum MatchPat<'t> {
     MatchPatNum(NumNode<'t>),
     MatchPatBool(BoolNode<'t>),
@@ -79,33 +91,39 @@ enum MatchPat<'t> {
     MatchPatData(MatchPatDataNode<'t>)
 }
 
+#[derive(Debug)]
 struct MatchPatTupleNode<'t> {
     pattern: Vec<MatchPat<'t>>,
     ast: &'t parser::Expr
 }
 
+#[derive(Debug)]
 struct MatchPatDataNode<'t> {
     ty: TIDNode<'t>,
     pattern: Vec<MatchPat<'t>>,
     ast: &'t parser::Expr
 }
 
+#[derive(Debug)]
 struct MatchCase<'t> {
     pattern: MatchPat<'t>,
     expr: TypedExpr<'t>,
     ast: &'t parser::Expr
 }
 
+#[derive(Debug)]
 struct Exprs<'t> {
     exprs: Vec<TypedExpr<'t>>,
     ast: &'t parser::Expr
 }
 
+#[derive(Debug)]
 struct TIDNode<'t> {
     id: &'t str,
     ast: &'t parser::Expr
 }
 
+#[derive(Debug)]
 enum PrimType<'t> {
     PrimTypeBool(TypeBoolNode<'t>),
     PrimTypeInt(TypeIntNode<'t>),
@@ -113,42 +131,50 @@ enum PrimType<'t> {
     PrimTypeTuple(PrimTypeTupleNode<'t>)
 }
 
+#[derive(Debug)]
 struct TypeBoolNode<'t> {
     ast: &'t parser::Expr
 }
 
+#[derive(Debug)]
 struct TypeIntNode<'t> {
     ast: &'t parser::Expr
 }
 
+#[derive(Debug)]
 struct PrimTypeListNode<'t> {
     ty: Box::<PrimType<'t>>,
     ast: &'t parser::Expr
 }
 
+#[derive(Debug)]
 struct PrimTypeTupleNode<'t> {
     ty: Vec<PrimType<'t>>,
     ast: &'t parser::Expr
 }
 
+#[derive(Debug)]
 struct DataType<'t> {
     name: DataTypeName<'t>,
     members: Vec<DataTypeMem<'t>>,
     ast: &'t parser::Expr
 }
 
+#[derive(Debug)]
 struct DataTypeName<'t> {
     id: TIDNode<'t>,
     type_args: Vec<IDNode<'t>>,
     ast: &'t parser::Expr
 }
 
+#[derive(Debug)]
 struct DataTypeMem<'t> {
     id: TIDNode<'t>,
     types: Vec<PrimType<'t>>,
     ast: &'t parser::Expr
 }
 
+#[derive(Debug)]
 enum Type<'t> {
     TypeBool(TypeBoolNode<'t>),
     TypeInt(TypeIntNode<'t>),
@@ -158,21 +184,25 @@ enum Type<'t> {
     TypeData(TypeDataNode<'t>)
 }
 
+#[derive(Debug)]
 struct TypeListNode<'t> {
     ty: Box::<Type<'t>>,
     ast: &'t parser::Expr
 }
 
+#[derive(Debug)]
 struct TypeTupleNode<'t> {
     ty: Vec<Type<'t>>,
     ast: &'t parser::Expr
 }
 
+#[derive(Debug)]
 enum Effect {
     IO,
     Pure
 }
 
+#[derive(Debug)]
 struct TypeFunNode<'t> {
     effect: Effect,
     args: Vec<Type<'t>>,
@@ -180,18 +210,60 @@ struct TypeFunNode<'t> {
     ast: &'t parser::Expr
 }
 
+#[derive(Debug)]
 struct TypeDataNode<'t> {
     id: TIDNode<'t>,
     type_args: Vec<PrimType<'t>>,
     ast: &'t parser::Expr
 }
 
+#[derive(Debug)]
 struct Defun<'t> {
     id: IDNode<'t>,
     args: Vec<IDNode<'t>>,
     fun_type: Type<'t>,
     expr: TypedExpr<'t>,
     ast: &'t parser::Expr
+}
+
+#[derive(Debug)]
+pub struct Context<'t> {
+    funs: LinkedList<Defun<'t>>,
+    data: LinkedList<DataType<'t>>
+}
+
+pub fn typing(exprs: &LinkedList<parser::Expr>) -> Result<Context, TypingErr> {
+    let mut funs = LinkedList::new();
+    let mut data = LinkedList::new();
+    let msg = "error: top expression must be data, defun, or export";
+
+    for e in exprs {
+        match e {
+            parser::Expr::Apply(es) => {
+                let mut iter = es.iter();
+
+                match iter.next() {
+                    Some(parser::Expr::ID(id)) => {
+                        if id == "defun" || id == "export" {
+                            funs.push_back(expr2defun(e)?);
+                        } else if id == "data" {
+                            data.push_back(expr2data(e)?);
+                        } else {
+                            return Err(TypingErr{msg: msg, ast: e});
+                        }
+                    }
+                    _ => {
+                        return Err(TypingErr{msg: msg, ast: e});
+                    }
+                }
+            }
+            _ => {
+                return Err(TypingErr{msg: msg, ast: e});
+            }
+        }
+    }
+
+    Ok(Context{funs: funs, data: data})
 }
 
 /// $DATA := ( data $DATA_NAME $MEMBER+ )
@@ -485,9 +557,9 @@ fn expr2type_fun(expr: &parser::Expr) -> Result<Type, TypingErr> {
             let args;
             let ret;
             match e1 {
-                Some(parser::Expr::Apply(exprs)) => {
-                    let mut iter2 = exprs.iter();
-                    let e2 = iter.next();
+                Some(parser::Expr::Apply(exprs2)) => {
+                    let mut iter2 = exprs2.iter();
+                    let e2 = iter2.next();
                     match e2 {
                         Some(parser::Expr::ID(arr)) => {
                             if arr != "->" {
@@ -495,7 +567,7 @@ fn expr2type_fun(expr: &parser::Expr) -> Result<Type, TypingErr> {
                             }
                         }
                         _ => {
-                            return Err(TypingErr{msg: "error: require function type", ast: e1.unwrap()});
+                            return Err(TypingErr{msg: "error: require \"->\"", ast: e1.unwrap()});
                         }
                     }
 
