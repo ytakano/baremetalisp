@@ -28,13 +28,21 @@ pub fn el0_entry() -> ! {
             let msg = format!("AST:\n  {:?}\n", e);
             driver::uart::puts(&msg);
 
-            match semantics::typing(&e) {
-                Ok(cxt) => {
-                    let msg = format!("Context:\n  {:?}\n", cxt);
+            match semantics::exprs2context(&e) {
+                Ok(ctx) => {
+                    let msg = format!("Context:\n  {:?}\n", ctx);
                     driver::uart::puts(&msg);
+
+                    match ctx.typing() {
+                        Err(err) => {
+                            let msg = format!("Typing Error:\n  {:?}\n", err);
+                            driver::uart::puts(&msg);
+                        }
+                        _ => {}
+                    }
                 }
                 Err(err) => {
-                    let msg = format!("Typing Error:\n  {:?}\n", err);
+                    let msg = format!("Context Error:\n  {:?}\n", err);
                     driver::uart::puts(&msg);
                 }
             }

@@ -2,6 +2,7 @@ use crate::parser;
 
 use alloc::collections::linked_list::LinkedList;
 use alloc::collections::btree_map::BTreeMap;
+use alloc::collections::btree_set::BTreeSet;
 use alloc::vec::Vec;
 use alloc::boxed::Box;
 use alloc::string::{ToString, String};
@@ -245,9 +246,21 @@ impl<'t> Context<'t> {
     fn new(funs: BTreeMap<&'t str, Defun<'t>>, data: BTreeMap<&'t str, DataType<'t>>) -> Context<'t> {
         Context{funs: funs, data: data}
     }
+
+    pub fn typing(&self) -> Result<(), TypingErr> {
+        self.check_data()
+    }
+
+    fn check_data(&self) -> Result<(), TypingErr> {
+        for (_, d) in self.data.iter() {
+            check_data(d)?;
+        }
+
+        Ok(())
+    }
 }
 
-pub fn typing(exprs: &LinkedList<parser::Expr>) -> Result<Context, TypingErr> {
+pub fn exprs2context<'t>(exprs: &'t LinkedList<parser::Expr>) -> Result<Context<'t>, TypingErr<'t>> {
     let mut funs = BTreeMap::new();
     let mut data = BTreeMap::new();
     let msg = "error: top expression must be data, defun, or export";
@@ -263,7 +276,7 @@ pub fn typing(exprs: &LinkedList<parser::Expr>) -> Result<Context, TypingErr> {
                             let f = expr2defun(e)?;
 
                             if funs.contains_key(f.id.id) {
-                                let msg = format!("error:function {:?} is multiply defined\n", f.id.id);
+                                let msg = format!("error: function {:?} is multiply defined", f.id.id);
                                 return Err(TypingErr{msg: msg, ast: e});
                             }
 
@@ -271,7 +284,7 @@ pub fn typing(exprs: &LinkedList<parser::Expr>) -> Result<Context, TypingErr> {
                         } else if id == "data" {
                             let d = expr2data(e)?;
                             if data.contains_key(d.name.id.id) {
-                                let msg = format!("error:data type {:?} is multiply defined\n", d.name.id.id);
+                                let msg = format!("error: data type {:?} is multiply defined", d.name.id.id);
                                 return Err(TypingErr{msg: msg, ast: e});
                             }
 
@@ -292,6 +305,49 @@ pub fn typing(exprs: &LinkedList<parser::Expr>) -> Result<Context, TypingErr> {
     }
 
     Ok(Context::new(funs, data))
+}
+
+fn check_data<'t>(data: &'t DataType) -> Result<(), TypingErr<'t>> {
+    let mut args = BTreeSet::new();
+    for arg in data.name.type_args.iter() {
+        args.insert(arg.id);
+    }
+
+    for mem in data.members.iter() {
+        check_data_mem(mem, &args)?;
+    }
+
+    Ok(())
+}
+
+fn check_data_mem<'t>(mem: &'t DataTypeMem, args: &BTreeSet<&str>) -> Result<(), TypingErr<'t>> {
+    for it in mem.types.iter() {
+        check_prim_type(it, args)?
+    }
+
+    Ok(())
+}
+
+fn check_prim_type<'t>(ty: &'t PrimType, args: &BTreeSet<&str>) -> Result<(), TypingErr<'t>> {
+    match ty {
+        PrimType::PrimTypeID(id) => {
+            if !args.contains(id.id) {
+                let msg = format!("error: {:?} is undefined", id.id);
+                return Err(TypingErr{msg: msg, ast: id.ast})
+            }
+        }
+        PrimType::PrimTypeList(list) => {
+            check_prim_type(&list.ty, args)?;
+        }
+        PrimType::PrimTypeTuple(tuple) => {
+            for it in tuple.ty.iter() {
+                check_prim_type(it, args)?;
+            }
+        }
+        _ => {}
+    }
+
+    Ok(())
 }
 
 /// $DATA := ( data $DATA_NAME $MEMBER+ )
