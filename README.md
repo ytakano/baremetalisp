@@ -27,18 +27,12 @@
 - $TID
   - a string whose first character is captal ('A' to 'Z')
 
-## Primitive Type
-
-- $PRIM := $ID | Int | Bool | $PRIM_LIST | $PRIM_TUPLE
-- $PRIM_LIST := '( $PRIM )
-- $PRIM_TUPLE := \[ $PRIM+ \]
-
 ## Type
 
-- $TYPE := Int | Bool | $TYPE_LIST | $TYPE_TUPLE | $TYPE_FUN | $TYPE_DATA
+- $TYPE := Int | Bool | $TYPE_LIST | $TYPE_TUPLE | $TYPE_FUN | $TYPE_DATA | $ID
 - $TYPE_LIST := '( $TYPE )
 - $TYPE_TUPLE := \[ $TYPE+ \]
-- $TYPE_DATA := $TID | ( $TID $PRIM* )
+- $TYPE_DATA := $TID | ( $TID $TYPE* )
 - $TYPE_FUN := ( $EFFECT ( -> $TYPES $TYPE ) )
 - $EFFECT := Pure | IO
 - $TYPES := $TYPE | ( $TYPE* )
@@ -56,7 +50,7 @@ examples:
 
 - $DATA := ( data $DATA_NAME $MEMBER* )
 - $DATA_NAME := $TID | ( $TID $ID* )
-- $MEMBER := $TID | ( $TID $PRIM* )
+- $MEMBER := $TID | ( $TID $TYPE* )
 
 examples:
 ```common-lisp
@@ -103,7 +97,7 @@ examples:
 
 ## Built-in Functions
 
-- cons: (-> (T '(T) '(T))
+- cons: (-> (T '(T)) '(T))
 - car: (-> '(T) (Maybe T))
 - cdr: (-> '(T) (Maybe '(T)))
 - nth: (-> (Int \[T\]) (Maybe T))

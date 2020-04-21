@@ -133,33 +133,12 @@ struct TIDNode<'t> {
 }
 
 #[derive(Debug)]
-enum PrimType<'t> {
-    PrimTypeID(IDNode<'t>),
-    PrimTypeBool(TypeBoolNode<'t>),
-    PrimTypeInt(TypeIntNode<'t>),
-    PrimTypeList(PrimTypeListNode<'t>),
-    PrimTypeTuple(PrimTypeTupleNode<'t>)
-}
-
-#[derive(Debug)]
 struct TypeBoolNode<'t> {
     ast: &'t parser::Expr
 }
 
 #[derive(Debug)]
 struct TypeIntNode<'t> {
-    ast: &'t parser::Expr
-}
-
-#[derive(Debug)]
-struct PrimTypeListNode<'t> {
-    ty: Box::<PrimType<'t>>,
-    ast: &'t parser::Expr
-}
-
-#[derive(Debug)]
-struct PrimTypeTupleNode<'t> {
-    ty: Vec<PrimType<'t>>,
     ast: &'t parser::Expr
 }
 
@@ -180,7 +159,7 @@ struct DataTypeName<'t> {
 #[derive(Debug)]
 struct DataTypeMem<'t> {
     id: TIDNode<'t>,
-    types: Vec<PrimType<'t>>,
+    types: Vec<Type<'t>>,
     ast: &'t parser::Expr
 }
 
@@ -191,7 +170,8 @@ enum Type<'t> {
     TypeList(TypeListNode<'t>),
     TypeTuple(TypeTupleNode<'t>),
     TypeFun(TypeFunNode<'t>),
-    TypeData(TypeDataNode<'t>)
+    TypeData(TypeDataNode<'t>),
+    TypeID(IDNode<'t>)
 }
 
 #[derive(Debug)]
@@ -223,7 +203,7 @@ struct TypeFunNode<'t> {
 #[derive(Debug)]
 struct TypeDataNode<'t> {
     id: TIDNode<'t>,
-    type_args: Vec<PrimType<'t>>,
+    type_args: Vec<Type<'t>>,
     ast: &'t parser::Expr
 }
 
@@ -260,7 +240,7 @@ impl<'t> Context<'t> {
     }
 }
 
-pub fn exprs2context<'t>(exprs: &'t LinkedList<parser::Expr>) -> Result<Context<'t>, TypingErr<'t>> {
+pub fn exprs2context(exprs: &LinkedList<parser::Expr>) -> Result<Context, TypingErr> {
     let mut funs = BTreeMap::new();
     let mut data = BTreeMap::new();
     let msg = "error: top expression must be data, defun, or export";
@@ -322,27 +302,39 @@ fn check_data<'t>(data: &'t DataType) -> Result<(), TypingErr<'t>> {
 
 fn check_data_mem<'t>(mem: &'t DataTypeMem, args: &BTreeSet<&str>) -> Result<(), TypingErr<'t>> {
     for it in mem.types.iter() {
-        check_prim_type(it, args)?
+        check_type(it, args)?
     }
 
     Ok(())
 }
 
-fn check_prim_type<'t>(ty: &'t PrimType, args: &BTreeSet<&str>) -> Result<(), TypingErr<'t>> {
+fn check_type<'t>(ty: &'t Type, args: &BTreeSet<&str>) -> Result<(), TypingErr<'t>> {
     match ty {
-        PrimType::PrimTypeID(id) => {
+        Type::TypeID(id) => {
             if !args.contains(id.id) {
                 let msg = format!("error: {:?} is undefined", id.id);
                 return Err(TypingErr{msg: msg, ast: id.ast})
             }
         }
-        PrimType::PrimTypeList(list) => {
-            check_prim_type(&list.ty, args)?;
+        Type::TypeList(list) => {
+            check_type(&list.ty, args)?;
         }
-        PrimType::PrimTypeTuple(tuple) => {
+        Type::TypeTuple(tuple) => {
             for it in tuple.ty.iter() {
-                check_prim_type(it, args)?;
+                check_type(it, args)?;
             }
+        }
+        Type::TypeData(data) => {
+            for it in data.type_args.iter() {
+                check_type(it, args)?;
+            }
+        }
+        Type::TypeFun(fun) => {
+            for it in fun.args.iter() {
+                check_type(it, args)?
+            }
+
+            check_type(&fun.ret, args)?
         }
         _ => {}
     }
@@ -461,7 +453,7 @@ fn expr2id(expr: &parser::Expr) -> Result<IDNode, TypingErr> {
     }
 }
 
-/// $MEMBER := $TID | ( $TID $PRIM* )
+/// $MEMBER := $TID | ( $TID $TYPE* )
 fn expr2data_mem(expr: &parser::Expr) -> Result<DataTypeMem, TypingErr> {
     match expr {
         parser::Expr::ID(_) => {
@@ -470,7 +462,7 @@ fn expr2data_mem(expr: &parser::Expr) -> Result<DataTypeMem, TypingErr> {
             Ok(DataTypeMem{id: tid, types: Vec::new(), ast: expr})
         }
         parser::Expr::Apply(exprs) => {
-            // ( $TID $PRIM* )
+            // ( $TID $TYPE* )
             let mut iter = exprs.iter();
             let tid;
 
@@ -485,7 +477,7 @@ fn expr2data_mem(expr: &parser::Expr) -> Result<DataTypeMem, TypingErr> {
 
             let mut types = Vec::new();
             for it in iter {
-                let pt = expr2prim(it)?;
+                let pt = expr2type(it)?;
                 types.push(pt);
             }
 
@@ -493,62 +485,6 @@ fn expr2data_mem(expr: &parser::Expr) -> Result<DataTypeMem, TypingErr> {
         }
         _ => {
             Err(TypingErr::new("error: must be type identifier (with types)", expr))
-        }
-    }
-}
-
-/// $PRIM := $ID | Int | Bool | $PRIM_LIST | $PRIM_TUPLE
-fn expr2prim(expr: &parser::Expr) -> Result<PrimType, TypingErr> {
-    match expr {
-        parser::Expr::ID(id) => {
-            let c = id.chars().nth(0).unwrap();
-            if !('A' <= c && c <= 'Z') {
-                return Ok(PrimType::PrimTypeID(expr2id(expr)?));
-            }
-
-            // Int | Bool
-            let tid = expr2type_id(expr)?;
-
-            if tid.id == "Int" {
-                return Ok(PrimType::PrimTypeInt(TypeIntNode{ast: expr}));
-            } else if tid.id == "Bool" {
-                return Ok(PrimType::PrimTypeBool(TypeBoolNode{ast: expr}));
-            }
-
-            Err(TypingErr::new("error: must be Int, Bool, list, or tuple", expr))
-        }
-        parser::Expr::List(list) => {
-            // $PRIM_LIST := '( $PRIM )
-            if list.len() != 1 {
-                return Err(TypingErr::new("error: require exactly one type as a type argument for list type", expr));
-            }
-
-            match list.iter().next() {
-                Some(e) => {
-                    let ty = Box::new(expr2prim(e)?);
-                    Ok(PrimType::PrimTypeList(PrimTypeListNode{ty: ty, ast: e}))
-                }
-                _ => {
-                    Err(TypingErr::new("error: require primitive type", expr))
-                }
-            }
-        }
-        parser::Expr::Tuple(tuple) => {
-            // $PRIM_TUPLE := [ $PRIM+ ]
-            if tuple.len() < 1 {
-                return Err(TypingErr::new("error: require more than or equal to one for tuple type", expr));
-            }
-
-            let mut types = Vec::new();
-            for it in tuple.iter() {
-                let ty = expr2prim(it)?;
-                types.push(ty);
-            }
-
-            Ok(PrimType::PrimTypeTuple(PrimTypeTupleNode{ty: types, ast: expr}))
-        }
-        _ => {
-            Err(TypingErr::new("error: must be primitive type", expr))
         }
     }
 }
@@ -709,7 +645,7 @@ fn expr2types(expr: &parser::Expr) -> Result<Vec<Type>, TypingErr> {
     }
 }
 
-/// $TYPE := Int | Bool | $TYPE_LIST | $TYPE_TUPLE | $TYPE_FUN | $TYPE_DATA
+/// $TYPE := Int | Bool | $TYPE_LIST | $TYPE_TUPLE | $TYPE_FUN | $TYPE_DATA | $ID
 fn expr2type(expr: &parser::Expr) -> Result<Type, TypingErr> {
     match expr {
         parser::Expr::ID(id) => {
@@ -719,8 +655,13 @@ fn expr2type(expr: &parser::Expr) -> Result<Type, TypingErr> {
             } else if id == "Bool" {
                 Ok(Type::TypeBool(TypeBoolNode{ast: expr}))
             } else {
-                let tid = expr2type_id(expr)?;
-                Ok(Type::TypeData(TypeDataNode{id: tid, type_args: Vec::new(), ast: expr}))
+                let c = id.chars().nth(0).unwrap();
+                if 'A' <= c && c <= 'Z' {
+                    let tid = expr2type_id(expr)?;
+                    Ok(Type::TypeData(TypeDataNode{id: tid, type_args: Vec::new(), ast: expr}))
+                } else {
+                    Ok(Type::TypeID(expr2id(expr)?))
+                }
             }
         }
         parser::Expr::List(list) => {
@@ -735,7 +676,7 @@ fn expr2type(expr: &parser::Expr) -> Result<Type, TypingErr> {
                     Ok(Type::TypeList(TypeListNode{ty: ty, ast: e}))
                 }
                 _ => {
-                    Err(TypingErr::new("error: require primitive type", expr))
+                    Err(TypingErr::new("error: require type", expr))
                 }
             }
         }
@@ -753,7 +694,7 @@ fn expr2type(expr: &parser::Expr) -> Result<Type, TypingErr> {
             Ok(Type::TypeTuple(TypeTupleNode{ty: types, ast: expr}))
         }
         parser::Expr::Apply(exprs) => {
-            // ( $TID $PRIM* )
+            // ( $TID $TYPE* )
             let mut iter = exprs.iter();
 
             // $TID
@@ -773,10 +714,10 @@ fn expr2type(expr: &parser::Expr) -> Result<Type, TypingErr> {
                 }
             }
 
-            // $PRIM*
+            // $TYPE*
             let mut args = Vec::new();
             for it in iter {
-                args.push(expr2prim(it)?);
+                args.push(expr2type(it)?);
             }
 
             Ok(Type::TypeData(TypeDataNode{id: tid, type_args: args, ast: expr}))

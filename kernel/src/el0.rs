@@ -14,6 +14,10 @@ pub fn el0_entry() -> ! {
     (Just t)
     Nothing)
 
+(data (Tree t)
+    (Node [(Tree t) (Tree t)])
+    Leaf)
+
 (defun add (x y) (Pure (-> (Int Int) Int))
   (+ x y))
 ";
@@ -25,12 +29,12 @@ pub fn el0_entry() -> ! {
     let mut ps = parser::Parser::new(code);
     match ps.parse() {
         Ok(e) => {
-            let msg = format!("AST:\n  {:?}\n", e);
+            let msg = format!("AST:\n  {:#?}\n", e);
             driver::uart::puts(&msg);
 
             match semantics::exprs2context(&e) {
                 Ok(ctx) => {
-                    let msg = format!("Context:\n  {:?}\n", ctx);
+                    let msg = format!("Context:\n  {:#?}\n", ctx);
                     driver::uart::puts(&msg);
 
                     match ctx.typing() {
