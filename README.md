@@ -55,11 +55,15 @@ examples:
 examples:
 ```common-lisp
 (data Dim2
-  (Dim2 [Int Int]))
+  (Dim2 Int Int))
 
 (data (Maybe t)
     (Just t)
     Nothing)
+
+(data (Tree t)
+    (Node (Tree t) (Tree t))
+    Leaf)
 ```
 
 ## Function Definition

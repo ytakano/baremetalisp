@@ -44,7 +44,7 @@ struct BoolNode<'t> {
     ast: &'t parser::Expr
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct IDNode<'t> {
     id: &'t str,
     ast: &'t parser::Expr
@@ -126,44 +126,44 @@ struct Exprs<'t> {
     ast: &'t parser::Expr
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct TIDNode<'t> {
     id: &'t str,
     ast: &'t parser::Expr
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct TypeBoolNode<'t> {
     ast: &'t parser::Expr
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct TypeIntNode<'t> {
     ast: &'t parser::Expr
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct DataType<'t> {
     name: DataTypeName<'t>,
     members: Vec<DataTypeMem<'t>>,
     ast: &'t parser::Expr
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct DataTypeName<'t> {
     id: TIDNode<'t>,
     type_args: Vec<IDNode<'t>>,
     ast: &'t parser::Expr
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct DataTypeMem<'t> {
     id: TIDNode<'t>,
     types: Vec<Type<'t>>,
     ast: &'t parser::Expr
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum Type<'t> {
     TypeBool(TypeBoolNode<'t>),
     TypeInt(TypeIntNode<'t>),
@@ -174,25 +174,25 @@ enum Type<'t> {
     TypeID(IDNode<'t>)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct TypeListNode<'t> {
     ty: Box::<Type<'t>>,
     ast: &'t parser::Expr
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct TypeTupleNode<'t> {
     ty: Vec<Type<'t>>,
     ast: &'t parser::Expr
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum Effect {
     IO,
     Pure
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct TypeFunNode<'t> {
     effect: Effect,
     args: Vec<Type<'t>>,
@@ -200,7 +200,7 @@ struct TypeFunNode<'t> {
     ast: &'t parser::Expr
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct TypeDataNode<'t> {
     id: TIDNode<'t>,
     type_args: Vec<Type<'t>>,
@@ -216,6 +216,123 @@ struct Defun<'t> {
     ast: &'t parser::Expr
 }
 
+trait TApp<'t>: Sized {
+    fn apply(&self, ty: &BTreeMap<&str, Type<'t>>) -> Result<Self, TypingErr<'t>>;
+}
+
+impl<'t> TApp<'t> for DataType<'t> {
+    fn apply(&self, ty: &BTreeMap<&str, Type<'t>>) -> Result<DataType<'t>, TypingErr<'t>> {
+        let mut mems = Vec::new();
+        for m in self.members.iter() {
+            mems.push(m.apply(ty)?);
+        }
+
+        Ok(DataType{
+            name: self.name.clone(),
+            members: mems,
+            ast: self.ast
+        })
+    }
+}
+
+impl<'t> TApp<'t> for DataTypeMem<'t> {
+    fn apply(&self, ty: &BTreeMap<&str, Type<'t>>) -> Result<DataTypeMem<'t>, TypingErr<'t>> {
+        let mut v = Vec::new();
+        for it in self.types.iter() {
+            v.push(it.apply(ty)?);
+        }
+
+        Ok(DataTypeMem{
+            id: self.id.clone(),
+            types: v,
+            ast: self.ast
+        })
+    }
+}
+
+impl<'t> TApp<'t> for Type<'t> {
+    fn apply(&self, ty: &BTreeMap<&str, Type<'t>>) -> Result<Type<'t>, TypingErr<'t>> {
+        match self {
+            Type::TypeData(data) => {
+                Ok(Type::TypeData(data.apply(ty)?))
+            }
+            Type::TypeList(list) => {
+                Ok(Type::TypeList(list.apply(ty)?))
+            }
+            Type::TypeTuple(tuple) => {
+                Ok(Type::TypeTuple(tuple.apply(ty)?))
+            }
+            Type::TypeFun(fun) => {
+                Ok(Type::TypeFun(fun.apply(ty)?))
+            }
+            Type::TypeID(id) => {
+                match ty.get(id.id) {
+                    Some(t) => {
+                        Ok(t.clone())
+                    }
+                    _ => {
+                        Ok(Type::TypeID(id.clone()))
+                    }
+                }
+            }
+            _ => {
+                Ok(self.clone())
+            }
+        }
+    }
+}
+
+impl<'t> TApp<'t> for TypeListNode<'t> {
+    fn apply(&self, ty: &BTreeMap<&str, Type<'t>>) -> Result<TypeListNode<'t>, TypingErr<'t>> {
+        Ok(TypeListNode{
+            ty: Box::new(self.ty.apply(ty)?),
+            ast: self.ast
+        })
+    }
+}
+
+impl<'t> TApp<'t> for TypeTupleNode<'t> {
+    fn apply(&self, ty: &BTreeMap<&str, Type<'t>>) -> Result<TypeTupleNode<'t>, TypingErr<'t>> {
+        let mut v = Vec::new();
+        for it in self.ty.iter() {
+            v.push(it.apply(ty)?);
+        }
+
+        Ok(TypeTupleNode{ty: v, ast: self.ast})
+    }
+}
+
+impl<'t> TApp<'t> for TypeFunNode<'t> {
+    fn apply(&self, ty: &BTreeMap<&str, Type<'t>>) -> Result<TypeFunNode<'t>, TypingErr<'t>> {
+        let mut v = Vec::new();
+        for it in self.args.iter() {
+            v.push(it.apply(ty)?);
+        }
+
+        Ok(TypeFunNode{
+            effect: self.effect.clone(),
+            args: v,
+            ret: Box::new(self.ret.apply(ty)?),
+            ast: self.ast
+        })
+    }
+}
+
+impl<'t> TApp<'t> for TypeDataNode<'t> {
+    fn apply(&self, ty: &BTreeMap<&str, Type<'t>>) -> Result<TypeDataNode<'t>, TypingErr<'t>> {
+        let mut v = Vec::new();
+        for it in self.type_args.iter() {
+            v.push(it.apply(ty)?);
+        }
+
+        Ok(TypeDataNode{
+            id: self.id.clone(),
+            type_args: v,
+            ast: self.ast
+        })
+    }
+}
+
 #[derive(Debug)]
 pub struct Context<'t> {
     funs: BTreeMap<&'t str, Defun<'t>>,
@@ -227,16 +344,118 @@ impl<'t> Context<'t> {
         Context{funs: funs, data: data}
     }
 
-    pub fn typing(&self) -> Result<(), TypingErr> {
-        self.check_data()
+    pub fn typing(&self) -> Result<(), TypingErr<'t>> {
+        self.check_data_targs()?;
+        self.check_data_rec()
     }
 
-    fn check_data(&self) -> Result<(), TypingErr> {
+    fn check_data_targs(&self) -> Result<(), TypingErr<'t>> {
         for (_, d) in self.data.iter() {
-            check_data(d)?;
+            check_data_targs(d)?;
         }
 
         Ok(())
+    }
+
+    fn check_data_rec(&self) -> Result<(), TypingErr<'t>> {
+        let mut checked = LinkedList::new();
+        for (_, d) in self.data.iter() {
+            let mut visited = BTreeSet::new();
+            let mut inst = LinkedList::new();
+            inst.push_back(d.ast);
+            self.check_data_rec_data(d, &mut visited, &mut checked, &mut inst)?;
+            checked.push_back(d.clone());
+        }
+
+        Ok(())
+    }
+
+    /// Ok(true) if the type is inifinite recursive
+    /// Ok(false) if the type is not recursive or limited recursive
+    ///
+    /// infinite recursive data
+    /// ```
+    /// (data Succ (Succ Succ))
+    /// ```
+    ///
+    /// limited recursive date
+    /// ```
+    /// (data Tree
+    ///   (Node Tree Tree)
+    ///   Leaf)
+    /// ```
+    fn check_data_rec_data(&self,
+                           data: &DataType<'t>,
+                           visited: &mut BTreeSet<&'t str>,
+                           checked: &mut LinkedList<DataType<'t>>,
+                           inst: &mut LinkedList<&'t parser::Expr>) -> Result<bool, TypingErr<'t>> {
+        if visited.contains(data.name.id.id) {
+            return Ok(true);
+        }
+
+        let mut ret = true;
+
+        visited.insert(data.name.id.id);
+        for mem in data.members.iter() {
+            inst.push_back(mem.ast);
+            ret = ret && self.check_data_rec_mem(mem, visited, checked, inst)?;
+            inst.pop_back();
+        }
+
+        Ok(ret)
+    }
+
+    fn check_data_rec_mem(&self,
+                          mem: &DataTypeMem<'t>,
+                          visited: &mut BTreeSet<&str>,
+                          checked: &mut LinkedList<DataType<'t>>,
+                          inst: &mut LinkedList<&'t parser::Expr>) -> Result<bool, TypingErr<'t>> {
+        let mut ret = false;
+
+        for ty in mem.types.iter() {
+            if self.check_data_rec_ty(ty, visited, checked, inst)? {
+                ret = true;
+            }
+        }
+
+        Ok(ret)
+    }
+
+    fn check_data_rec_ty(&self,
+                         ty: &Type<'t>,
+                         visited: &mut BTreeSet<&str>,
+                         checked: &mut LinkedList<DataType<'t>>,
+                         inst: &mut LinkedList<&'t parser::Expr>) -> Result<bool, TypingErr<'t>> {
+        match ty {
+            Type::TypeList(_list) => {
+                // TODO: check kind
+                Ok(false)
+            }
+            Type::TypeTuple(tuple) => {
+                let mut ret = Ok(false);
+
+                inst.push_back(tuple.ast);
+                for it in tuple.ty.iter() {
+                    if self.check_data_rec_ty(it, visited, checked, inst)? {
+                        ret = Ok(true);
+                    }
+                }
+                inst.pop_back();
+
+                ret
+            }
+            Type::TypeData(_data) => {
+                // TODO
+                Ok(false)
+            }
+            Type::TypeFun(_fun) => {
+                // TODO: check kind
+                Ok(false)
+            }
+            _ => {
+                Ok(false)
+            }
+        }
     }
 }
 
@@ -287,28 +506,33 @@ pub fn exprs2context(exprs: &LinkedList<parser::Expr>) -> Result<Context, Typing
     Ok(Context::new(funs, data))
 }
 
-fn check_data<'t>(data: &'t DataType) -> Result<(), TypingErr<'t>> {
+fn check_data_targs<'t>(data: &DataType<'t>) -> Result<(), TypingErr<'t>> {
     let mut args = BTreeSet::new();
     for arg in data.name.type_args.iter() {
+        if args.contains(arg.id) {
+            let msg = format!("error: {:?} is multiply used", arg.id);
+            return Err(TypingErr{msg: msg, ast: arg.ast});
+        }
+
         args.insert(arg.id);
     }
 
     for mem in data.members.iter() {
-        check_data_mem(mem, &args)?;
+        check_data_targs_mem(mem, &args)?;
     }
 
     Ok(())
 }
 
-fn check_data_mem<'t>(mem: &'t DataTypeMem, args: &BTreeSet<&str>) -> Result<(), TypingErr<'t>> {
+fn check_data_targs_mem<'t>(mem: &DataTypeMem<'t>, args: &BTreeSet<&str>) -> Result<(), TypingErr<'t>> {
     for it in mem.types.iter() {
-        check_type(it, args)?
+        check_targs_type(it, args)?
     }
 
     Ok(())
 }
 
-fn check_type<'t>(ty: &'t Type, args: &BTreeSet<&str>) -> Result<(), TypingErr<'t>> {
+fn check_targs_type<'t>(ty: &Type<'t>, args: &BTreeSet<&str>) -> Result<(), TypingErr<'t>> {
     match ty {
         Type::TypeID(id) => {
             if !args.contains(id.id) {
@@ -317,24 +541,24 @@ fn check_type<'t>(ty: &'t Type, args: &BTreeSet<&str>) -> Result<(), TypingErr<'
             }
         }
         Type::TypeList(list) => {
-            check_type(&list.ty, args)?;
+            check_targs_type(&list.ty, args)?;
         }
         Type::TypeTuple(tuple) => {
             for it in tuple.ty.iter() {
-                check_type(it, args)?;
+                check_targs_type(it, args)?;
             }
         }
         Type::TypeData(data) => {
             for it in data.type_args.iter() {
-                check_type(it, args)?;
+                check_targs_type(it, args)?;
             }
         }
         Type::TypeFun(fun) => {
             for it in fun.args.iter() {
-                check_type(it, args)?
+                check_targs_type(it, args)?
             }
 
-            check_type(&fun.ret, args)?
+            check_targs_type(&fun.ret, args)?
         }
         _ => {}
     }
