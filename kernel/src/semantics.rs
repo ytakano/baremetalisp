@@ -357,13 +357,17 @@ impl<'t> Context<'t> {
         Ok(())
     }
 
+    /// check data definition is not infinite recursive
     fn check_data_rec(&self) -> Result<(), TypingErr<'t>> {
         let mut checked = LinkedList::new();
         for (_, d) in self.data.iter() {
             let mut visited = BTreeSet::new();
             let mut inst = LinkedList::new();
             inst.push_back(d.ast);
-            self.check_data_rec_data(d, &mut visited, &mut checked, &mut inst)?;
+            if self.check_data_rec_data(d, &mut visited, &mut checked, &mut inst)? {
+                let msg = format!("error: {:?}'s definition is inifinete recursive", d.name.id.id);
+                return Err(TypingErr{msg: msg, ast: d.ast});
+            }
             checked.push_back(d.clone());
         }
 
@@ -375,14 +379,18 @@ impl<'t> Context<'t> {
     ///
     /// infinite recursive data
     /// ```
-    /// (data Succ (Succ Succ))
+    /// (data Num (Succ Num))
     /// ```
     ///
     /// limited recursive date
     /// ```
-    /// (data Tree
-    ///   (Node Tree Tree)
+    /// (data (Tree t)
+    ///   (Node (Tree t) (Tree t))
     ///   Leaf)
+    ///
+    /// (data Num
+    ///   (Succ Num)
+    ///   Zero)
     /// ```
     fn check_data_rec_data(&self,
                            data: &DataType<'t>,
@@ -398,7 +406,8 @@ impl<'t> Context<'t> {
         visited.insert(data.name.id.id);
         for mem in data.members.iter() {
             inst.push_back(mem.ast);
-            ret = ret && self.check_data_rec_mem(mem, visited, checked, inst)?;
+            let result = self.check_data_rec_mem(mem, visited, checked, inst)?;
+            ret = result && ret;
             inst.pop_back();
         }
 
@@ -407,7 +416,7 @@ impl<'t> Context<'t> {
 
     fn check_data_rec_mem(&self,
                           mem: &DataTypeMem<'t>,
-                          visited: &mut BTreeSet<&str>,
+                          visited: &mut BTreeSet<&'t str>,
                           checked: &mut LinkedList<DataType<'t>>,
                           inst: &mut LinkedList<&'t parser::Expr>) -> Result<bool, TypingErr<'t>> {
         let mut ret = false;
@@ -423,39 +432,67 @@ impl<'t> Context<'t> {
 
     fn check_data_rec_ty(&self,
                          ty: &Type<'t>,
-                         visited: &mut BTreeSet<&str>,
+                         visited: &mut BTreeSet<&'t str>,
                          checked: &mut LinkedList<DataType<'t>>,
                          inst: &mut LinkedList<&'t parser::Expr>) -> Result<bool, TypingErr<'t>> {
         match ty {
             Type::TypeList(_list) => {
-                // TODO: check kind
                 Ok(false)
             }
             Type::TypeTuple(tuple) => {
-                let mut ret = Ok(false);
+                let mut ret = false;
 
                 inst.push_back(tuple.ast);
                 for it in tuple.ty.iter() {
                     if self.check_data_rec_ty(it, visited, checked, inst)? {
-                        ret = Ok(true);
+                        ret = true;
                     }
                 }
                 inst.pop_back();
 
+                Ok(ret)
+            }
+            Type::TypeData(data) => {
+                let dt = self.type_data_node2data_type(data)?;
+                inst.push_back(data.ast);
+                let ret = self.check_data_rec_data(&dt, visited, checked, inst);
+                inst.pop_back();
                 ret
             }
-            Type::TypeData(_data) => {
-                // TODO
-                Ok(false)
-            }
             Type::TypeFun(_fun) => {
-                // TODO: check kind
                 Ok(false)
             }
             _ => {
                 Ok(false)
             }
         }
+    }
+
+    fn type_data_node2data_type(&self, data: &TypeDataNode<'t>) -> Result<DataType<'t>, TypingErr<'t>> {
+        let dt;
+        match self.data.get(data.id.id) {
+            Some(t) => {
+                dt = t;
+            }
+            None => {
+                return Err(TypingErr::new("error: no such type", data.id.ast));
+            }
+        }
+
+        if data.type_args.len() != dt.name.type_args.len() {
+            let msg = format!("error: {:?} takes {:?} type arguments but actually passed {:?}",
+                              data.id.id, dt.name.type_args.len(), data.type_args.len());
+            return Err(TypingErr{msg: msg, ast: data.ast});
+        }
+
+        let mut map = BTreeMap::new();
+        let mut i = 0;
+        for it in data.type_args.iter() {
+            map.insert(dt.name.type_args[i].id, it.clone());
+            i += 1;
+        }
+
+        dt.apply(&map)
     }
 }
 
@@ -586,7 +623,7 @@ fn expr2data(expr: &parser::Expr) -> Result<DataType, TypingErr> {
 
             // $MEMBER+
             let mut mems = Vec::new();
-            for mem in iter.next() {
+            for mem in iter {
                 let data_mem = expr2data_mem(mem)?;
                 mems.push(data_mem);
             }
