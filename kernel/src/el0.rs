@@ -18,7 +18,7 @@ pub fn el0_entry() -> ! {
     (Node (Tree t) (Tree t))
     Leaf)
 
-(defun add (x y) (Pure (-> (Int Int) Int))
+(defun add (x y) (Pure (-> (Int Int)))
   (+ x y))
 ";
 

@@ -71,6 +71,12 @@ examples:
 - $DEFUN := ( $HEAD_DEFUN $ID ( $ID* ) $TYPE_FUN $EXPR )
 - $HEAD_DEFUN := export | defun
 
+example:
+```
+(defun add (x y) (Pure (-> (Int Int) Int))
+  (+ x y))
+```
+
 ## Expression
 
 - $EXPR := $LITERAL | $ID | $LET | $IF | $MATCH | $LIST | $TUPLE | $APPLY
@@ -101,8 +107,9 @@ examples:
 
 ## Built-in Functions
 
-- cons: (-> (T '(T)) '(T))
-- car: (-> '(T) (Maybe T))
-- cdr: (-> '(T) (Maybe '(T)))
-- nth: (-> (Int \[T\]) (Maybe T))
-- nth: (-> (Int '(T)) (Maybe T))
+- cons: (Pure (-> (T '(T)) '(T)))
+- car: (Pure (-> '(T) (Maybe T)))
+- cdr: (Pure (-> '(T) (Maybe '(T))))
+- nth: (Pure (-> (Int \[T\]) (Maybe T)))
+- nth: (Pure (-> (Int '(T)) (Maybe T)))
+- +, -, *, /, %: (Pure (-> (Int Int) Int))

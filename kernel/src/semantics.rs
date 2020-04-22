@@ -346,7 +346,8 @@ impl<'t> Context<'t> {
 
     pub fn typing(&self) -> Result<(), TypingErr<'t>> {
         self.check_data_def()?;
-        self.check_data_rec()
+        self.check_data_rec()?;
+        self.check_defun_type()
     }
 
     fn check_data_def(&self) -> Result<(), TypingErr<'t>> {
@@ -377,13 +378,13 @@ impl<'t> Context<'t> {
 
     fn check_data_def_mem(&self, mem: &DataTypeMem<'t>, args: &BTreeSet<&str>) -> Result<(), TypingErr<'t>> {
         for it in mem.types.iter() {
-            self.check_data_def_type(it, args)?
+            self.check_def_type(it, args)?
         }
 
         Ok(())
     }
 
-    fn check_data_def_type(&self, ty: &Type<'t>, args: &BTreeSet<&str>) -> Result<(), TypingErr<'t>> {
+    fn check_def_type(&self, ty: &Type<'t>, args: &BTreeSet<&str>) -> Result<(), TypingErr<'t>> {
         match ty {
             Type::TypeID(id) => {
                 if !args.contains(id.id) {
@@ -392,11 +393,11 @@ impl<'t> Context<'t> {
                 }
             }
             Type::TypeList(list) => {
-                self.check_data_def_type(&list.ty, args)?;
+                self.check_def_type(&list.ty, args)?;
             }
             Type::TypeTuple(tuple) => {
                 for it in tuple.ty.iter() {
-                    self.check_data_def_type(it, args)?;
+                    self.check_def_type(it, args)?;
                 }
             }
             Type::TypeData(data) => {
@@ -415,15 +416,15 @@ impl<'t> Context<'t> {
                 }
 
                 for it in data.type_args.iter() {
-                    self.check_data_def_type(it, args)?;
+                    self.check_def_type(it, args)?;
                 }
             }
             Type::TypeFun(fun) => {
                 for it in fun.args.iter() {
-                    self.check_data_def_type(it, args)?
+                    self.check_def_type(it, args)?
                 }
 
-                self.check_data_def_type(&fun.ret, args)?
+                self.check_def_type(&fun.ret, args)?
             }
             _ => {}
         }
@@ -567,6 +568,15 @@ impl<'t> Context<'t> {
         }
 
         dt.apply(&map)
+    }
+
+    fn check_defun_type(&self) -> Result<(), TypingErr<'t>> {
+        let m = BTreeSet::new();
+        for (_,fun) in self.funs.iter() {
+            self.check_def_type(&fun.fun_type, &m)?;
+        }
+
+        Ok(())
     }
 }
 
