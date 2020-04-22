@@ -345,13 +345,87 @@ impl<'t> Context<'t> {
     }
 
     pub fn typing(&self) -> Result<(), TypingErr<'t>> {
-        self.check_data_targs()?;
+        self.check_data_def()?;
         self.check_data_rec()
     }
 
-    fn check_data_targs(&self) -> Result<(), TypingErr<'t>> {
+    fn check_data_def(&self) -> Result<(), TypingErr<'t>> {
         for (_, d) in self.data.iter() {
-            check_data_targs(d)?;
+            self.check_data_def_data(d)?;
+        }
+
+        Ok(())
+    }
+
+    fn check_data_def_data(&self, data: &DataType<'t>) -> Result<(), TypingErr<'t>> {
+        let mut args = BTreeSet::new();
+        for arg in data.name.type_args.iter() {
+            if args.contains(arg.id) {
+                let msg = format!("error: {:?} is multiply used", arg.id);
+                return Err(TypingErr{msg: msg, ast: arg.ast});
+            }
+
+            args.insert(arg.id);
+        }
+
+        for mem in data.members.iter() {
+            self.check_data_def_mem(mem, &args)?;
+        }
+
+        Ok(())
+    }
+
+    fn check_data_def_mem(&self, mem: &DataTypeMem<'t>, args: &BTreeSet<&str>) -> Result<(), TypingErr<'t>> {
+        for it in mem.types.iter() {
+            self.check_data_def_type(it, args)?
+        }
+
+        Ok(())
+    }
+
+    fn check_data_def_type(&self, ty: &Type<'t>, args: &BTreeSet<&str>) -> Result<(), TypingErr<'t>> {
+        match ty {
+            Type::TypeID(id) => {
+                if !args.contains(id.id) {
+                    let msg = format!("error: {:?} is undefined", id.id);
+                    return Err(TypingErr{msg: msg, ast: id.ast})
+                }
+            }
+            Type::TypeList(list) => {
+                self.check_data_def_type(&list.ty, args)?;
+            }
+            Type::TypeTuple(tuple) => {
+                for it in tuple.ty.iter() {
+                    self.check_data_def_type(it, args)?;
+                }
+            }
+            Type::TypeData(data) => {
+                match self.data.get(data.id.id) {
+                    Some(dt) => {
+                        if dt.name.type_args.len() != data.type_args.len() {
+                            let msg = format!("error: {:?} takes {:?} type arguments but actually passed {:?}",
+                                              data.id.id, dt.name.type_args.len(), data.type_args.len());
+                            return Err(TypingErr{msg: msg, ast: data.ast});
+                        }
+                    }
+                    None => {
+                        let msg = format!("error: {:?} is unkown type", data.id.id);
+                        return Err(TypingErr{msg: msg, ast: data.id.ast});
+                    }
+                }
+
+                for it in data.type_args.iter() {
+                    self.check_data_def_type(it, args)?;
+                }
+            }
+            Type::TypeFun(fun) => {
+                for it in fun.args.iter() {
+                    self.check_data_def_type(it, args)?
+                }
+
+                self.check_data_def_type(&fun.ret, args)?
+            }
+            _ => {}
         }
 
         Ok(())
@@ -541,66 +615,6 @@ pub fn exprs2context(exprs: &LinkedList<parser::Expr>) -> Result<Context, Typing
     }
 
     Ok(Context::new(funs, data))
-}
-
-fn check_data_targs<'t>(data: &DataType<'t>) -> Result<(), TypingErr<'t>> {
-    let mut args = BTreeSet::new();
-    for arg in data.name.type_args.iter() {
-        if args.contains(arg.id) {
-            let msg = format!("error: {:?} is multiply used", arg.id);
-            return Err(TypingErr{msg: msg, ast: arg.ast});
-        }
-
-        args.insert(arg.id);
-    }
-
-    for mem in data.members.iter() {
-        check_data_targs_mem(mem, &args)?;
-    }
-
-    Ok(())
-}
-
-fn check_data_targs_mem<'t>(mem: &DataTypeMem<'t>, args: &BTreeSet<&str>) -> Result<(), TypingErr<'t>> {
-    for it in mem.types.iter() {
-        check_targs_type(it, args)?
-    }
-
-    Ok(())
-}
-
-fn check_targs_type<'t>(ty: &Type<'t>, args: &BTreeSet<&str>) -> Result<(), TypingErr<'t>> {
-    match ty {
-        Type::TypeID(id) => {
-            if !args.contains(id.id) {
-                let msg = format!("error: {:?} is undefined", id.id);
-                return Err(TypingErr{msg: msg, ast: id.ast})
-            }
-        }
-        Type::TypeList(list) => {
-            check_targs_type(&list.ty, args)?;
-        }
-        Type::TypeTuple(tuple) => {
-            for it in tuple.ty.iter() {
-                check_targs_type(it, args)?;
-            }
-        }
-        Type::TypeData(data) => {
-            for it in data.type_args.iter() {
-                check_targs_type(it, args)?;
-            }
-        }
-        Type::TypeFun(fun) => {
-            for it in fun.args.iter() {
-                check_targs_type(it, args)?
-            }
-
-            check_targs_type(&fun.ret, args)?
-        }
-        _ => {}
-    }
-
-    Ok(())
 }
 
 /// $DATA := ( data $DATA_NAME $MEMBER+ )
