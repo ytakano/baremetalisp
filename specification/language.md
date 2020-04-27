@@ -77,7 +77,7 @@ example:
 
 - $LET := ( let ( $DEFVAR+ ) $EXPR )
 - $DEFVAR := ( $LETPAT $EXPR )
-- $LETPAT := $ID | [ $LETPAT ]
+- $LETPAT := $ID | [ $LETPAT+ ] | ($TID $LETPAT+ )
 
 ### If Expression
 

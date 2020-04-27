@@ -61,11 +61,19 @@ struct IfNode<'t> {
 #[derive(Debug)]
 enum LetPat<'t> {
     LetPatID(IDNode<'t>),
-    LetPatTuple(LetPatTupleNode<'t>)
+    LetPatTuple(LetPatTupleNode<'t>),
+    LetPatLabel(LetPatLabelNode<'t>)
 }
 
 #[derive(Debug)]
 struct LetPatTupleNode<'t> {
+    pattern: Vec::<LetPat<'t>>,
+    ast: &'t parser::Expr
+}
+
+#[derive(Debug)]
+struct LetPatLabelNode<'t> {
+    id: TIDNode<'t>,
     pattern: Vec::<LetPat<'t>>,
     ast: &'t parser::Expr
 }
@@ -1157,7 +1165,7 @@ fn expr2let(expr: &parser::Expr) -> Result<TypedExpr, TypingErr> {
     Ok(TypedExpr::LetExpr(Box::new(LetNode{def_vars: def_vars, expr: body, ast: expr})))
 }
 
-/// $LETPAT := $ID | [ $LETPAT ]
+/// $LETPAT := $ID | [ $LETPAT+ ] | ($TID $LETPAT+ )
 fn expr2letpat(expr: &parser::Expr) -> Result<LetPat, TypingErr> {
     match expr {
         parser::Expr::ID(id) => {
@@ -1170,7 +1178,7 @@ fn expr2letpat(expr: &parser::Expr) -> Result<LetPat, TypingErr> {
             }
         }
         parser::Expr::Tuple(tuple) => {
-            // [ $LETPAT ]
+            // [ $LETPAT+ ]
             if tuple.len() == 0 {
                 return Err(TypingErr::new("error: require at least one pattern", expr));
             }
@@ -1181,6 +1189,22 @@ fn expr2letpat(expr: &parser::Expr) -> Result<LetPat, TypingErr> {
             }
 
             Ok(LetPat::LetPatTuple(LetPatTupleNode{pattern: pattern, ast: expr}))
+        }
+        parser::Expr::Apply(exprs) => {
+            // ($TID $LETPAT+ )
+            if exprs.len() < 2 {
+                return Err(TypingErr::new("error: require label and at least one pattern", expr));
+            }
+
+            let mut iter = exprs.iter();
+            let tid = expr2type_id(iter.next().unwrap())?;
+
+            let mut v = Vec::new();
+            for it in iter {
+                v.push(expr2letpat(it)?);
+            }
+
+            Ok(LetPat::LetPatLabel(LetPatLabelNode{id: tid, pattern: v, ast: expr}))
         }
         _ => {
             Err(TypingErr::new("error: invalid pattern", expr))

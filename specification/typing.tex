@@ -1,5 +1,8 @@
 \documentclass{article}
+
 \usepackage{amsmath,amssymb}
+\usepackage{fixltx2e}
+\usepackage[dvipdfmx]{hyperref,graphicx}
 
 \title{Typing Rule of Baremetalisp}
 \author{Yuuki Takano}
@@ -8,7 +11,7 @@
 
 \maketitle
 
-\begin{table}
+\begin{table}[tb]
 \caption{Notation}
     \centering
     \begin{tabular}{rl}
@@ -17,25 +20,30 @@
         $D$ & type name of user defined data \\
         $L$ & label of user defined data \\
         $\mathcal{T}$ & type \\
+        $C$ & constraint \\
         $\Gamma$ & context \\
         $L_{type} : L \rightarrow \mathcal{T}$ & function from label to type \\
         $L_{nth} : L \rightarrow \mathtt{Int} \rightarrow \mathcal{T}$ & function to n-th type of label $L$ \\
         $\mathcal{P}_{let}$ & pattern of let expression \\
         $\mathcal{T}_1 \equiv_\alpha \mathcal{T}_2$ & $\mathcal{T}_1$ and $\mathcal{T}_2$ are $\alpha$-equivalent \\
-        $[\mathcal{S}]$ & substitution \\
+        $\mathcal{S}$ & substitution \\
         $\mathcal{T}[\mathcal{S}]$ & apply a substitution $\mathcal{S}$ to a type $\mathcal{T}$ \\
         $\{T\}$ & set of $T$ \\
-        $FV : \mathcal{T} \rightarrow \{T\}$ & function from a $\mathcal{T}$ to its free variables\\
+        $FV_\mathcal{T} : \mathcal{T} \rightarrow \{T\}$ & function from a $\mathcal{T}$ to its free variables\\
+        $FV_\Gamma : \Gamma \rightarrow \{T\}$ & function from a $\Gamma$ to its free variables\\
     \end{tabular}
 \end{table}
 
-\begin{figure}
+\begin{figure}[tb]
     \centering
     \begin{tabular}{rrll}
     $\Gamma$ & :=  & $x : \mathcal{T}, \Gamma$ & context\\
         & $|$ & $\varnothing$ \\ \\
 
     $\mathcal{S}$ & :=  & $T \rightarrow \mathcal{T}, \mathcal{S}$ & substitution \\
+        & $|$ & $\varnothing$ \\ \\
+
+    $\mathcal{C}$ & :=  & $\mathcal{T} = \mathcal{T}, \mathcal{C}$ & constraint \\
         & $|$ & $\varnothing$ \\ \\
 
     $\mathcal{T}$ & :=  & $\mathtt{Int}$ \\
@@ -47,54 +55,61 @@
         & $|$ & $T$ & type variable \\ \\
 
     $\mathcal{P}_{let}$ & :=  & $x$ \\
-        & $|$ & $L$ & label \\
         & $|$ & $(L\ \mathcal{P}_{let}+)$ & label with patterns \\
         & $|$ & $[\mathcal{P}_{let}+]$ & tuple \\
     \end{tabular}
     \caption{Syntax}
 \end{figure}
 
-\begin{tabular}{cl}
-$\Gamma \vdash \mathtt{true} : \mathtt{Bool} |_\varnothing \{\}$ & (T-True) \\
-$\Gamma \vdash \mathtt{false} : \mathtt{Bool} |_\varnothing \{\}$ & (T-False) \\
-$\dfrac{x : T \in \Gamma}{\Gamma \vdash x : T |_\varnothing \{\}}$ & (T-Var) \\
-$\dfrac{\begin{aligned}
-&\Gamma \vdash e_1 : T_1\ |_{\mathcal{X}_1}\ C_1\\
-&\Gamma, x : T_0 \vdash e_2 : T_2\ |_{\mathcal{X}_2}\ C_2\\
-&\mathcal{X}_1 \cap \mathcal{X}_2 = \mathcal{X}_1 \cap FV(T_2) = \mathcal{X}_2 \cap FV(T_1) = \varnothing\\
-&T_0 \mbox{ is fresh} \\
-&C' = C_1 \cup C_2 \cup \{ T_0 = T_1 \}
-\end{aligned}}{\Gamma \vdash (\mathtt{let1}\ x : T_0\ e_1\ e_2) : T_2 |_{\mathcal{X}_1 \cup \mathcal{X}_2 \cup \{T_0\}} C'}$ & (T-Let1)
-\end{tabular}
+\begin{figure}
+    \centering
+    \begin{tabular}{rlrl}
+    $\Gamma \vdash \mathtt{true} : \mathtt{Bool}\ |_\varnothing\ \{\}$ & (T-True) &
+    $\Gamma \vdash \mathtt{false} : \mathtt{Bool}\ |_\varnothing\ \{\}$ & (T-False) \vspace{5mm} \\
+
+    $\dfrac{x : T \in \Gamma}{\Gamma \vdash x : T\ |_{\{\}}\ \{\}}$ & (T-Var) \vspace{5mm} \\
+
+
+    \multicolumn{3}{r}{
+    $\dfrac{\begin{aligned}
+    &\Gamma \vdash \mathcal{P}_{let} : T_0\ |_{\mathcal{X}_0}\ C_0 \hspace{5mm}
+    \Gamma \vdash e_1 : T_1\ |_{\mathcal{X}_1}\ C_1 \hspace{5mm}
+    \Gamma \vdash e_2 : T_2\ |_{\mathcal{X}_2}\ C_2\\
+    &\mathcal{X}_0 \cap \mathcal{X}_1 \cap \mathcal{X}_2 = \varnothing \hspace{5mm}
+    C' = C_0 \cup C_1 \cup C_2 \cup \{ T_0 = T_1 \}
+    \end{aligned}}{\Gamma \vdash (\mathtt{let1}\ \mathcal{P}_{let}\ e_1\ e_2) : T_2\ |_{\mathcal{X}_1 \cup \mathcal{X}_2 \cup \{T_0\}}\ C'}$} & (T-Let1)
+    \end{tabular}
+    \caption{Typing rule}
+\end{figure}
 
 
 \begin{figure}
     \centering
     \begin{tabular}{rlrl}
-        $\dfrac{x : T \in \Gamma}{\Gamma \vdash x : T\ |_{\{T\}}\ \{\}}$ & (PL-Var) &
-        $\dfrac{L_{type}(L) \equiv_\alpha T}{\vdash L : T\ |_{\{FV(T)\}}\ \{\}}$ & (PL-Label0) \vspace{5mm} \\
+        $\dfrac{x : T \in \Gamma}{\Gamma \vdash x : T\ |_{\{\}}\ \{\}}$ & (PL-Var) \vspace{5mm} \\
 
         \multicolumn{3}{r}{
         $\dfrac{
         \begin{aligned}
-        &\Gamma \vdash P_1 : T_1\ |_{\mathcal{X}_1}\ C_1 \land \cdots \land
-        \Gamma \vdash P_n : T_n\ |_{\mathcal{X}_n}\ C_n \\
+        &\Gamma \vdash \mathcal{P}_{let_1} : T_1\ |_{\mathcal{X}_1}\ C_1 \land \cdots \land
+        \Gamma \vdash \mathcal{P}_{let_n} : T_n\ |_{\mathcal{X}_n}\ C_n \\
         &L_{type}(L)[\mathcal{S}]\equiv_\alpha T_0 \hspace{5mm} FV(T_0) \cap \mathcal{X}_1 \cap \cdots \cap \mathcal{X}_n = \varnothing \\
-        &\mathcal{X} = FV(T_0) \cup \mathcal{X}_1 \cup \cdots \cup \mathcal{X}_n \\
+        &FV_\mathcal{T}(T_0) \cap FV_\Gamma(\Gamma) = \varnothing \hspace{5mm}
+        \mathcal{X} = FV(T_0) \cup \mathcal{X}_1 \cup \cdots \cup \mathcal{X}_n \\
         &C = \{L_{nth}(L, 1)[\mathcal{S}] = T_1, \cdots, L_{nth}(L, n)[\mathcal{S}] = T_n\} \cup C_1 \cup \cdots \cup C_n
         \end{aligned}
-        }{\Gamma \vdash (L\ P_1\ \cdots\ P_n) : T_0\ |_{\mathcal{X}}\ C}$} & (PL-Label) \vspace{5mm} \\
+        }{\Gamma \vdash (L\ \mathcal{P}_{let_1}\ \cdots\ \mathcal{P}_{let_n}) : T_0\ |_{\mathcal{X}}\ C}$} & (PL-Label) \vspace{5mm} \\
 
         \multicolumn{3}{r}{
         $\dfrac{
         \begin{aligned}
-        &\Gamma \vdash P_1 : T_1\ |_{\mathcal{X}_1}\ C_1 \land \cdots \land
-        \Gamma \vdash P_n : T_n\ |_{\mathcal{X}_n}\ C_n \\
+        &\Gamma \vdash \mathcal{P}_{let_1} : T_1\ |_{\mathcal{X}_1}\ C_1 \land \cdots \land
+        \Gamma \vdash \mathcal{P}_{let_n} : T_n\ |_{\mathcal{X}_n}\ C_n \\
         &\mathcal{X}_1 \cap \cdots \cap \mathcal{X}_n = \varnothing \hspace{5mm}
         \mathcal{X} = \mathcal{X}_1 \cup \cdots \cup \mathcal{X}_n \hspace{5mm}
         C = C_1 \cup \cdots \cup C_n
         \end{aligned}
-        }{\Gamma \vdash [P_1\ \cdots\ P_n] : [T_1 \cdots T_n]\ |_{\mathcal{X}}\ C}$} & (PL-Tuple) \\
+        }{\Gamma \vdash [\mathcal{P}_{let_1}\ \cdots\ \mathcal{P}_{let_n}] : [T_1 \cdots T_n]\ |_{\mathcal{X}}\ C}$} & (PL-Tuple) \\
     \end{tabular}
     \caption{Typing rule of let expression's pattern}
 \end{figure}
