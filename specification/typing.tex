@@ -64,20 +64,25 @@
 \begin{figure}
     \centering
     \begin{tabular}{rlrl}
-    $\Gamma \vdash \mathtt{true} : \mathtt{Bool}\ |_\varnothing\ \{\}$ & (T-True) &
-    $\Gamma \vdash \mathtt{false} : \mathtt{Bool}\ |_\varnothing\ \{\}$ & (T-False) \vspace{5mm} \\
+        $\Gamma \vdash \mathtt{true} : \mathtt{Bool}\ |_\varnothing\ \{\}$ & (T-True) &
+        $\Gamma \vdash \mathtt{false} : \mathtt{Bool}\ |_\varnothing\ \{\}$ & (T-False) \vspace{5mm} \\
 
-    $\dfrac{x : T \in \Gamma}{\Gamma \vdash x : T\ |_{\{\}}\ \{\}}$ & (T-Var) \vspace{5mm} \\
+        $\dfrac{x : T \in \Gamma}{\Gamma \vdash x : T\ |_{\{\}}\ \{\}}$ & (T-Var) \vspace{5mm} \\
 
+        \multicolumn{3}{r}{
+        $\dfrac{\begin{aligned}
+        &\Gamma \vdash \mathcal{P}_{let} : T_0\ |_{\mathcal{X}_0}\ C_0 \hspace{5mm}
+        \Gamma \vdash e_1 : T_1\ |_{\mathcal{X}_1}\ C_1 \hspace{5mm}
+        \Gamma \vdash e_2 : T_2\ |_{\mathcal{X}_2}\ C_2\\
+        &\mathcal{X}_0 \cap \mathcal{X}_1 \cap \mathcal{X}_2 = \varnothing \hspace{5mm}
+        C = C_0 \cup C_1 \cup C_2 \cup \{ T_0 = T_1 \}
+        \end{aligned}}{\Gamma \vdash (\mathtt{let1}\ \mathcal{P}_{let}\ e_1\ e_2) : T_2\ |_{\mathcal{X}_0 \cup \mathcal{X}_1 \cup \mathcal{X}_2}\ C}$} & (T-Let1) \vspace{5mm} \\
 
-    \multicolumn{3}{r}{
-    $\dfrac{\begin{aligned}
-    &\Gamma \vdash \mathcal{P}_{let} : T_0\ |_{\mathcal{X}_0}\ C_0 \hspace{5mm}
-    \Gamma \vdash e_1 : T_1\ |_{\mathcal{X}_1}\ C_1 \hspace{5mm}
-    \Gamma \vdash e_2 : T_2\ |_{\mathcal{X}_2}\ C_2\\
-    &\mathcal{X}_0 \cap \mathcal{X}_1 \cap \mathcal{X}_2 = \varnothing \hspace{5mm}
-    C' = C_0 \cup C_1 \cup C_2 \cup \{ T_0 = T_1 \}
-    \end{aligned}}{\Gamma \vdash (\mathtt{let1}\ \mathcal{P}_{let}\ e_1\ e_2) : T_2\ |_{\mathcal{X}_1 \cup \mathcal{X}_2 \cup \{T_0\}}\ C'}$} & (T-Let1)
+        \multicolumn{3}{r}{
+        $\dfrac{\begin{aligned}
+        &\Gamma \vdash e_1 : T_1\ |_{\mathcal{X}_1}\ C_1 \hspace{5mm} \Gamma \vdash e_2 : T_2\ |_{\mathcal{X}_2}\ C_2 \hspace{5mm} \Gamma \vdash e_3 : T_3\ |_{\mathcal{X}_3}\ C_3 \\
+        &\mathcal{X}_1 \cap \mathcal{X}_2 \cap \mathcal{X}_3 = \varnothing \hspace{5mm} C = C_1 \cup C_2 \cup C_3 \cup \{ T_1 = \mathtt{Bool}, T_2 = T_3 \}
+        \end{aligned}}{\Gamma \vdash (\mathtt{if}\ e_1\ e_2\ e_3) : T_2\ |_{\mathcal{X}_1 \cup \mathcal{X}_2 \cup \mathcal{X}_3}\ C}$} & (T-If) \vspace{5mm} \\
     \end{tabular}
     \caption{Typing rule}
 \end{figure}
