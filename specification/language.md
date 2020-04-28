@@ -95,7 +95,7 @@ example:
 
 - $MATCH := ( match $EXPR $CASE+ )
 - $CASE := ( $PATTERN $EXPR )
-- $PATTERN := $LITERAL | $ID | $TID | \[ $PATTERN+ \] | ( $TID $PATTERN* )
+- $PATTERN := $LITERAL | $ID | $TID | \[ $PATTERN+ \] | ( $TID $PATTERN* ) | '()
 
 ## Built-in Functions
 

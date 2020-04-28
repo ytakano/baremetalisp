@@ -105,7 +105,8 @@ enum MatchPat<'t> {
     MatchPatBool(BoolNode<'t>),
     MatchPatID(IDNode<'t>),
     MatchPatTuple(MatchPatTupleNode<'t>),
-    MatchPatData(MatchPatDataNode<'t>)
+    MatchPatData(MatchPatDataNode<'t>),
+    MatchPatElist(&'t parser::Expr),
 }
 
 #[derive(Debug)]
@@ -1233,7 +1234,7 @@ fn expr2def_vars(expr: &parser::Expr) -> Result<DefVar, TypingErr> {
     }
 }
 
-/// $PATTERN := $LITERAL | $ID | $TID | [ $PATTERN+ ] | ( $TID $PATTERN* )
+/// $PATTERN := $LITERAL | $ID | $TID | [ $PATTERN+ ] | ( $TID $PATTERN* ) | '()
 fn expr2mpat(expr: &parser::Expr) -> Result<MatchPat, TypingErr> {
     match expr {
         parser::Expr::ID(id) => {
@@ -1286,8 +1287,12 @@ fn expr2mpat(expr: &parser::Expr) -> Result<MatchPat, TypingErr> {
 
             Ok(MatchPat::MatchPatData(MatchPatDataNode{ty: tid, pattern: pattern, ast: expr}))
         }
-        _ => {
-            Err(TypingErr::new("error: list pattern is not supported", expr))
+        parser::Expr::List(list) => {
+            if list.len() > 0 {
+                return Err(TypingErr::new("error: list pattern is not supported", expr));
+            }
+
+            Ok(MatchPat::MatchPatElist(expr))
         }
     }
 }
