@@ -107,9 +107,9 @@ and syntax for the typing rule, respectively.
 (defun add (a b) (Pure (-> (Int Int) Int))
     (+ a b))
 \end{lstlisting}
-$x$ is a symbol denoting variable.
+$x$ is a variable.
 For example, $x \in \{a, b\}$ in Listing~\ref{src:vars}.
-$\mathcal{T}$ is a symbol denoting type.
+$\mathcal{T}$ is a type.
 For example, $\mathcal{T} \in \{\mathtt{Int}, (\rightarrow\ (\mathtt{Int}\ \mathtt{Int})\ \mathtt{Int})\}$
 in Listing~\ref{src:vars}.
 $(\rightarrow\ (\mathtt{Int}\ \mathtt{Int})\ \mathtt{Int})$ is a function type which takes 2 integer values
@@ -118,23 +118,31 @@ $\mathtt{Pure}$ in Listing~\ref{src:vars} denotes the effect of the function but
 Function effects will be described in Sec.~\ref{sec:effect}.
 $\mathcal{T}$ can be other forms as described in Fig.~\ref{fig:syntax} such as
 $\mathtt{Bool}$, $'(\mathtt{Int})$, $[\mathtt{Bool}\ \mathtt{Int}]$, $(\mathrm{List}\ a)$, $(\mathrm{List}\ \mathtt{Int})$.
+For example, $\Gamma = \{a : t_1, b : t_1, + : (\rightarrow\ (\mathtt{Int}\ \mathtt{Int})\ \mathtt{Int})\}$
+in Listing~\ref{src:vars}.
+$\Gamma$ is called context generally, thus I call $\Gamma$ context in this paper.
+$C$ is a type constraint, which is a set of pairs of types.
+For example, $C = \{(\rightarrow\ (t_1\ t_2)\ t) = (\rightarrow\ (\mathtt{Int}\ \mathtt{Int})\ \mathtt{Int})\}$ deduced from
+Listing~\ref{src:vars} means $(\rightarrow\ (t_1\ t_2)\ t)$ and $(\rightarrow\ (\mathtt{Int}\ \mathtt{Int})\ \mathtt{Int})$ are
+semantically equal and every type variable in $C$, $t_1, t_2, t$, is thus $\mathtt{Int}$.
 
 \begin{lstlisting}[caption=Example of user defined data type,label=src:cons]
 (data (List a)
     (Cons a (List a))
     EList)
 \end{lstlisting}
-$t$ is a symbol denoting type variable.
+$t$ is a type variable.
 For example, $t \in \{a\}$ in Listing~\ref{src:cons}.
-$L$ is a symbol denoting label for user defined type.
+$L$ is a label for user defined type.
 For example, $L \in \{\mathrm{Cons}, \mathrm{EList}\}$ in Listing~\ref{src:cons}.
 $L_{type}$ is a function from label to type.
 For example, $L_{type}(\mathrm{Cons}) = (\mathrm{List}\ a)$ and $L_{type}(\mathrm{EList}) = (\mathrm{List}\ a)$
 in Listing~\ref{src:cons}.
 $L_{nth}$ is a function to n-th type of label.
 For example, $L_{nth}(\mathrm{Cons}, 0) = a$ and $L_{nth}(\mathrm{Cons}, 1) = (\mathrm{List}\ a)$ in Listing~\ref{src:cons}.
-$D$ is a symbol denoting user defined data.
+$D$ is user defined data.
 For example, $D \in \{\mathrm{List}\}$ in Listing~\ref{src:cons}.
+$\Gamma$ is a map from variable to type.
 
 \begin{figure}[tb]
     \centering
@@ -219,7 +227,7 @@ For example, $D \in \{\mathrm{List}\}$ in Listing~\ref{src:cons}.
     \centering
     \begin{tabular}{rlrl}
         $\Gamma \vdash\ '() :\ '(T)\ |_{\{T\}}\ \varnothing$ & (P-EList) &
-        $\dfrac{S(L_{type}(L)) \equiv_\alpha \mathcal{T}}{\Gamma \vdash L : \mathcal{T}\ |_{FV_\mathcal{T}(\mathcal{T})}\ \varnothing}$ & (P-Label0) \vspace{5mm} \\
+        $\dfrac{L_{type}(L) \cdot \mathcal{S} \equiv_\alpha \mathcal{T}}{\Gamma \vdash L : \mathcal{T}\ |_{FV_\mathcal{T}(\mathcal{T})}\ \varnothing}$ & (P-Label0) \vspace{5mm} \\
 
         \multicolumn{3}{r}{
         $\dfrac{
