@@ -890,7 +890,7 @@ fn expr2type_fun(expr: &parser::Expr) -> Result<Type, TypingErr> {
                         }
                     }
 
-                    // $TYPES := $TYPE | ( $TYPE* )
+                    // ( $TYPE* )
                     match iter2.next() {
                         Some(t) => {
                             args = expr2types(t)?;
@@ -923,18 +923,15 @@ fn expr2type_fun(expr: &parser::Expr) -> Result<Type, TypingErr> {
     }
 }
 
-/// $TYPES := $TYPE | ( $TYPE* )
+/// $TYPES := ( $TYPE* )
 fn expr2types(expr: &parser::Expr) -> Result<Vec<Type>, TypingErr> {
     match expr {
         parser::Expr::Apply(types) => {
             // ( $TYPES* )
             Ok(list_types2vec_types(types)?)
         }
-        t => {
-            // $TYPE
-            let mut v = Vec::new();
-            v.push(expr2type(t)?);
-            Ok(v)
+        _ => {
+            Err(TypingErr::new("error: require types of arguments", expr))
         }
     }
 }

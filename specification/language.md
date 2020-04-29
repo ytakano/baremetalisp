@@ -25,9 +25,8 @@
 - $TYPE_LIST := '( $TYPE )
 - $TYPE_TUPLE := \[ $TYPE+ \]
 - $TYPE_DATA := $TID | ( $TID $TYPE* )
-- $TYPE_FUN := ( $EFFECT ( -> $TYPES $TYPE ) )
+- $TYPE_FUN := ( $EFFECT ( -> ( $TYPES* ) $TYPE ) )
 - $EFFECT := Pure | IO
-- $TYPES := $TYPE | ( $TYPE* )
 
 examples:
 ```common-lisp
@@ -100,8 +99,8 @@ example:
 ## Built-in Functions
 
 - cons: (Pure (-> (T '(T)) '(T)))
-- car: (Pure (-> '(T) (Maybe T)))
-- cdr: (Pure (-> '(T) (Maybe '(T))))
+- car: (Pure (-> ('(T)) (Maybe T)))
+- cdr: (Pure (-> ('(T)) (Maybe '(T))))
 - nth: (Pure (-> (Int \[T\]) (Maybe T)))
 - nth: (Pure (-> (Int '(T)) (Maybe T)))
 - +, -, *, /, %: (Pure (-> (Int Int) Int))

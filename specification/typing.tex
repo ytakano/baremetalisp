@@ -107,6 +107,7 @@ and syntax for the typing rule, respectively.
 (defun add (a b) (Pure (-> (Int Int) Int))
     (+ a b))
 \end{lstlisting}
+
 $x$ is a variable.
 For example, $x \in \{a, b\}$ in Listing~\ref{src:vars}.
 $\mathcal{T}$ is a type.
@@ -118,7 +119,8 @@ $\mathtt{Pure}$ in Listing~\ref{src:vars} denotes the effect of the function but
 Function effects will be described in Sec.~\ref{sec:effect}.
 $\mathcal{T}$ can be other forms as described in Fig.~\ref{fig:syntax} such as
 $\mathtt{Bool}$, $'(\mathtt{Int})$, $[\mathtt{Bool}\ \mathtt{Int}]$, $(\mathrm{List}\ a)$, $(\mathrm{List}\ \mathtt{Int})$.
-For example, $\Gamma = \{a : t_1, b : t_1, + : (\rightarrow\ (\mathtt{Int}\ \mathtt{Int})\ \mathtt{Int})\}$
+$\Gamma$ is a map from variable to type.
+For example, $\Gamma = \{a : t_1, b : t_2, + : (\rightarrow\ (\mathtt{Int}\ \mathtt{Int})\ \mathtt{Int})\}$
 in Listing~\ref{src:vars}.
 $\Gamma$ is called context generally, thus I call $\Gamma$ context in this paper.
 $C$ is a type constraint, which is a set of pairs of types.
@@ -131,6 +133,7 @@ semantically equal and every type variable in $C$, $t_1, t_2, t$, is thus $\math
     (Cons a (List a))
     EList)
 \end{lstlisting}
+
 $t$ is a type variable.
 For example, $t \in \{a\}$ in Listing~\ref{src:cons}.
 $L$ is a label for user defined type.
@@ -142,7 +145,39 @@ $L_{nth}$ is a function to n-th type of label.
 For example, $L_{nth}(\mathrm{Cons}, 0) = a$ and $L_{nth}(\mathrm{Cons}, 1) = (\mathrm{List}\ a)$ in Listing~\ref{src:cons}.
 $D$ is user defined data.
 For example, $D \in \{\mathrm{List}\}$ in Listing~\ref{src:cons}.
-$\Gamma$ is a map from variable to type.
+
+$FV_\mathcal{T}$ and $FV_\Gamma$ are functions, which take $\mathcal{T}$ and $\Gamma$ and return free variables.
+For example, $FV_\mathcal{T}((\rightarrow\ (t_1\ t_2)\ t)) = \{t_1, t_2, t\}$ and
+\begin{equation*}
+    \begin{aligned}
+        &FV_\Gamma(\{a : t_1, b : t_1, + : (\rightarrow\ (\mathtt{Int}\ \mathtt{Int})\ \mathtt{Int})\}) \\
+        &=\{FV_\mathcal{T}(t_1), FV_\mathcal{T}(t_1), FV_\mathcal{T}((\rightarrow\ (\mathtt{Int}\ \mathtt{Int})\ \mathtt{Int}))\} \\
+        &=\{t_1, t_2\}.
+    \end{aligned}
+\end{equation*}
+$\mathcal{T}_1 \equiv_\alpha \mathcal{T}_2$ denotes that $\mathcal{T}_1$ and $\mathcal{T}_2$ are $\alpha$-equivalent,
+which means $\mathcal{T}_1$ and $\mathcal{T}_2$ are semantically equal.
+For example, $(\rightarrow\ (t_1\ t_2)\ t) \equiv_\alpha (\rightarrow\ (t_{10}\ t_{11})\ t_{12})$.
+$\mathcal{S}$ is a substitution, which is a map from type variable to type,
+and it can be applied to $\mathcal{T}$ as $\mathcal{T} \cdot \mathcal{S}$.
+For example, if $\mathcal{S}(t_1) = [\mathtt{Bool}\ \mathtt{Int}], \mathcal{S}(t_2) = (\mathrm{List}\ t_3)$ then
+$(\rightarrow\ (t_1\ t_2)\ t) \cdot \mathcal{S} = (\rightarrow\ ([\mathtt{Bool}\ \mathtt{Int}]\ (\mathrm{List}\ t_3))\ t)$.
+
+\begin{lstlisting}[caption=Example of pattern matching,label=src:match]
+(data Dim2 (Dim2 Int Int))
+
+(data (Maybe t)
+    (Just t)
+    Nothing)
+
+(defun match-let (a) (Pure (-> ((Maybe Dim2)) Int))
+    (match a
+        ((Just val)
+            (let (((Dim2 x y) val))
+                (+ x y)))
+        (Nothing
+            0)))
+\end{lstlisting}
 
 \begin{figure}[tb]
     \centering
