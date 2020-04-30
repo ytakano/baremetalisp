@@ -61,6 +61,7 @@ which is a well typed Lisp for trusted execution environment.
         $\mathcal{X}$ & set of $t$ \\
         $FV_\mathcal{T} : \mathcal{T} \rightarrow \mathcal{X}$ & function from $\mathcal{T}$ to its free variables\\
         $FV_\Gamma : \Gamma \rightarrow \mathcal{X}$ & function from $\Gamma$ to its free variables\\
+        $Size : L \rightarrow \mathtt{Int}$ & the number of labels $L$'s type has \\
         $\Gamma \vdash e : \mathcal{T}\ |_\mathcal{X}\ C$ & $e$'s type is deduced as $\mathcal{T}$ from $\Gamma$ \\
         & under constraint $C$ and type variables $\mathcal{X}$
     \end{tabular}
@@ -131,15 +132,15 @@ semantically equal and every type variable in $C$, $t_1, t_2, t$, is thus $\math
 \begin{lstlisting}[caption=Example of user defined data type,label=src:cons]
 (data (List a)
     (Cons a (List a))
-    EList)
+    Nil)
 \end{lstlisting}
 
 $t$ is a type variable.
 For example, $t \in \{a\}$ in Listing~\ref{src:cons}.
 $L$ is a label for user defined type.
-For example, $L \in \{\mathrm{Cons}, \mathrm{EList}\}$ in Listing~\ref{src:cons}.
+For example, $L \in \{\mathrm{Cons}, \mathrm{Nil}\}$ in Listing~\ref{src:cons}.
 $L_{type}$ is a function from label to type.
-For example, $L_{type}(\mathrm{Cons}) = (\mathrm{List}\ a)$ and $L_{type}(\mathrm{EList}) = (\mathrm{List}\ a)$
+For example, $L_{type}(\mathrm{Cons}) = (\mathrm{List}\ a)$ and $L_{type}(\mathrm{Nil}) = (\mathrm{List}\ a)$
 in Listing~\ref{src:cons}.
 $L_{nth}$ is a function to n-th type of label.
 For example, $L_{nth}(\mathrm{Cons}, 0) = a$ and $L_{nth}(\mathrm{Cons}, 1) = (\mathrm{List}\ a)$ in Listing~\ref{src:cons}.
@@ -178,6 +179,12 @@ $(\rightarrow\ (t_1\ t_2)\ t) \cdot \mathcal{S} = (\rightarrow\ ([\mathtt{Bool}\
         (Nothing
             0)))
 \end{lstlisting}
+$\mathcal{P}$ and $\mathcal{P}_{let}$ are pattern in match and let expressions.
+For example, in listings~\ref{src:match}, {\it (Just val)} and {\it Nothing} at line 9 and 12 are from $\mathcal{P}$
+and {\it (Dim2 x y)} at line 10 is from $\mathcal{P}_{let}$.
+$Size$ is a function which takes a label and return the number of labels the label's type has.
+For example, $Size(\mathrm{Just}) = Size(\mathrm{Nothing}) = 2$ because Maybe type has 2 labels
+and $Size(\mathrm{Dim2}) = 1$ because Dim2 type has 1 label in listings~\ref{src:match}.
 
 \begin{figure}[tb]
     \centering
@@ -261,7 +268,7 @@ $(\rightarrow\ (t_1\ t_2)\ t) \cdot \mathcal{S} = (\rightarrow\ ([\mathtt{Bool}\
 \begin{figure}[tb]
     \centering
     \begin{tabular}{rlrl}
-        $\Gamma \vdash\ '() :\ '(T)\ |_{\{T\}}\ \varnothing$ & (P-EList) &
+        $\Gamma \vdash\ '() :\ '(T)\ |_{\{T\}}\ \varnothing$ & (P-Nil) &
         $\dfrac{L_{type}(L) \cdot \mathcal{S} \equiv_\alpha \mathcal{T}}{\Gamma \vdash L : \mathcal{T}\ |_{FV_\mathcal{T}(\mathcal{T})}\ \varnothing}$ & (P-Label0) \vspace{5mm} \\
 
         \multicolumn{3}{r}{
@@ -272,7 +279,8 @@ $(\rightarrow\ (t_1\ t_2)\ t) \cdot \mathcal{S} = (\rightarrow\ ([\mathtt{Bool}\
                 &L_{type}(L) \cdot \mathcal{S}\equiv_\alpha \mathcal{T}_0 \hspace{5mm} FV(\mathcal{T}_0) \cap \mathcal{X}_1 \cap \cdots \cap \mathcal{X}_n = \varnothing \\
                 &FV_\mathcal{T}(\mathcal{T}_0) \cap FV_\Gamma(\Gamma) = \varnothing \hspace{5mm}
                     \mathcal{X} = FV(\mathcal{T}_0) \cup \mathcal{X}_1 \cup \cdots \cup \mathcal{X}_n \\
-                &C = C_1 \cup \cdots \cup C_n \cup \{L_{nth}(L, 1) \cdot \mathcal{S} = \mathcal{T}_1, \cdots, L_{nth}(L, n) \cdot \mathcal{S} = \mathcal{T}_n\}
+                &C = C_1 \cup \cdots \cup C_n \cup \{L_{nth}(L, 1) \cdot \mathcal{S} = \mathcal{T}_1, \cdots, L_{nth}(L, n) \cdot \mathcal{S} = \mathcal{T}_n\} \\
+                &Size(L) = 1\ \mbox{for only}\ P_{let}
             \end{aligned}
         }{
             \Gamma \vdash (L\ \mathcal{P}_1\ \cdots\ \mathcal{P}_n) : \mathcal{T}_0\ |_{\mathcal{X}}\ C
