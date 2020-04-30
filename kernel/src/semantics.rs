@@ -7,6 +7,18 @@ use alloc::vec::Vec;
 use alloc::boxed::Box;
 use alloc::string::{ToString, String};
 
+type ID = u64;
+
+enum Type {
+    TCon(Tycon),
+    TVar(ID)
+}
+
+struct Tycon {
+    id: String,
+    args: Vec<Type>,
+}
+
 #[derive(Debug)]
 pub struct TypingErr<'t> {
     msg: String,
@@ -20,7 +32,7 @@ impl<'t> TypingErr<'t> {
 }
 
 #[derive(Debug)]
-enum TypedExpr<'t> {
+enum LangExpr<'t> {
     IfExpr(Box::<IfNode<'t>>),
     LetExpr(Box::<LetNode<'t>>),
     LitNum(NumNode<'t>),
@@ -52,9 +64,9 @@ struct IDNode<'t> {
 
 #[derive(Debug)]
 struct IfNode<'t> {
-    cond_expr: TypedExpr<'t>,
-    then_expr: TypedExpr<'t>,
-    else_expr: TypedExpr<'t>,
+    cond_expr: LangExpr<'t>,
+    then_expr: LangExpr<'t>,
+    else_expr: LangExpr<'t>,
     ast: &'t parser::Expr
 }
 
@@ -81,20 +93,20 @@ struct LetPatLabelNode<'t> {
 #[derive(Debug)]
 struct LetNode<'t> {
     def_vars: Vec<DefVar<'t>>,
-    expr: TypedExpr<'t>,
+    expr: LangExpr<'t>,
     ast: &'t parser::Expr
 }
 
 #[derive(Debug)]
 struct DefVar<'t> {
     pattern: LetPat<'t>,
-    expr: TypedExpr<'t>,
+    expr: LangExpr<'t>,
     ast: &'t parser::Expr
 }
 
 #[derive(Debug)]
 struct MatchNode<'t> {
-    expr: TypedExpr<'t>,
+    expr: LangExpr<'t>,
     cases: Vec<MatchCase<'t>>,
     ast: &'t parser::Expr
 }
@@ -125,13 +137,13 @@ struct MatchPatDataNode<'t> {
 #[derive(Debug)]
 struct MatchCase<'t> {
     pattern: MatchPat<'t>,
-    expr: TypedExpr<'t>,
+    expr: LangExpr<'t>,
     ast: &'t parser::Expr
 }
 
 #[derive(Debug)]
 struct Exprs<'t> {
-    exprs: Vec<TypedExpr<'t>>,
+    exprs: Vec<LangExpr<'t>>,
     ast: &'t parser::Expr
 }
 
@@ -142,12 +154,12 @@ struct TIDNode<'t> {
 }
 
 #[derive(Debug, Clone)]
-struct TypeBoolNode<'t> {
+struct TEBoolNode<'t> {
     ast: &'t parser::Expr
 }
 
 #[derive(Debug, Clone)]
-struct TypeIntNode<'t> {
+struct TEIntNode<'t> {
     ast: &'t parser::Expr
 }
 
@@ -168,30 +180,30 @@ struct DataTypeName<'t> {
 #[derive(Debug, Clone)]
 struct DataTypeMem<'t> {
     id: TIDNode<'t>,
-    types: Vec<Type<'t>>,
+    types: Vec<TypeExpr<'t>>,
     ast: &'t parser::Expr
 }
 
 #[derive(Debug, Clone)]
-enum Type<'t> {
-    TypeBool(TypeBoolNode<'t>),
-    TypeInt(TypeIntNode<'t>),
-    TypeList(TypeListNode<'t>),
-    TypeTuple(TypeTupleNode<'t>),
-    TypeFun(TypeFunNode<'t>),
-    TypeData(TypeDataNode<'t>),
-    TypeID(IDNode<'t>)
+enum TypeExpr<'t> {
+    TEBool(TEBoolNode<'t>),
+    TEInt(TEIntNode<'t>),
+    TEList(TEListNode<'t>),
+    TETuple(TETupleNode<'t>),
+    TEFun(TEFunNode<'t>),
+    TEData(TEDataNode<'t>),
+    TEID(IDNode<'t>)
 }
 
 #[derive(Debug, Clone)]
-struct TypeListNode<'t> {
-    ty: Box::<Type<'t>>,
+struct TEListNode<'t> {
+    ty: Box::<TypeExpr<'t>>,
     ast: &'t parser::Expr
 }
 
 #[derive(Debug, Clone)]
-struct TypeTupleNode<'t> {
-    ty: Vec<Type<'t>>,
+struct TETupleNode<'t> {
+    ty: Vec<TypeExpr<'t>>,
     ast: &'t parser::Expr
 }
 
@@ -202,17 +214,17 @@ enum Effect {
 }
 
 #[derive(Debug, Clone)]
-struct TypeFunNode<'t> {
+struct TEFunNode<'t> {
     effect: Effect,
-    args: Vec<Type<'t>>,
-    ret: Box<Type<'t>>,
+    args: Vec<TypeExpr<'t>>,
+    ret: Box<TypeExpr<'t>>,
     ast: &'t parser::Expr
 }
 
 #[derive(Debug, Clone)]
-struct TypeDataNode<'t> {
+struct TEDataNode<'t> {
     id: TIDNode<'t>,
-    type_args: Vec<Type<'t>>,
+    type_args: Vec<TypeExpr<'t>>,
     ast: &'t parser::Expr
 }
 
@@ -220,17 +232,17 @@ struct TypeDataNode<'t> {
 struct Defun<'t> {
     id: IDNode<'t>,
     args: Vec<IDNode<'t>>,
-    fun_type: Type<'t>,
-    expr: TypedExpr<'t>,
+    fun_type: TypeExpr<'t>,
+    expr: LangExpr<'t>,
     ast: &'t parser::Expr
 }
 
 trait TApp<'t>: Sized {
-    fn apply(&self, ty: &BTreeMap<&str, Type<'t>>) -> Result<Self, TypingErr<'t>>;
+    fn apply(&self, ty: &BTreeMap<&str, TypeExpr<'t>>) -> Result<Self, TypingErr<'t>>;
 }
 
 impl<'t> TApp<'t> for DataType<'t> {
-    fn apply(&self, ty: &BTreeMap<&str, Type<'t>>) -> Result<DataType<'t>, TypingErr<'t>> {
+    fn apply(&self, ty: &BTreeMap<&str, TypeExpr<'t>>) -> Result<DataType<'t>, TypingErr<'t>> {
         let mut mems = Vec::new();
         for m in self.members.iter() {
             mems.push(m.apply(ty)?);
@@ -245,7 +257,7 @@ impl<'t> TApp<'t> for DataType<'t> {
 }
 
 impl<'t> TApp<'t> for DataTypeMem<'t> {
-    fn apply(&self, ty: &BTreeMap<&str, Type<'t>>) -> Result<DataTypeMem<'t>, TypingErr<'t>> {
+    fn apply(&self, ty: &BTreeMap<&str, TypeExpr<'t>>) -> Result<DataTypeMem<'t>, TypingErr<'t>> {
         let mut v = Vec::new();
         for it in self.types.iter() {
             v.push(it.apply(ty)?);
@@ -259,28 +271,28 @@ impl<'t> TApp<'t> for DataTypeMem<'t> {
     }
 }
 
-impl<'t> TApp<'t> for Type<'t> {
-    fn apply(&self, ty: &BTreeMap<&str, Type<'t>>) -> Result<Type<'t>, TypingErr<'t>> {
+impl<'t> TApp<'t> for TypeExpr<'t> {
+    fn apply(&self, ty: &BTreeMap<&str, TypeExpr<'t>>) -> Result<TypeExpr<'t>, TypingErr<'t>> {
         match self {
-            Type::TypeData(data) => {
-                Ok(Type::TypeData(data.apply(ty)?))
+            TypeExpr::TEData(data) => {
+                Ok(TypeExpr::TEData(data.apply(ty)?))
             }
-            Type::TypeList(list) => {
-                Ok(Type::TypeList(list.apply(ty)?))
+            TypeExpr::TEList(list) => {
+                Ok(TypeExpr::TEList(list.apply(ty)?))
             }
-            Type::TypeTuple(tuple) => {
-                Ok(Type::TypeTuple(tuple.apply(ty)?))
+            TypeExpr::TETuple(tuple) => {
+                Ok(TypeExpr::TETuple(tuple.apply(ty)?))
             }
-            Type::TypeFun(fun) => {
-                Ok(Type::TypeFun(fun.apply(ty)?))
+            TypeExpr::TEFun(fun) => {
+                Ok(TypeExpr::TEFun(fun.apply(ty)?))
             }
-            Type::TypeID(id) => {
+            TypeExpr::TEID(id) => {
                 match ty.get(id.id) {
                     Some(t) => {
                         Ok(t.clone())
                     }
                     _ => {
-                        Ok(Type::TypeID(id.clone()))
+                        Ok(TypeExpr::TEID(id.clone()))
                     }
                 }
             }
@@ -291,34 +303,34 @@ impl<'t> TApp<'t> for Type<'t> {
     }
 }
 
-impl<'t> TApp<'t> for TypeListNode<'t> {
-    fn apply(&self, ty: &BTreeMap<&str, Type<'t>>) -> Result<TypeListNode<'t>, TypingErr<'t>> {
-        Ok(TypeListNode{
+impl<'t> TApp<'t> for TEListNode<'t> {
+    fn apply(&self, ty: &BTreeMap<&str, TypeExpr<'t>>) -> Result<TEListNode<'t>, TypingErr<'t>> {
+        Ok(TEListNode{
             ty: Box::new(self.ty.apply(ty)?),
             ast: self.ast
         })
     }
 }
 
-impl<'t> TApp<'t> for TypeTupleNode<'t> {
-    fn apply(&self, ty: &BTreeMap<&str, Type<'t>>) -> Result<TypeTupleNode<'t>, TypingErr<'t>> {
+impl<'t> TApp<'t> for TETupleNode<'t> {
+    fn apply(&self, ty: &BTreeMap<&str, TypeExpr<'t>>) -> Result<TETupleNode<'t>, TypingErr<'t>> {
         let mut v = Vec::new();
         for it in self.ty.iter() {
             v.push(it.apply(ty)?);
         }
 
-        Ok(TypeTupleNode{ty: v, ast: self.ast})
+        Ok(TETupleNode{ty: v, ast: self.ast})
     }
 }
 
-impl<'t> TApp<'t> for TypeFunNode<'t> {
-    fn apply(&self, ty: &BTreeMap<&str, Type<'t>>) -> Result<TypeFunNode<'t>, TypingErr<'t>> {
+impl<'t> TApp<'t> for TEFunNode<'t> {
+    fn apply(&self, ty: &BTreeMap<&str, TypeExpr<'t>>) -> Result<TEFunNode<'t>, TypingErr<'t>> {
         let mut v = Vec::new();
         for it in self.args.iter() {
             v.push(it.apply(ty)?);
         }
 
-        Ok(TypeFunNode{
+        Ok(TEFunNode{
             effect: self.effect.clone(),
             args: v,
             ret: Box::new(self.ret.apply(ty)?),
@@ -327,14 +339,14 @@ impl<'t> TApp<'t> for TypeFunNode<'t> {
     }
 }
 
-impl<'t> TApp<'t> for TypeDataNode<'t> {
-    fn apply(&self, ty: &BTreeMap<&str, Type<'t>>) -> Result<TypeDataNode<'t>, TypingErr<'t>> {
+impl<'t> TApp<'t> for TEDataNode<'t> {
+    fn apply(&self, ty: &BTreeMap<&str, TypeExpr<'t>>) -> Result<TEDataNode<'t>, TypingErr<'t>> {
         let mut v = Vec::new();
         for it in self.type_args.iter() {
             v.push(it.apply(ty)?);
         }
 
-        Ok(TypeDataNode{
+        Ok(TEDataNode{
             id: self.id.clone(),
             type_args: v,
             ast: self.ast
@@ -345,18 +357,29 @@ impl<'t> TApp<'t> for TypeDataNode<'t> {
 #[derive(Debug)]
 pub struct Context<'t> {
     funs: BTreeMap<&'t str, Defun<'t>>,
-    data: BTreeMap<&'t str, DataType<'t>>
+    data: BTreeMap<&'t str, DataType<'t>>,
+    curr_id: ID,
 }
 
 impl<'t> Context<'t> {
     fn new(funs: BTreeMap<&'t str, Defun<'t>>, data: BTreeMap<&'t str, DataType<'t>>) -> Context<'t> {
-        Context{funs: funs, data: data}
+        Context{funs: funs, data: data, curr_id: 0}
     }
 
-    pub fn typing(&self) -> Result<(), TypingErr<'t>> {
+    pub fn typing(&mut self) -> Result<(), TypingErr<'t>> {
         self.check_data_def()?;
         self.check_data_rec()?;
-        self.check_defun_type()
+        self.check_defun_type()?;
+
+        Ok(())
+    }
+
+    fn type_expr(&mut self, expr: &LangExpr<'t>) -> Type {
+        match expr {
+            LangExpr::LitBool(_) => Type::TCon(Tycon{id: "Bool".to_string(), args: Vec::new()}),
+            LangExpr::LitNum(_) => Type::TCon(Tycon{id: "Int".to_string(), args: Vec::new()}),
+            _ => Type::TCon(Tycon{id: "Fail".to_string(), args: Vec::new()})
+        }
     }
 
     fn check_data_def(&self) -> Result<(), TypingErr<'t>> {
@@ -393,23 +416,23 @@ impl<'t> Context<'t> {
         Ok(())
     }
 
-    fn check_def_type(&self, ty: &Type<'t>, args: &BTreeSet<&str>) -> Result<(), TypingErr<'t>> {
+    fn check_def_type(&self, ty: &TypeExpr<'t>, args: &BTreeSet<&str>) -> Result<(), TypingErr<'t>> {
         match ty {
-            Type::TypeID(id) => {
+            TypeExpr::TEID(id) => {
                 if !args.contains(id.id) {
                     let msg = format!("error: {:?} is undefined", id.id);
                     return Err(TypingErr{msg: msg, ast: id.ast})
                 }
             }
-            Type::TypeList(list) => {
+            TypeExpr::TEList(list) => {
                 self.check_def_type(&list.ty, args)?;
             }
-            Type::TypeTuple(tuple) => {
+            TypeExpr::TETuple(tuple) => {
                 for it in tuple.ty.iter() {
                     self.check_def_type(it, args)?;
                 }
             }
-            Type::TypeData(data) => {
+            TypeExpr::TEData(data) => {
                 match self.data.get(data.id.id) {
                     Some(dt) => {
                         if dt.name.type_args.len() != data.type_args.len() {
@@ -428,7 +451,7 @@ impl<'t> Context<'t> {
                     self.check_def_type(it, args)?;
                 }
             }
-            Type::TypeFun(fun) => {
+            TypeExpr::TEFun(fun) => {
                 for it in fun.args.iter() {
                     self.check_def_type(it, args)?
                 }
@@ -515,15 +538,15 @@ impl<'t> Context<'t> {
     }
 
     fn check_data_rec_ty(&self,
-                         ty: &Type<'t>,
+                         ty: &TypeExpr<'t>,
                          visited: &mut BTreeSet<&'t str>,
                          checked: &mut LinkedList<DataType<'t>>,
                          inst: &mut LinkedList<&'t parser::Expr>) -> Result<bool, TypingErr<'t>> {
         match ty {
-            Type::TypeList(_list) => {
+            TypeExpr::TEList(_list) => {
                 Ok(false)
             }
-            Type::TypeTuple(tuple) => {
+            TypeExpr::TETuple(tuple) => {
                 let mut ret = false;
 
                 inst.push_back(tuple.ast);
@@ -536,14 +559,14 @@ impl<'t> Context<'t> {
 
                 Ok(ret)
             }
-            Type::TypeData(data) => {
+            TypeExpr::TEData(data) => {
                 let dt = self.type_data_node2data_type(data)?;
                 inst.push_back(data.ast);
                 let ret = self.check_data_rec_data(&dt, visited, checked, inst);
                 inst.pop_back();
                 ret
             }
-            Type::TypeFun(_fun) => {
+            TypeExpr::TEFun(_fun) => {
                 Ok(false)
             }
             _ => {
@@ -552,7 +575,7 @@ impl<'t> Context<'t> {
         }
     }
 
-    fn type_data_node2data_type(&self, data: &TypeDataNode<'t>) -> Result<DataType<'t>, TypingErr<'t>> {
+    fn type_data_node2data_type(&self, data: &TEDataNode<'t>) -> Result<DataType<'t>, TypingErr<'t>> {
         let dt;
         match self.data.get(data.id.id) {
             Some(t) => {
@@ -848,7 +871,7 @@ fn expr2defun(expr: &parser::Expr) -> Result<Defun, TypingErr> {
 }
 
 /// $TYPE_FUN := ( $EFFECT ( -> $TYPES $TYPES ) )
-fn expr2type_fun(expr: &parser::Expr) -> Result<Type, TypingErr> {
+fn expr2type_fun(expr: &parser::Expr) -> Result<TypeExpr, TypingErr> {
     match expr {
         parser::Expr::Apply(exprs) => {
             let mut iter = exprs.iter();
@@ -915,7 +938,7 @@ fn expr2type_fun(expr: &parser::Expr) -> Result<Type, TypingErr> {
                 }
             }
 
-            Ok(Type::TypeFun(TypeFunNode{effect: effect, args: args, ret: Box::new(ret), ast: expr}))
+            Ok(TypeExpr::TEFun(TEFunNode{effect: effect, args: args, ret: Box::new(ret), ast: expr}))
         }
         _ => {
             Err(TypingErr::new("error", expr))
@@ -924,7 +947,7 @@ fn expr2type_fun(expr: &parser::Expr) -> Result<Type, TypingErr> {
 }
 
 /// $TYPES := ( $TYPE* )
-fn expr2types(expr: &parser::Expr) -> Result<Vec<Type>, TypingErr> {
+fn expr2types(expr: &parser::Expr) -> Result<Vec<TypeExpr>, TypingErr> {
     match expr {
         parser::Expr::Apply(types) => {
             // ( $TYPES* )
@@ -937,21 +960,21 @@ fn expr2types(expr: &parser::Expr) -> Result<Vec<Type>, TypingErr> {
 }
 
 /// $TYPE := Int | Bool | $TYPE_LIST | $TYPE_TUPLE | $TYPE_FUN | $TYPE_DATA | $ID
-fn expr2type(expr: &parser::Expr) -> Result<Type, TypingErr> {
+fn expr2type(expr: &parser::Expr) -> Result<TypeExpr, TypingErr> {
     match expr {
         parser::Expr::ID(id) => {
             // Int | Bool | $TID
             if id == "Int" {
-                Ok(Type::TypeInt(TypeIntNode{ast: expr}))
+                Ok(TypeExpr::TEInt(TEIntNode{ast: expr}))
             } else if id == "Bool" {
-                Ok(Type::TypeBool(TypeBoolNode{ast: expr}))
+                Ok(TypeExpr::TEBool(TEBoolNode{ast: expr}))
             } else {
                 let c = id.chars().nth(0).unwrap();
                 if 'A' <= c && c <= 'Z' {
                     let tid = expr2type_id(expr)?;
-                    Ok(Type::TypeData(TypeDataNode{id: tid, type_args: Vec::new(), ast: expr}))
+                    Ok(TypeExpr::TEData(TEDataNode{id: tid, type_args: Vec::new(), ast: expr}))
                 } else {
-                    Ok(Type::TypeID(expr2id(expr)?))
+                    Ok(TypeExpr::TEID(expr2id(expr)?))
                 }
             }
         }
@@ -964,7 +987,7 @@ fn expr2type(expr: &parser::Expr) -> Result<Type, TypingErr> {
             match list.iter().next() {
                 Some(e) => {
                     let ty = Box::new(expr2type(e)?);
-                    Ok(Type::TypeList(TypeListNode{ty: ty, ast: e}))
+                    Ok(TypeExpr::TEList(TEListNode{ty: ty, ast: e}))
                 }
                 _ => {
                     Err(TypingErr::new("error: require type", expr))
@@ -982,7 +1005,7 @@ fn expr2type(expr: &parser::Expr) -> Result<Type, TypingErr> {
                 types.push(expr2type(it)?);
             }
 
-            Ok(Type::TypeTuple(TypeTupleNode{ty: types, ast: expr}))
+            Ok(TypeExpr::TETuple(TETupleNode{ty: types, ast: expr}))
         }
         parser::Expr::Apply(exprs) => {
             // ( $TID $TYPE* )
@@ -1011,7 +1034,7 @@ fn expr2type(expr: &parser::Expr) -> Result<Type, TypingErr> {
                 args.push(expr2type(it)?);
             }
 
-            Ok(Type::TypeData(TypeDataNode{id: tid, type_args: args, ast: expr}))
+            Ok(TypeExpr::TEData(TEDataNode{id: tid, type_args: args, ast: expr}))
         }
         _ => {
             Err(TypingErr::new("error: must be type", expr))
@@ -1019,7 +1042,7 @@ fn expr2type(expr: &parser::Expr) -> Result<Type, TypingErr> {
     }
 }
 
-fn list_types2vec_types(exprs: &LinkedList<parser::Expr>) -> Result<Vec<Type>, TypingErr> {
+fn list_types2vec_types(exprs: &LinkedList<parser::Expr>) -> Result<Vec<TypeExpr>, TypingErr> {
     let mut v = Vec::new();
     for e in exprs {
         v.push(expr2type(e)?);
@@ -1029,30 +1052,30 @@ fn list_types2vec_types(exprs: &LinkedList<parser::Expr>) -> Result<Vec<Type>, T
 }
 
 /// $EXPR := $LITERAL | $ID | $LET | $IF | $MATCH | $LIST | $TUPLE | $APPLY
-fn expr2typed_expr(expr: &parser::Expr) -> Result<TypedExpr, TypingErr> {
+fn expr2typed_expr(expr: &parser::Expr) -> Result<LangExpr, TypingErr> {
     match expr {
         parser::Expr::Num(num) => {
-            Ok(TypedExpr::LitNum(NumNode{num: *num, ast: expr}))
+            Ok(LangExpr::LitNum(NumNode{num: *num, ast: expr}))
         }
         parser::Expr::Bool(val) => {
-            Ok(TypedExpr::LitBool(BoolNode{val: *val, ast: expr}))
+            Ok(LangExpr::LitBool(BoolNode{val: *val, ast: expr}))
         }
         parser::Expr::ID(id) => {
-            Ok(TypedExpr::IDExpr(IDNode{id: id, ast: expr}))
+            Ok(LangExpr::IDExpr(IDNode{id: id, ast: expr}))
         }
         parser::Expr::List(list) => {
             let mut elms = Vec::new();
             for it in list {
                 elms.push(expr2typed_expr(it)?);
             }
-            Ok(TypedExpr::ListExpr(Exprs{exprs: elms, ast: expr}))
+            Ok(LangExpr::ListExpr(Exprs{exprs: elms, ast: expr}))
         }
         parser::Expr::Tuple(tuple) => {
             let mut elms = Vec::new();
             for it in tuple {
                 elms.push(expr2typed_expr(it)?);
             }
-            Ok(TypedExpr::TupleExpr(Exprs{exprs: elms, ast: expr}))
+            Ok(LangExpr::TupleExpr(Exprs{exprs: elms, ast: expr}))
         }
         parser::Expr::Apply(exprs) => {
             let mut iter = exprs.iter();
@@ -1077,13 +1100,13 @@ fn expr2typed_expr(expr: &parser::Expr) -> Result<TypedExpr, TypingErr> {
             for it in exprs {
                 elms.push(expr2typed_expr(it)?);
             }
-            Ok(TypedExpr::ApplyExpr(Exprs{exprs: elms, ast: expr}))
+            Ok(LangExpr::ApplyExpr(Exprs{exprs: elms, ast: expr}))
         }
     }
 }
 
 /// $IF := ( if $EXPR $EXPR $EXPR )
-fn expr2if(expr: &parser::Expr) -> Result<TypedExpr, TypingErr> {
+fn expr2if(expr: &parser::Expr) -> Result<LangExpr, TypingErr> {
     let exprs;
     match expr {
         parser::Expr::Apply(e) => {
@@ -1112,11 +1135,11 @@ fn expr2if(expr: &parser::Expr) -> Result<TypedExpr, TypingErr> {
     let then = f(iter.next(), "error: if requires then expression")?;
     let else_expr = f(iter.next(), "error: if requires else expression")?;
 
-    Ok(TypedExpr::IfExpr(Box::new(IfNode{cond_expr: cond, then_expr: then, else_expr: else_expr, ast: expr})))
+    Ok(LangExpr::IfExpr(Box::new(IfNode{cond_expr: cond, then_expr: then, else_expr: else_expr, ast: expr})))
 }
 
 /// $LET := ( let ( $DEFVAR+ ) $EXPR )
-fn expr2let(expr: &parser::Expr) -> Result<TypedExpr, TypingErr> {
+fn expr2let(expr: &parser::Expr) -> Result<LangExpr, TypingErr> {
     let exprs;
     match expr {
         parser::Expr::Apply(e) => {
@@ -1160,7 +1183,7 @@ fn expr2let(expr: &parser::Expr) -> Result<TypedExpr, TypingErr> {
         }
     }
 
-    Ok(TypedExpr::LetExpr(Box::new(LetNode{def_vars: def_vars, expr: body, ast: expr})))
+    Ok(LangExpr::LetExpr(Box::new(LetNode{def_vars: def_vars, expr: body, ast: expr})))
 }
 
 /// $LETPAT := $ID | [ $LETPAT+ ] | ($TID $LETPAT+ )
@@ -1315,7 +1338,7 @@ fn expr2case(expr: &parser::Expr) -> Result<MatchCase, TypingErr> {
 }
 
 /// $MATCH := ( match $EXPR $CASE+ )
-fn expr2match(expr: &parser::Expr) -> Result<TypedExpr, TypingErr> {
+fn expr2match(expr: &parser::Expr) -> Result<LangExpr, TypingErr> {
     match expr {
         parser::Expr::Apply(exprs) => {
             let mut iter = exprs.iter();
@@ -1337,7 +1360,7 @@ fn expr2match(expr: &parser::Expr) -> Result<TypedExpr, TypingErr> {
             }
 
             let node = MatchNode{expr: cond, cases: cases, ast: expr};
-            Ok(TypedExpr::MatchExpr(Box::new(node)))
+            Ok(LangExpr::MatchExpr(Box::new(node)))
         }
         _ => {
             Err(TypingErr::new("error: invalid match", expr))

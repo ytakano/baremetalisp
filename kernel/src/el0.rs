@@ -18,7 +18,7 @@ pub fn el0_entry() -> ! {
     (Node (Tree t) (Tree t))
     Leaf)
 
-(defun add (x y) (Pure (-> (Int Int)))
+(defun add (x y) (Pure (-> (Int Int) Int))
   (+ x y))
 ";
 
@@ -33,7 +33,7 @@ pub fn el0_entry() -> ! {
             driver::uart::puts(&msg);
 
             match semantics::exprs2context(&e) {
-                Ok(ctx) => {
+                Ok(mut ctx) => {
                     let msg = format!("Context:\n  {:#?}\n", ctx);
                     driver::uart::puts(&msg);
 
