@@ -34,15 +34,15 @@ pub fn el0_entry() -> ! {
 
             match semantics::exprs2context(&e) {
                 Ok(mut ctx) => {
-                    let msg = format!("Context:\n  {:#?}\n", ctx);
-                    driver::uart::puts(&msg);
-
                     match ctx.typing() {
                         Err(err) => {
                             let msg = format!("Typing Error:\n  {:?}\n", err);
                             driver::uart::puts(&msg);
                         }
-                        _ => {}
+                        _ => {
+                            let msg = format!("Context:\n  {:#?}\n", ctx);
+                            driver::uart::puts(&msg);
+                        }
                     }
                 }
                 Err(err) => {

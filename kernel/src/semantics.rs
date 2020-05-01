@@ -9,14 +9,24 @@ use alloc::string::{ToString, String};
 
 type ID = u64;
 
+#[derive(Debug, Clone)]
 enum Type {
     TCon(Tycon),
     TVar(ID)
 }
 
+#[derive(Debug, Clone)]
 struct Tycon {
     id: String,
     args: Vec<Type>,
+}
+
+fn ty_bool() -> Type {
+    Type::TCon(Tycon{id: "Bool".to_string(), args: Vec::new()})
+}
+
+fn ty_int() -> Type {
+    Type::TCon(Tycon{id: "Int".to_string(), args: Vec::new()})
 }
 
 #[derive(Debug)]
@@ -358,27 +368,163 @@ impl<'t> TApp<'t> for TEDataNode<'t> {
 pub struct Context<'t> {
     funs: BTreeMap<&'t str, Defun<'t>>,
     data: BTreeMap<&'t str, DataType<'t>>,
+    label2data: BTreeMap<&'t str, &'t str>,
     curr_id: ID,
 }
 
 impl<'t> Context<'t> {
     fn new(funs: BTreeMap<&'t str, Defun<'t>>, data: BTreeMap<&'t str, DataType<'t>>) -> Context<'t> {
-        Context{funs: funs, data: data, curr_id: 0}
+        Context{funs: funs,
+                data: data,
+                label2data: BTreeMap::new(),
+                curr_id: 0}
     }
 
     pub fn typing(&mut self) -> Result<(), TypingErr<'t>> {
         self.check_data_def()?;
+        self.check_label()?;
         self.check_data_rec()?;
         self.check_defun_type()?;
 
         Ok(())
     }
 
+    fn check_label(&mut self) -> Result<(), TypingErr<'t>> {
+        for (_, dt) in &self.data {
+            for mem in &dt.members {
+                if self.label2data.contains_key(mem.id.id) {
+                    let msg = format!("{:?} is multiply defined", mem.id.id);
+                    return Err(TypingErr{msg: msg, ast: mem.id.ast});
+                }
+
+                self.label2data.insert(mem.id.id, dt.name.id.id);
+            }
+        }
+
+        Ok(())
+    }
+
+    // TODO: implementing
     fn type_expr(&mut self, expr: &LangExpr<'t>) -> Type {
         match expr {
-            LangExpr::LitBool(_) => Type::TCon(Tycon{id: "Bool".to_string(), args: Vec::new()}),
-            LangExpr::LitNum(_) => Type::TCon(Tycon{id: "Int".to_string(), args: Vec::new()}),
+            LangExpr::LitBool(_) => ty_bool(),
+            LangExpr::LitNum(_) => ty_int(),
             _ => Type::TCon(Tycon{id: "Fail".to_string(), args: Vec::new()})
+        }
+    }
+
+    /// If
+    /// ```
+    /// (data (Tree t)
+    ///   (Node (Tree t) (Tree t))
+    ///   Leaf)
+    /// ```
+    /// then apply2data("Tree", vec!(Int)) returns (Tree Int)
+    fn apply2data(&self, name: &'t str, types: &Vec<Type>) -> Result<Type, String> {
+        match self.data.get(name) {
+            Some(dt) => {
+                if types.len() != dt.name.type_args.len() {
+                    let msg = format!("{:?} requires {:?} type arguments but actually passed {:?}",
+                                      name,
+                                      dt.name.type_args.len(),
+                                      types.len());
+                    return Err(msg);
+                }
+
+                Ok(Type::TCon(Tycon{id: dt.name.id.id.to_string(),
+                                    args: types.to_vec()}))
+            }
+            None => {
+                let msg = format!("{:?} is undefined", name);
+                Err(msg)
+            }
+        }
+    }
+
+    /// generate tymap for apply2type
+    fn gen_tymap(&self, name: &'t str, types: &Vec<Type>) -> Result<BTreeMap<&'t str, Type>, String> {
+        match self.data.get(name) {
+            Some(dt) => {
+                if types.len() != dt.name.type_args.len() {
+                    let msg = format!("{:?} requires {:?} type arguments but actually passed {:?}",
+                                      name,
+                                      dt.name.type_args.len(),
+                                      types.len());
+                    return Err(msg);
+                }
+
+                let mut tymap = BTreeMap::new();
+
+                for (k, v) in dt.name.type_args.iter().zip(types.iter()) {
+                    tymap.insert(k.id, v.clone());
+                }
+
+                Ok(tymap)
+            }
+            None => {
+                let msg = format!("{:?} is undefined", name);
+                Err(msg)
+            }
+        }
+    }
+
+    /// If
+    /// ```
+    /// (data (Tree t)
+    ///   (Node (Tree t) (Tree t))
+    ///   Leaf)
+    /// ```
+    /// and tymap = {T: Int} then
+    /// apply2type((Tree t), tymap) returns (Tree Int)
+    fn apply2type(&self, type_expr: &TypeExpr<'t>, tymap: &BTreeMap<&'t str, Type>) -> Result<Type, String> {
+        match type_expr {
+            TypeExpr::TEBool(_) => Ok(ty_bool()),
+            TypeExpr::TEInt(_)  => Ok(ty_int()),
+            TypeExpr::TEList(list) => {
+                let t = self.apply2type(&list.ty, tymap)?;
+                Ok(Type::TCon(Tycon{id: "List".to_string(), args: vec!(t)}))
+            }
+            TypeExpr::TETuple(tuple) => {
+                let mut v = Vec::new();
+                for t in &tuple.ty {
+                    v.push(self.apply2type(t, tymap)?);
+                }
+
+                Ok(Type::TCon(Tycon{id: "Tuple".to_string(), args: v}))
+            }
+            TypeExpr::TEFun(fun) => {
+                let mut args = Vec::new();
+                for a in &fun.args {
+                    args.push(self.apply2type(a, tymap)?);
+                }
+
+                let r = self.apply2type(&fun.ret, tymap)?;
+
+                let mut v = Vec::new();
+                v.push(Type::TCon(Tycon{id: "Tuple".to_string(), args: args}));
+                v.push(r);
+
+                Ok(Type::TCon(Tycon{id: "->".to_string(), args: v}))
+            }
+            TypeExpr::TEData(data) => {
+                let mut v = Vec::new();
+                for t in &data.type_args {
+                    v.push(self.apply2type(t, tymap)?);
+                }
+
+                Ok(Type::TCon(Tycon{id: data.id.id.to_string(), args: v}))
+            }
+            TypeExpr::TEID(id) => {
+                match tymap.get(id.id) {
+                    Some(t) => {
+                        Ok(t.clone())
+                    }
+                    None => {
+                        let msg = format!("{:?} is undefined", id.id);
+                        Err(msg)
+                    }
+                }
+            }
         }
     }
 
@@ -593,10 +739,8 @@ impl<'t> Context<'t> {
         }
 
         let mut map = BTreeMap::new();
-        let mut i = 0;
-        for it in data.type_args.iter() {
-            map.insert(dt.name.type_args[i].id, it.clone());
-            i += 1;
+        for (k, v) in dt.name.type_args.iter().zip(data.type_args.iter()) {
+            map.insert(k.id, v.clone());
         }
 
         dt.apply(&map)
