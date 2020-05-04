@@ -55,9 +55,9 @@ pub fn init(uart_clock: u64, baudrate: u64) {
 /// send a character to serial console
 pub fn send(c : u32) {
     // wait until we can send
-    unsafe { asm!("nop;") };
+    unsafe { llvm_asm!("nop;") };
     while unsafe { volatile_load(UART0_FR) } & 0x20 != 0 {
-        unsafe { asm!("nop;") };
+        unsafe { llvm_asm!("nop;") };
     }
 
     // write the character to the buffer

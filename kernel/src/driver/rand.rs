@@ -23,7 +23,7 @@ pub fn init() {
     }
 
     while (unsafe { volatile_load(RNG_STATUS) } >> 24) == 0 {
-        unsafe { asm!("nop;") };
+        unsafe { llvm_asm!("nop;") };
     }
 }
 

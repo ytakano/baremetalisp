@@ -1,7 +1,7 @@
 #![feature(core_intrinsics)]
 #![feature(lang_items)]
 #![feature(start)]
-#![feature(asm)]
+#![feature(llvm_asm)]
 #![feature(alloc_error_handler)]
 #![no_std]
 #![allow(dead_code)]

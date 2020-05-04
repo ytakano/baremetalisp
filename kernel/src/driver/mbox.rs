@@ -63,9 +63,9 @@ pub fn call(ptr: *mut u32, ch: u8) -> bool {
     let r: u32 = ((r & !0xF) | (ch as u64 & 0xF)) as u32;
 
     // wait until we can write to the mailbox
-    unsafe { asm!("nop;") };
+    unsafe { llvm_asm!("nop;") };
     while unsafe { volatile_load(MBOX0_STATUS) } & MBOX_FULL > 0 {
-        unsafe { asm!("nop;") };
+        unsafe { llvm_asm!("nop;") };
     }
 
     // write the address of our message to the mailbox with channel identifier
@@ -75,9 +75,9 @@ pub fn call(ptr: *mut u32, ch: u8) -> bool {
     let ptr1 = ((ptr as u64) + 4) as *mut u32;
     loop {
         // is there a response?
-        unsafe { asm!("nop;") };
+        unsafe { llvm_asm!("nop;") };
         while unsafe { volatile_load(MBOX0_STATUS) } & MBOX_EMPTY > 0 {
-            unsafe { asm!("nop;") };
+            unsafe { llvm_asm!("nop;") };
         }
 
         if r == unsafe { volatile_load(MBOX0_READ) } {

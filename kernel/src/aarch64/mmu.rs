@@ -45,13 +45,13 @@ pub fn enabled() -> Option<bool> {
 
     let el = el::get_current_el();
     if el == 1 {
-        unsafe { asm!("mrs $0, SCTLR_EL1" : "=r"(sctlr)) };
+        unsafe { llvm_asm!("mrs $0, SCTLR_EL1" : "=r"(sctlr)) };
         Some(sctlr & 1 == 1)
     } else if el == 2 {
-        unsafe { asm!("mrs $0, SCTLR_EL2" : "=r"(sctlr)) };
+        unsafe { llvm_asm!("mrs $0, SCTLR_EL2" : "=r"(sctlr)) };
         Some(sctlr & 1 == 1)
     } else if el == 3 {
-        unsafe { asm!("mrs $0, SCTLR_EL3" : "=r"(sctlr)) };
+        unsafe { llvm_asm!("mrs $0, SCTLR_EL3" : "=r"(sctlr)) };
         Some((sctlr & 1) == 1)
     } else {
         None
@@ -69,11 +69,11 @@ fn get_sctlr() -> u32 {
     let mut sctlr: u32 = 0;
     let el = el::get_current_el();
     if el == 1 {
-        unsafe { asm!("mrs $0, SCTLR_EL1" : "=r"(sctlr)) };
+        unsafe { llvm_asm!("mrs $0, SCTLR_EL1" : "=r"(sctlr)) };
     } else if el == 2 {
-        unsafe { asm!("mrs $0, SCTLR_EL2" : "=r"(sctlr)) };
+        unsafe { llvm_asm!("mrs $0, SCTLR_EL2" : "=r"(sctlr)) };
     } else if el == 3 {
-        unsafe { asm!("mrs $0, SCTLR_EL3" : "=r"(sctlr)) };
+        unsafe { llvm_asm!("mrs $0, SCTLR_EL3" : "=r"(sctlr)) };
     }
 
     sctlr
@@ -82,11 +82,11 @@ fn get_sctlr() -> u32 {
 fn set_sctlr(sctlr: u32) {
     let el = el::get_current_el();
     if el == 1 {
-        unsafe { asm!("msr SCTLR_EL1, $0" : : "r"(sctlr)) };
+        unsafe { llvm_asm!("msr SCTLR_EL1, $0" : : "r"(sctlr)) };
     } else if el == 2 {
-        unsafe { asm!("msr SCTLR_EL2, $0" : : "r"(sctlr)) };
+        unsafe { llvm_asm!("msr SCTLR_EL2, $0" : : "r"(sctlr)) };
     } else if el == 3 {
-        unsafe { asm!("msr SCTLR_EL3, $0" : : "r"(sctlr)) };
+        unsafe { llvm_asm!("msr SCTLR_EL3, $0" : : "r"(sctlr)) };
     }
 }
 
@@ -260,7 +260,7 @@ pub fn init() -> Option<VMTables> {
 
     // check for 64KiB granule and at least 36 bits physical address bus
     let mut mmfr: u64;
-    unsafe { asm!("mrs $0, id_aa64mmfr0_el1" : "=r" (mmfr)) };
+    unsafe { llvm_asm!("mrs $0, id_aa64mmfr0_el1" : "=r" (mmfr)) };
     let b = mmfr & 0xF;
     if b < 1 /* 36 bits */ {
         driver::uart::puts("ERROR: 36 bit address space not supported\n");
@@ -344,7 +344,7 @@ fn get_mair() -> u64 {
 /// for TCR_EL2 and TCR_EL2
 fn get_tcr() -> u64 {
     let mut mmfr: u64;
-    unsafe { asm!("mrs $0, id_aa64mmfr0_el1" : "=r" (mmfr)) };
+    unsafe { llvm_asm!("mrs $0, id_aa64mmfr0_el1" : "=r" (mmfr)) };
     let b = mmfr & 0xF;
 
     1 << 31 | // Res1
@@ -424,19 +424,19 @@ fn init_el3() -> &'static mut [u64] {
     let tt = mask_el1(tt);
 
     // first, set Memory Attributes array, indexed by PT_MEM, PT_DEV, PT_NC in our example
-    unsafe { asm!("msr mair_el3, $0" : : "r" (get_mair())) };
+    unsafe { llvm_asm!("msr mair_el3, $0" : : "r" (get_mair())) };
 
     // next, specify mapping characteristics in translate control register
-    unsafe { asm!("msr tcr_el3, $0" : : "r" (get_tcr())) };
+    unsafe { llvm_asm!("msr tcr_el3, $0" : : "r" (get_tcr())) };
 
     // tell the MMU where our translation tables are.
-    unsafe { asm!("msr ttbr0_el3, $0" : : "r" (addr + 1)) };
+    unsafe { llvm_asm!("msr ttbr0_el3, $0" : : "r" (addr + 1)) };
 
     // finally, toggle some bits in system control register to enable page translation
     let mut sctlr: u64;
-    unsafe { asm!("dsb ish; isb; mrs $0, sctlr_el3" : "=r" (sctlr)) };
+    unsafe { llvm_asm!("dsb ish; isb; mrs $0, sctlr_el3" : "=r" (sctlr)) };
     sctlr = update_sctlr(sctlr);
-    unsafe { asm!("msr sctlr_el3, $0; dsb sy; isb" : : "r" (sctlr)) };
+    unsafe { llvm_asm!("msr sctlr_el3, $0; dsb sy; isb" : : "r" (sctlr)) };
 
     tt
 }
@@ -462,19 +462,19 @@ fn init_el2() -> &'static mut [u64] {
     let tt = mask_el1(tt);
 
     // first, set Memory Attributes array, indexed by PT_MEM, PT_DEV, PT_NC in our example
-    unsafe { asm!("msr mair_el2, $0" : : "r" (get_mair())) };
+    unsafe { llvm_asm!("msr mair_el2, $0" : : "r" (get_mair())) };
 
     // next, specify mapping characteristics in translate control register
-    unsafe { asm!("msr tcr_el2, $0" : : "r" (get_tcr())) };
+    unsafe { llvm_asm!("msr tcr_el2, $0" : : "r" (get_tcr())) };
 
     // tell the MMU where our translation tables are.
-    unsafe { asm!("msr ttbr0_el2, $0" : : "r" (addr + 1)) };
+    unsafe { llvm_asm!("msr ttbr0_el2, $0" : : "r" (addr + 1)) };
 
     // finally, toggle some bits in system control register to enable page translation
     let mut sctlr: u64;
-    unsafe { asm!("dsb ish; isb; mrs $0, sctlr_el2" : "=r" (sctlr)) };
+    unsafe { llvm_asm!("dsb ish; isb; mrs $0, sctlr_el2" : "=r" (sctlr)) };
     sctlr = update_sctlr(sctlr);
-    unsafe { asm!("msr sctlr_el2, $0; dsb sy; isb" : : "r" (sctlr)) };
+    unsafe { llvm_asm!("msr sctlr_el2, $0; dsb sy; isb" : : "r" (sctlr)) };
 
     tt
 }
@@ -563,10 +563,10 @@ fn init_el1() -> &'static mut [u64] {
     //-------------------------------------------------------------------------
 
     // first, set Memory Attributes array, indexed by PT_MEM, PT_DEV, PT_NC in our example
-    unsafe { asm!("msr mair_el1, $0" : : "r" (get_mair())) };
+    unsafe { llvm_asm!("msr mair_el1, $0" : : "r" (get_mair())) };
 
     let mut mmfr: u64;
-    unsafe { asm!("mrs $0, id_aa64mmfr0_el1" : "=r" (mmfr)) };
+    unsafe { llvm_asm!("mrs $0, id_aa64mmfr0_el1" : "=r" (mmfr)) };
     let b = mmfr & 0xF;
 
     let tcr: u64 =
@@ -583,20 +583,20 @@ fn init_el1() -> &'static mut [u64] {
         22;        // T0SZ = 22, 2 levels (level 2 and 3 translation tables), 2^42B (4TiB) space
 
     // next, specify mapping characteristics in translate control register
-    unsafe { asm!("msr tcr_el1, $0" : : "r" (tcr)) };
+    unsafe { llvm_asm!("msr tcr_el1, $0" : : "r" (tcr)) };
 
     // tell the MMU where our translation tables are.
-    unsafe { asm!("msr ttbr0_el1, $0" : : "r" (ttbr0 + 1)) };
-    unsafe { asm!("msr ttbr1_el1, $0" : : "r" (ttbr1 + 1)) };
+    unsafe { llvm_asm!("msr ttbr0_el1, $0" : : "r" (ttbr0 + 1)) };
+    unsafe { llvm_asm!("msr ttbr1_el1, $0" : : "r" (ttbr1 + 1)) };
 
     // finally, toggle some bits in system control register to enable page translation
     let mut sctlr: u64;
-    unsafe { asm!("dsb ish; isb; mrs $0, sctlr_el1" : "=r" (sctlr)) };
+    unsafe { llvm_asm!("dsb ish; isb; mrs $0, sctlr_el1" : "=r" (sctlr)) };
     sctlr = update_sctlr(sctlr);
     sctlr &= !(
         1 << 4 // clear SA0
     );
-    unsafe { asm!("msr sctlr_el1, $0; dsb sy; isb" : : "r" (sctlr)) };
+    unsafe { llvm_asm!("msr sctlr_el1, $0; dsb sy; isb" : : "r" (sctlr)) };
 
     tt
 }

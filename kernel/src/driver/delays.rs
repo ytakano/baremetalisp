@@ -9,7 +9,7 @@ const SYSTMR_HI: *mut u32 = (MMIO_BASE + 0x00003008) as *mut u32;
 pub fn wait_cycles(n: u32) {
     if n > 0 {
         for _ in 0..n {
-            unsafe { asm!("nop;") };
+            unsafe { llvm_asm!("nop;") };
         }
     }
 }
@@ -18,18 +18,18 @@ pub fn wait_cycles(n: u32) {
 pub fn wait_microsec(n: u32) {
     // get the current counter frequency
     let mut frq: u64;
-    unsafe { asm!("mrs %0, cntfrq_el0" : "=r"(frq)) };
+    unsafe { llvm_asm!("mrs %0, cntfrq_el0" : "=r"(frq)) };
 
     // read the current counter
     let mut t: u64;
-    unsafe { asm!("mrs %0, cntpct_el0" : "=r"(t)) };
+    unsafe { llvm_asm!("mrs %0, cntpct_el0" : "=r"(t)) };
 
     t += ((frq / 1000) * n as u64) / 1000;
 
     let mut r: u64;
-    unsafe { asm!("mrs %0, cntpct_el0" : "=r"(r)) };
+    unsafe { llvm_asm!("mrs %0, cntpct_el0" : "=r"(r)) };
     while r < t {
-        unsafe { asm!("mrs %0, cntpct_el0" : "=r"(r)) };
+        unsafe { llvm_asm!("mrs %0, cntpct_el0" : "=r"(r)) };
     }
 }
 

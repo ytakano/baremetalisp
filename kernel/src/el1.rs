@@ -17,7 +17,7 @@ pub fn el1_entry() -> ! {
     let addr = start - size * aff as usize;
 
     unsafe {
-        asm!("
+        llvm_asm!("
              // change execution level to EL1
              mov x0, $0
              msr sp_el0, x0    // set stack pointer

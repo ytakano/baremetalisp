@@ -8,6 +8,8 @@ use alloc::boxed::Box;
 use alloc::string::{ToString, String};
 
 type ID = u64;
+type Sbst = BTreeMap<ID, Type>;
+type Constraint = LinkedList<(Type, Type)>;
 
 #[derive(Debug, Clone)]
 enum Type {
@@ -405,11 +407,11 @@ impl<'t> Context<'t> {
     }
 
     // TODO: implementing
-    fn type_expr(&mut self, expr: &LangExpr<'t>) -> Type {
+    fn type_of_expr(&mut self, expr: &LangExpr<'t>, cst: &mut Constraint) -> Result<Type, String> {
         match expr {
-            LangExpr::LitBool(_) => ty_bool(),
-            LangExpr::LitNum(_) => ty_int(),
-            _ => Type::TCon(Tycon{id: "Fail".to_string(), args: Vec::new()})
+            LangExpr::LitBool(_) => Ok(ty_bool()),
+            LangExpr::LitNum(_) => Ok(ty_int()),
+            _ => Err("not yet implemented".to_string())
         }
     }
 
@@ -419,8 +421,8 @@ impl<'t> Context<'t> {
     ///   (Node (Tree t) (Tree t))
     ///   Leaf)
     /// ```
-    /// then apply2data("Tree", vec!(Int)) returns (Tree Int)
-    fn apply2data(&self, name: &'t str, types: &Vec<Type>) -> Result<Type, String> {
+    /// then apply_types2data("Tree", vec!(Int)) returns (Tree Int)
+    fn apply_types2data(&self, name: &'t str, types: &Vec<Type>) -> Result<Type, String> {
         match self.data.get(name) {
             Some(dt) => {
                 if types.len() != dt.name.type_args.len() {
@@ -441,8 +443,14 @@ impl<'t> Context<'t> {
         }
     }
 
-    /// generate tymap for apply2type
-    fn gen_tymap(&self, name: &'t str, types: &Vec<Type>) -> Result<BTreeMap<&'t str, Type>, String> {
+    /// If
+    /// ```
+    /// (data (Tree t)
+    ///   (Node (Tree t) (Tree t))
+    ///   Leaf)
+    /// ```
+    /// then gen_tvar2type("tree", vec!(Int)) returns {t: Int}
+    fn gen_tvar2type(&self, name: &'t str, types: &Vec<Type>) -> Result<BTreeMap<&'t str, Type>, String> {
         match self.data.get(name) {
             Some(dt) => {
                 if types.len() != dt.name.type_args.len() {
@@ -475,19 +483,19 @@ impl<'t> Context<'t> {
     ///   Leaf)
     /// ```
     /// and tymap = {T: Int} then
-    /// apply2type((Tree t), tymap) returns (Tree Int)
-    fn apply2type(&self, type_expr: &TypeExpr<'t>, tymap: &BTreeMap<&'t str, Type>) -> Result<Type, String> {
+    /// apply_tymap2type((Tree t), tymap) returns (Tree Int)
+    fn apply_tymap2type(&self, type_expr: &TypeExpr<'t>, tymap: &BTreeMap<&'t str, Type>) -> Result<Type, String> {
         match type_expr {
             TypeExpr::TEBool(_) => Ok(ty_bool()),
             TypeExpr::TEInt(_)  => Ok(ty_int()),
             TypeExpr::TEList(list) => {
-                let t = self.apply2type(&list.ty, tymap)?;
+                let t = self.apply_tymap2type(&list.ty, tymap)?;
                 Ok(Type::TCon(Tycon{id: "List".to_string(), args: vec!(t)}))
             }
             TypeExpr::TETuple(tuple) => {
                 let mut v = Vec::new();
                 for t in &tuple.ty {
-                    v.push(self.apply2type(t, tymap)?);
+                    v.push(self.apply_tymap2type(t, tymap)?);
                 }
 
                 Ok(Type::TCon(Tycon{id: "Tuple".to_string(), args: v}))
@@ -495,10 +503,10 @@ impl<'t> Context<'t> {
             TypeExpr::TEFun(fun) => {
                 let mut args = Vec::new();
                 for a in &fun.args {
-                    args.push(self.apply2type(a, tymap)?);
+                    args.push(self.apply_tymap2type(a, tymap)?);
                 }
 
-                let r = self.apply2type(&fun.ret, tymap)?;
+                let r = self.apply_tymap2type(&fun.ret, tymap)?;
 
                 let mut v = Vec::new();
                 v.push(Type::TCon(Tycon{id: "Tuple".to_string(), args: args}));
@@ -509,7 +517,7 @@ impl<'t> Context<'t> {
             TypeExpr::TEData(data) => {
                 let mut v = Vec::new();
                 for t in &data.type_args {
-                    v.push(self.apply2type(t, tymap)?);
+                    v.push(self.apply_tymap2type(t, tymap)?);
                 }
 
                 Ok(Type::TCon(Tycon{id: data.id.id.to_string(), args: v}))
@@ -1510,4 +1518,107 @@ fn expr2match(expr: &parser::Expr) -> Result<LangExpr, TypingErr> {
             Err(TypingErr::new("error: invalid match", expr))
         }
     }
+}
+
+impl Type {
+    fn has_tvar(&self, id: ID) -> bool {
+        match self {
+            Type::TVar(n)  => id == *n,
+            Type::TCon(tc) => tc.has_tvar(id)
+        }
+    }
+
+    fn apply_sbst(&self, sbst: &Sbst) -> Type {
+        match self {
+            Type::TVar(n) => {
+                match sbst.get(n) {
+                    Some(t) => t.clone(),
+                    None => self.clone()
+                }
+            }
+            Type::TCon(tc) => tc.apply_sbst(sbst)
+        }
+    }
+}
+
+impl Tycon {
+    fn has_tvar(&self, id: ID) -> bool {
+        for t in &self.args {
+            if t.has_tvar(id) {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    fn apply_sbst(&self, sbst: &Sbst) -> Type {
+        let mut v = Vec::new();
+        for t in &self.args {
+            v.push(t.apply_sbst(sbst));
+        }
+
+        Type::TCon(Tycon{id: self.id.clone(), args: v})
+    }
+}
+
+fn unify(lhs: &Type, rhs: &Type) -> Option<Sbst> {
+    let mut sbst = Sbst::new();
+    match (lhs, rhs) {
+        (Type::TVar(id), Type::TVar(_)) => {
+            sbst.insert(*id, rhs.clone());
+            Some(sbst)
+        }
+        (Type::TVar(id), _) => {
+            if rhs.has_tvar(*id) {
+                return None;
+            }
+            sbst.insert(*id, lhs.clone());
+            Some(sbst)
+        }
+        (_, Type::TVar(id)) => {
+            if rhs.has_tvar(*id) {
+                return None;
+            }
+            sbst.insert(*id, lhs.clone());
+            Some(sbst)
+        }
+        (Type::TCon(ty_rhs), Type::TCon(ty_lhs)) => {
+            if ty_rhs.id != ty_lhs.id || ty_rhs.args.len() != ty_lhs.args.len() {
+                return None;
+            }
+
+            for (t1, t2) in ty_rhs.args.iter().zip(ty_lhs.args.iter()) {
+                let s = unify(&t1.apply_sbst(&sbst), &t2.apply_sbst(&sbst))?;
+                sbst = compose(&s, &sbst);
+            }
+
+            Some(sbst)
+        }
+    }
+}
+
+/// - S: substitution
+/// - x: type variable
+/// - T: type
+///
+/// S := x : T, S
+///
+/// S1・S2
+/// compose(S1, S2) = {
+///   x : T.apply_subst(S1) if x : T in S2
+///   x : T                 if x : T in S1 and x not in domain(S2)
+/// }
+fn compose(s1: &Sbst, s2: &Sbst) -> Sbst {
+    let mut sbst = Sbst::new();
+
+    for (x, t) in s2.iter() {
+        sbst.insert(*x, t.apply_sbst(s1));
+    }
+
+    for (x, t) in s1.iter() {
+        sbst.entry(*x).or_insert(t.clone());
+    }
+
+    sbst
 }

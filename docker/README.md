@@ -37,3 +37,7 @@ HOST! Use Raspberry Pi 3's kernel image.
 ```
 $ qemu-system-aarch64 -M raspi3 -kernel kernel8.img -serial stdio -d
 ```
+
+## Status of Nightly Rust
+
+https://rust-lang.github.io/rustup-components-history/aarch64-unknown-linux-gnu.html

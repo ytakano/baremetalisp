@@ -40,7 +40,7 @@ fn test_and_set(n: &mut u64) -> bool {
     let mut rd: u64;
     let addr = n as *mut u64 as u64;
     unsafe {
-        asm! (
+        llvm_asm! (
             "mov   x8, #1;
              1:
              ldaxr x9, [$1];

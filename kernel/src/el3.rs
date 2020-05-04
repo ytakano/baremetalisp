@@ -16,7 +16,7 @@ pub fn el3_to_el1() {
     let addr = start - size * aff as usize + aarch64::mmu::EL1_ADDR_OFFSET;
 
     unsafe {
-        asm!(
+        llvm_asm!(
             "mrs x0, hcr_el2
              orr x0, x0, #(1 << 31) // AArch64
              orr x0, x0, #(1 << 1)  // SWIO hardwired on Pi3
