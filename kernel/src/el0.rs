@@ -18,8 +18,8 @@ pub fn el0_entry() -> ! {
     (Node (Tree t) (Tree t))
     Leaf)
 
-(defun add (x y) (Pure (-> (Int Int) Int))
-  (+ x y))
+(defun test_if (x y) (Pure (-> (Bool Bool) Bool))
+    (if x x y))
 ";
 
     driver::uart::puts("Input:\n  ");
