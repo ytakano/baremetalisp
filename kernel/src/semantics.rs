@@ -9,7 +9,7 @@ use alloc::string::{ToString, String};
 
 type ID = u64;
 type Sbst = BTreeMap<ID, Type>;
-type Constraint = LinkedList<(Type, Type)>;
+type VarType = BTreeMap<String, Type>;
 
 #[derive(Debug, Clone)]
 enum Type {
@@ -43,7 +43,7 @@ impl<'t> TypingErr<'t> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum LangExpr<'t> {
     IfExpr(Box::<IfNode<'t>>),
     LetExpr(Box::<LetNode<'t>>),
@@ -56,13 +56,29 @@ enum LangExpr<'t> {
     TupleExpr(Exprs<'t>),
 }
 
-#[derive(Debug)]
+impl<'t> LangExpr<'t> {
+    fn get_ast(&self) -> &'t parser::Expr {
+        match self {
+            LangExpr::IfExpr(e)    => e.ast,
+            LangExpr::LetExpr(e)   => e.ast,
+            LangExpr::LitNum(e)    => e.ast,
+            LangExpr::LitBool(e)   => e.ast,
+            LangExpr::IDExpr(e)    => e.ast,
+            LangExpr::MatchExpr(e) => e.ast,
+            LangExpr::ApplyExpr(e) => e.ast,
+            LangExpr::ListExpr(e)  => e.ast,
+            LangExpr::TupleExpr(e) => e.ast,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 struct NumNode<'t> {
     num: i64,
     ast: &'t parser::Expr
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct BoolNode<'t> {
     val: bool,
     ast: &'t parser::Expr
@@ -74,56 +90,57 @@ struct IDNode<'t> {
     ast: &'t parser::Expr
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct IfNode<'t> {
     cond_expr: LangExpr<'t>,
     then_expr: LangExpr<'t>,
     else_expr: LangExpr<'t>,
-    ast: &'t parser::Expr
+    ast: &'t parser::Expr,
+    ty: Option<Type>
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum LetPat<'t> {
     LetPatID(IDNode<'t>),
     LetPatTuple(LetPatTupleNode<'t>),
     LetPatLabel(LetPatLabelNode<'t>)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct LetPatTupleNode<'t> {
     pattern: Vec::<LetPat<'t>>,
     ast: &'t parser::Expr
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct LetPatLabelNode<'t> {
     id: TIDNode<'t>,
     pattern: Vec::<LetPat<'t>>,
     ast: &'t parser::Expr
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct LetNode<'t> {
     def_vars: Vec<DefVar<'t>>,
     expr: LangExpr<'t>,
     ast: &'t parser::Expr
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct DefVar<'t> {
     pattern: LetPat<'t>,
     expr: LangExpr<'t>,
     ast: &'t parser::Expr
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct MatchNode<'t> {
     expr: LangExpr<'t>,
     cases: Vec<MatchCase<'t>>,
     ast: &'t parser::Expr
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum MatchPat<'t> {
     MatchPatNum(NumNode<'t>),
     MatchPatBool(BoolNode<'t>),
@@ -133,27 +150,27 @@ enum MatchPat<'t> {
     MatchPatElist(&'t parser::Expr),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct MatchPatTupleNode<'t> {
     pattern: Vec<MatchPat<'t>>,
     ast: &'t parser::Expr
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct MatchPatDataNode<'t> {
     ty: TIDNode<'t>,
     pattern: Vec<MatchPat<'t>>,
     ast: &'t parser::Expr
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct MatchCase<'t> {
     pattern: MatchPat<'t>,
     expr: LangExpr<'t>,
     ast: &'t parser::Expr
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Exprs<'t> {
     exprs: Vec<LangExpr<'t>>,
     ast: &'t parser::Expr
@@ -240,7 +257,7 @@ struct TEDataNode<'t> {
     ast: &'t parser::Expr
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Defun<'t> {
     id: IDNode<'t>,
     args: Vec<IDNode<'t>>,
@@ -387,6 +404,7 @@ impl<'t> Context<'t> {
         self.check_label()?;
         self.check_data_rec()?;
         self.check_defun_type()?;
+        self.typing_functions()?;
 
         Ok(())
     }
@@ -406,13 +424,73 @@ impl<'t> Context<'t> {
         Ok(())
     }
 
-    // TODO: implementing
-    fn type_of_expr(&mut self, expr: &LangExpr<'t>, cst: &mut Constraint) -> Result<Type, String> {
-        match expr {
-            LangExpr::LitBool(_) => Ok(ty_bool()),
-            LangExpr::LitNum(_) => Ok(ty_int()),
-            _ => Err("not yet implemented".to_string())
+    fn typing_functions(&mut self) -> Result<(), TypingErr<'t>> {
+        let mut funs = BTreeMap::new();
+        for (_, defun) in self.funs.iter() {
+            let defun = defun.clone();
+            let defun = self.typing_defun(defun)?;
+            funs.insert(defun.id.id, defun);
         }
+
+        self.funs = funs;
+
+        Ok(())
+    }
+
+    fn typing_defun(&self, mut defun: Defun<'t>) -> Result<Defun<'t>, TypingErr<'t>> {
+        let sbst = Sbst::new();
+
+        // TODO:
+        let mut var_type = VarType::new();
+        let (ty, sbst) = self.typing_expr(&mut defun.expr, &sbst, &mut var_type)?;
+
+        Ok(defun)
+    }
+
+    // TODO: implementing
+    fn typing_expr(&self, expr: &mut LangExpr<'t>, sbst: &Sbst, var_type: &mut VarType) -> Result<(Type, Sbst), TypingErr<'t>> {
+        match expr {
+            LangExpr::LitBool(_) => Ok((ty_bool(), Sbst::new())),
+            LangExpr::LitNum(_) => Ok((ty_int(), Sbst::new())),
+            LangExpr::IfExpr(e) => self.typing_if(e, sbst, var_type),
+            _ => Err(TypingErr::new("not yet implemented", expr.get_ast()))
+        }
+    }
+
+    fn typing_if(&self, expr: &mut IfNode<'t>, sbst: &Sbst, var_type: &mut VarType) -> Result<(Type, Sbst), TypingErr<'t>> {
+        let (ty_cond, sbst) = self.typing_expr(&mut expr.cond_expr, sbst, var_type)?;
+
+        let s1;
+        match unify(&ty_bool(), &ty_cond) {
+            Some(s) => {
+                s1 = s;
+            }
+            None => {
+                return Err(TypingErr::new("error: condition of if expression must be Bool", expr.cond_expr.get_ast()));
+            }
+        }
+
+        let sbst = compose(&s1, &sbst);
+
+        let (ty_then, sbst) = self.typing_expr(&mut expr.then_expr, &sbst, var_type)?;
+        let (ty_else, sbst) = self.typing_expr(&mut expr.else_expr, &sbst, var_type)?;
+
+        let s1;
+        match unify(&ty_then, &ty_else) {
+            Some(s) => {
+                s1 = s;
+            }
+            None => {
+                return Err(TypingErr::new("error: when (if c e1 e2), the types of e1 and e2 must be same", expr.cond_expr.get_ast()));
+            }
+        }
+
+        let sbst = compose(&s1, &sbst);
+        let ty = ty_then.apply_sbst(&sbst);
+
+        expr.ty = Some(ty.clone());
+
+        Ok((ty, sbst))
     }
 
     /// If
@@ -1287,7 +1365,7 @@ fn expr2if(expr: &parser::Expr) -> Result<LangExpr, TypingErr> {
     let then = f(iter.next(), "error: if requires then expression")?;
     let else_expr = f(iter.next(), "error: if requires else expression")?;
 
-    Ok(LangExpr::IfExpr(Box::new(IfNode{cond_expr: cond, then_expr: then, else_expr: else_expr, ast: expr})))
+    Ok(LangExpr::IfExpr(Box::new(IfNode{cond_expr: cond, then_expr: then, else_expr: else_expr, ast: expr, ty: None})))
 }
 
 /// $LET := ( let ( $DEFVAR+ ) $EXPR )
@@ -1606,8 +1684,8 @@ fn unify(lhs: &Type, rhs: &Type) -> Option<Sbst> {
 ///
 /// S1・S2
 /// compose(S1, S2) = {
-///   x : T.apply_subst(S1) if x : T in S2
-///   x : T                 if x : T in S1 and x not in domain(S2)
+///   x : T.apply_sbst(S1) if x : T in S2
+///   x : T                if x : T in S1 and x not in domain(S2)
 /// }
 fn compose(s1: &Sbst, s2: &Sbst) -> Sbst {
     let mut sbst = Sbst::new();
