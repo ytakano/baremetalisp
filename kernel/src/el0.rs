@@ -10,6 +10,13 @@ pub fn el0_entry() -> ! {
 
     let code =
 "
+(defun test_tuple (z) (Pure (-> ([Bool Int]) Bool))
+    (let (([v1 v2] z))
+        v1))
+";
+/*
+    let code =
+"
 (data (Dim2 t)
     (Dim2 t t))
 
@@ -27,8 +34,12 @@ pub fn el0_entry() -> ! {
 (defun test_let (z) (Pure (-> ((Dim2 Int)) Int))
     (let (((Dim2 n1 n2) z))
         n1))
-";
 
+(defun test_tuple (z) (Pure (-> ([Bool Int]) Int))
+    (let (([v1 v2] z))
+        v1))
+";
+*/
     driver::uart::puts("Input:\n  ");
     driver::uart::puts(code);
     driver::uart::puts("\n");

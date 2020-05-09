@@ -787,9 +787,22 @@ impl<'t> Context<'t> {
         match expr {
             LetPat::LetPatID(e)    => self.typing_let_pat_id(e, sbst, var_type, num_tv),
             LetPat::LetPatLabel(e) => self.typing_let_pat_label(e, sbst, var_type, num_tv),
-            // TODO: next
-            LetPat::LetPatTuple(_e) => Err(TypingErr::new("not yet implemented", expr.get_ast()))
+            LetPat::LetPatTuple(e) => self.typing_let_pat_tuple(e, sbst, var_type, num_tv)
         }
+    }
+
+    fn typing_let_pat_tuple(&self, expr: &mut LetPatTupleNode<'t>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'t>> {
+        let mut v = Vec::new();
+        for pat in expr.pattern.iter_mut() {
+            let (t, s) = self.typing_let_pat(pat, sbst, var_type, num_tv)?;
+            sbst = s;
+            v.push(t);
+        }
+
+        let ty = ty_tuple(v);
+        expr.ty = Some(ty.clone());
+
+        Ok((ty, sbst))
     }
 
     fn typing_let_pat_id(&self, expr: &mut IDNode<'t>, sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'t>> {
@@ -918,67 +931,6 @@ impl<'t> Context<'t> {
             }
             None => {
                 let msg = format!("error: could not find label {:?}", label);
-                Err(msg)
-            }
-        }
-    }
-
-    /// If
-    /// ```
-    /// (data (Tree t)
-    ///   (Node (Tree t) (Tree t))
-    ///   Leaf)
-    /// ```
-    /// then apply_types2data("Tree", vec!(Int)) returns (Tree Int)
-    fn apply_types2data(&self, name: &'t str, types: &Vec<Type>) -> Result<Type, String> {
-        match self.data.get(name) {
-            Some(dt) => {
-                if types.len() != dt.name.type_args.len() {
-                    let msg = format!("{:?} requires {:?} type arguments but actually passed {:?}",
-                                      name,
-                                      dt.name.type_args.len(),
-                                      types.len());
-                    return Err(msg);
-                }
-
-                Ok(Type::TCon(Tycon{id: dt.name.id.id.to_string(),
-                                    args: types.to_vec()}))
-            }
-            None => {
-                let msg = format!("{:?} is undefined", name);
-                Err(msg)
-            }
-        }
-    }
-
-    /// If
-    /// ```
-    /// (data (Tree t)
-    ///   (Node (Tree t) (Tree t))
-    ///   Leaf)
-    /// ```
-    /// then gen_tvar2type("tree", vec!(Int)) returns {t: Int}
-    fn gen_tvar2type(&self, name: &'t str, types: &Vec<Type>) -> Result<BTreeMap<&'t str, Type>, String> {
-        match self.data.get(name) {
-            Some(dt) => {
-                if types.len() != dt.name.type_args.len() {
-                    let msg = format!("{:?} requires {:?} type arguments but actually passed {:?}",
-                                      name,
-                                      dt.name.type_args.len(),
-                                      types.len());
-                    return Err(msg);
-                }
-
-                let mut tymap = BTreeMap::new();
-
-                for (k, v) in dt.name.type_args.iter().zip(types.iter()) {
-                    tymap.insert(k.id, v.clone());
-                }
-
-                Ok(tymap)
-            }
-            None => {
-                let msg = format!("{:?} is undefined", name);
                 Err(msg)
             }
         }
@@ -2077,7 +2029,7 @@ fn unify(lhs: &Type, rhs: &Type) -> Option<Sbst> {
             if rhs.has_tvar(*id) {
                 return None;
             }
-            sbst.insert(*id, lhs.clone());
+            sbst.insert(*id, rhs.clone());
             Some(sbst)
         }
         (_, Type::TVar(id)) => {
@@ -2087,12 +2039,12 @@ fn unify(lhs: &Type, rhs: &Type) -> Option<Sbst> {
             sbst.insert(*id, lhs.clone());
             Some(sbst)
         }
-        (Type::TCon(ty_rhs), Type::TCon(ty_lhs)) => {
-            if ty_rhs.id != ty_lhs.id || ty_rhs.args.len() != ty_lhs.args.len() {
+        (Type::TCon(ty_lhs), Type::TCon(ty_rhs)) => {
+            if ty_lhs.id != ty_rhs.id || ty_lhs.args.len() != ty_rhs.args.len() {
                 return None;
             }
 
-            for (t1, t2) in ty_rhs.args.iter().zip(ty_lhs.args.iter()) {
+            for (t1, t2) in ty_lhs.args.iter().zip(ty_rhs.args.iter()) {
                 let s = unify(&t1.apply_sbst(&sbst), &t2.apply_sbst(&sbst))?;
                 sbst = compose(&s, &sbst);
             }
