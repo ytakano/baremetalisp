@@ -1,4 +1,5 @@
 use crate::parser;
+use crate::driver::uart;
 
 use alloc::collections::linked_list::LinkedList;
 use alloc::collections::btree_map::BTreeMap;
@@ -47,6 +48,7 @@ fn ty_fun(args: Vec<Type>, ret: Type) -> Type {
     Type::TCon(Tycon{id: "->".to_string(), args: vec!(tuple, ret)})
 }
 
+#[derive(Debug)]
 struct VarType {
     var_stack: LinkedList<BTreeMap<String, LinkedList<Type>>>
 }
@@ -87,9 +89,16 @@ impl VarType {
     }
 
     fn get(&self, key: &String) -> Option<&Type> {
-        let m = self.var_stack.back()?;
-        let list = m.get(key)?;
-        list.back()
+        for m in self.var_stack.iter().rev() {
+            match m.get(key) {
+                Some(list) => {
+                    return list.back();
+                }
+                None => ()
+            }
+        }
+
+        None
     }
 }
 
@@ -150,12 +159,21 @@ impl<'t> LangExpr<'t> {
                 e.else_expr.apply_sbst(sbst);
                 e.ty = app(&e.ty);
             },
-            LangExpr::LetExpr(_e)   => (),
+            LangExpr::LetExpr(e) => {
+                for dv in e.def_vars.iter_mut() {
+                    dv.pattern.apply_sbst(sbst);
+                    dv.expr.apply_sbst(sbst);
+                    dv.ty = app(&dv.ty);
+                }
+                e.expr.apply_sbst(sbst);
+                e.ty = app(&e.ty);
+            },
             LangExpr::LitNum(_) => (),
             LangExpr::LitBool(_) => (),
             LangExpr::IDExpr(e) => {
                 e.ty = app(&e.ty);
             },
+            // TODO:
             LangExpr::MatchExpr(_e) => (),
             LangExpr::ApplyExpr(_e) => (),
             LangExpr::ListExpr(_e)  => (),
@@ -199,31 +217,74 @@ enum LetPat<'t> {
     LetPatLabel(LetPatLabelNode<'t>)
 }
 
+impl<'t> LetPat<'t> {
+    fn get_ast(&self) -> &'t parser::Expr {
+        match self {
+            LetPat::LetPatID(e)    => e.ast,
+            LetPat::LetPatTuple(e) => e.ast,
+            LetPat::LetPatLabel(e) => e.ast
+        }
+    }
+
+    fn apply_sbst(&mut self, sbst: &Sbst) {
+        let app = |opty: &Option<Type>| {
+            match opty {
+                Some(t) => {
+                    Some(t.apply_sbst(sbst))
+                }
+                None => None
+            }
+        };
+
+        match self {
+            LetPat::LetPatID(e) => {
+                e.ty = app(&e.ty);
+            }
+            LetPat::LetPatTuple(e) => {
+                for pat in e.pattern.iter_mut() {
+                    pat.apply_sbst(sbst);
+                }
+                e.ty = app(&e.ty);
+            }
+            LetPat::LetPatLabel(e) => {
+                for pat in e.pattern.iter_mut() {
+                    pat.apply_sbst(sbst);
+                }
+                e.ty = app(&e.ty);
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 struct LetPatTupleNode<'t> {
     pattern: Vec::<LetPat<'t>>,
-    ast: &'t parser::Expr
+    ast: &'t parser::Expr,
+    ty: Option<Type>
 }
 
 #[derive(Debug, Clone)]
 struct LetPatLabelNode<'t> {
     id: TIDNode<'t>,
     pattern: Vec::<LetPat<'t>>,
-    ast: &'t parser::Expr
+    ast: &'t parser::Expr,
+    ty: Option<Type>
 }
 
 #[derive(Debug, Clone)]
 struct LetNode<'t> {
     def_vars: Vec<DefVar<'t>>,
     expr: LangExpr<'t>,
-    ast: &'t parser::Expr
+    ast: &'t parser::Expr,
+    ty: Option<Type>
 }
 
 #[derive(Debug, Clone)]
 struct DefVar<'t> {
     pattern: LetPat<'t>,
     expr: LangExpr<'t>,
-    ast: &'t parser::Expr
+    ast: &'t parser::Expr,
+    ty: Option<Type>
 }
 
 #[derive(Debug, Clone)]
@@ -582,7 +643,7 @@ impl<'t> Context<'t> {
 
         // infer type of the expression
         let sbst = Sbst::new();
-        let (ret, sbst) = self.typing_expr(&mut defun.expr, sbst, &mut var_type, num_tv)?;
+        let (ret, sbst) = self.typing_expr(&mut defun.expr, sbst, &mut var_type, &mut num_tv)?;
 
         let args = args_orig.iter().into_iter().map(|x| x.apply_sbst(&sbst)).collect();
 
@@ -614,16 +675,20 @@ impl<'t> Context<'t> {
             arg.ty = Some(ty.apply_sbst(&sbst));
         }
 
+        let msg = format!("typing_defun: sbst = {:?}\n", sbst);
+        uart::puts(&msg);
+
         Ok(defun)
     }
 
     // TODO: implementing
-    fn typing_expr(&self, expr: &mut LangExpr<'t>, sbst: Sbst, var_type: &mut VarType, num_tv: ID) -> Result<(Type, Sbst), TypingErr<'t>> {
+    fn typing_expr(&self, expr: &mut LangExpr<'t>, sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'t>> {
         match expr {
             LangExpr::LitBool(_) => Ok((ty_bool(), Sbst::new())),
-            LangExpr::LitNum(_) => Ok((ty_int(), Sbst::new())),
-            LangExpr::IfExpr(e) => self.typing_if(e, sbst, var_type, num_tv),
-            LangExpr::IDExpr(e) => self.typing_var(e, sbst, var_type),
+            LangExpr::LitNum(_)  => Ok((ty_int(), Sbst::new())),
+            LangExpr::IfExpr(e)  => self.typing_if(e, sbst, var_type, num_tv),
+            LangExpr::IDExpr(e)  => self.typing_var(e, sbst, var_type),
+            LangExpr::LetExpr(e) => self.typing_let(e, sbst, var_type, num_tv),
             _ => Err(TypingErr::new("not yet implemented", expr.get_ast()))
         }
     }
@@ -636,7 +701,7 @@ impl<'t> Context<'t> {
             }
             None => {
                 // TODO: look up function
-                let msg = format!("error: {:?} is not defined", expr.id);
+                let msg = format!("error: {:?} is not defined\n{:?}", expr.id, var_type);
                 return Err(TypingErr{msg: msg, ast: expr.ast});
             }
         }
@@ -646,7 +711,7 @@ impl<'t> Context<'t> {
         Ok((ty, sbst))
     }
 
-    fn typing_if(&self, expr: &mut IfNode<'t>, sbst: Sbst, var_type: &mut VarType, num_tv: ID) -> Result<(Type, Sbst), TypingErr<'t>> {
+    fn typing_if(&self, expr: &mut IfNode<'t>, sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'t>> {
         // condition
         let (ty_cond, sbst) = self.typing_expr(&mut expr.cond_expr, sbst, var_type, num_tv)?;
 
@@ -686,6 +751,176 @@ impl<'t> Context<'t> {
         expr.ty = Some(ty.clone());
 
         Ok((ty, sbst))
+    }
+
+    fn typing_let(&self, expr: &mut LetNode<'t>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'t>> {
+        var_type.push();
+
+        for dv in expr.def_vars.iter_mut() {
+            let (t1, s) = self.typing_expr(&mut dv.expr, sbst, var_type, num_tv)?;
+            let (t2, s) = self.typing_let_pat(&mut dv.pattern, s, var_type, num_tv)?;
+            sbst = s;
+
+            let s1;
+            match unify(&t1, &t2) {
+                Some(s) => {
+                    s1 = s;
+                }
+                None => {
+                    let msg = format!("error: mismatched type\n   left: {:?}\n  right: {:?}", t2, t1);
+                    return Err(TypingErr{msg: msg, ast: dv.ast});
+                }
+            }
+            sbst = compose(&s1, &sbst);
+            dv.ty = Some(t1.apply_sbst(&sbst));
+        }
+
+        let r = self.typing_expr(&mut expr.expr, sbst, var_type, num_tv)?;
+
+        var_type.pop();
+        expr.ty = Some(r.0.clone());
+
+        Ok(r)
+    }
+
+    fn typing_let_pat(&self, expr: &mut LetPat<'t>, sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'t>> {
+        match expr {
+            LetPat::LetPatID(e)    => self.typing_let_pat_id(e, sbst, var_type, num_tv),
+            LetPat::LetPatLabel(e) => self.typing_let_pat_label(e, sbst, var_type, num_tv),
+            // TODO: next
+            LetPat::LetPatTuple(_e) => Err(TypingErr::new("not yet implemented", expr.get_ast()))
+        }
+    }
+
+    fn typing_let_pat_id(&self, expr: &mut IDNode<'t>, sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'t>> {
+        // generate new type variable (internal representation)
+        let ty = ty_var(*num_tv);
+        *num_tv += 1;
+        expr.ty = Some(ty.clone());
+
+        if expr.id != "_" {
+            var_type.insert(expr.id.to_string(), ty.clone());
+        }
+
+        Ok((ty, sbst))
+    }
+
+    fn typing_let_pat_label(&self, expr: &mut LetPatLabelNode<'t>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'t>> {
+        // get the type of label and the types of label's elements
+        let data_type;   // type of label
+        let label_types; // types of label's elements
+        match self.get_type_of_label(expr.id.id, num_tv) {
+            Ok((t, m)) => {
+                data_type = t;
+                label_types = m;
+            }
+            Err(msg) => {
+                return Err(TypingErr{msg: msg, ast: expr.ast});
+            }
+        }
+
+        // check the number of arguments
+        if label_types.len() != expr.pattern.len() {
+            let msg = format!("error: {:?} requires exactly {:?} arguments but actually passed {:?}", expr.id.id, label_types.len(), expr.pattern.len());
+            return Err(TypingErr{msg: msg, ast: expr.ast});
+        }
+
+        // check type of each element
+        for (pat, lt) in expr.pattern.iter_mut().zip(label_types.iter()) {
+            let r = self.typing_let_pat(pat, sbst, var_type, num_tv)?;
+            sbst = r.1;
+            let lt = lt.apply_sbst(&sbst);
+            let s1;
+            match unify(&lt, &r.0) {
+                Some(s) => {
+                    s1 = s;
+                }
+                None => {
+                    let msg = format!("error: mismatched type\n  expected: {:?}\n    actual: {:?}", lt, r.0);
+                    return Err(TypingErr{msg: msg, ast: pat.get_ast()});
+                }
+            }
+            sbst = compose(&s1, &sbst);
+        }
+
+        expr.ty = Some(data_type.clone());
+
+        Ok((data_type, sbst))
+    }
+
+    /// If
+    /// ```
+    /// (data (Tree t)
+    ///   (Node (Tree t) (Tree t))
+    ///   Leaf)
+    /// ```
+    /// then get_type_of_label("Node", 2)
+    /// returns Ok((Tree (TVar 2)), vec!((Tree (TVar 2)), ((Tree (TVar 2))))
+    fn get_type_of_label(&self, label: &'t str, num_tv: &mut ID) -> Result<(Type, Vec<Type>), String> {
+        // find the name of data of the label
+        let data_name;
+        match self.label2data.get(label) {
+            Some(n) => {
+                data_name = n;
+            }
+            None => {
+                let msg = format!("error: {:?} is not defined", label);
+                return Err(msg);
+            }
+        }
+
+        // find corresponding data
+        let data_node;
+        match self.data.get(data_name) {
+            Some(n) => {
+                data_node = n;
+            }
+            None => {
+                let msg = format!("error: could not find data of label {:?}", label);
+                return Err(msg);
+            }
+        }
+
+        // get the type of the data
+        let mut types = Vec::new();
+        for i in 0..data_node.name.type_args.len() {
+            types.push(ty_var(i as ID + *num_tv));
+            *num_tv += 1;
+        }
+
+        // generate a map from type variable to type
+        let mut tv2type = BTreeMap::new();
+        for (k, v) in data_node.name.type_args.iter().zip(types.iter()) {
+            tv2type.insert(k.id, v.clone());
+        }
+
+        // find corresponding member
+        let mut mem = None;
+        for m in &data_node.members {
+            if m.id.id == label {
+                mem = Some(m);
+                break;
+            }
+        }
+
+        // return type of label and label's type
+        match mem {
+            Some(mem) => {
+                let mut label_types = Vec::new();
+                for t in &mem.types {
+                    label_types.push(self.apply_tv2type_to_type_expr(t, &tv2type)?);
+                }
+
+                // the type of the data
+                let data_type = Type::TCon(Tycon{id: data_name.to_string(), args: types});
+
+                Ok((data_type, label_types))
+            }
+            None => {
+                let msg = format!("error: could not find label {:?}", label);
+                Err(msg)
+            }
+        }
     }
 
     /// If
@@ -755,46 +990,46 @@ impl<'t> Context<'t> {
     ///   (Node (Tree t) (Tree t))
     ///   Leaf)
     /// ```
-    /// and tymap = {T: Int} then
-    /// apply_tymap2type((Tree t), tymap) returns (Tree Int)
-    fn apply_tymap2type(&self, type_expr: &TypeExpr<'t>, tymap: &BTreeMap<&'t str, Type>) -> Result<Type, String> {
+    /// and tv2type = {t: Int} then
+    /// apply_tv2type_to_type_expr((Tree t), tv2type) returns (Tree Int)
+    fn apply_tv2type_to_type_expr(&self, type_expr: &TypeExpr<'t>, tv2type: &BTreeMap<&'t str, Type>) -> Result<Type, String> {
         match type_expr {
             TypeExpr::TEBool(_) => Ok(ty_bool()),
             TypeExpr::TEInt(_)  => Ok(ty_int()),
             TypeExpr::TEList(list) => {
-                let t = self.apply_tymap2type(&list.ty, tymap)?;
+                let t = self.apply_tv2type_to_type_expr(&list.ty, tv2type)?;
                 Ok(ty_list(t))
             }
             TypeExpr::TETuple(tuple) => {
                 let mut v = Vec::new();
                 for t in &tuple.ty {
-                    v.push(self.apply_tymap2type(t, tymap)?);
+                    v.push(self.apply_tv2type_to_type_expr(t, tv2type)?);
                 }
                 Ok(ty_tuple(v))
             }
             TypeExpr::TEFun(fun) => {
                 let mut args = Vec::new();
                 for a in &fun.args {
-                    args.push(self.apply_tymap2type(a, tymap)?);
+                    args.push(self.apply_tv2type_to_type_expr(a, tv2type)?);
                 }
-                let r = self.apply_tymap2type(&fun.ret, tymap)?;
+                let r = self.apply_tv2type_to_type_expr(&fun.ret, tv2type)?;
                 Ok(ty_fun(args, r))
             }
             TypeExpr::TEData(data) => {
                 let mut v = Vec::new();
                 for t in &data.type_args {
-                    v.push(self.apply_tymap2type(t, tymap)?);
+                    v.push(self.apply_tv2type_to_type_expr(t, tv2type)?);
                 }
 
                 Ok(Type::TCon(Tycon{id: data.id.id.to_string(), args: v}))
             }
             TypeExpr::TEID(id) => {
-                match tymap.get(id.id) {
+                match tv2type.get(id.id) {
                     Some(t) => {
                         Ok(t.clone())
                     }
                     None => {
-                        let msg = format!("{:?} is undefined", id.id);
+                        let msg = format!("type variable {:?} is undefined", id.id);
                         Err(msg)
                     }
                 }
@@ -1602,7 +1837,7 @@ fn expr2let(expr: &parser::Expr) -> Result<LangExpr, TypingErr> {
         }
     }
 
-    Ok(LangExpr::LetExpr(Box::new(LetNode{def_vars: def_vars, expr: body, ast: expr})))
+    Ok(LangExpr::LetExpr(Box::new(LetNode{def_vars: def_vars, expr: body, ast: expr, ty: None})))
 }
 
 /// $LETPAT := $ID | [ $LETPAT+ ] | ($TID $LETPAT+ )
@@ -1628,7 +1863,7 @@ fn expr2letpat(expr: &parser::Expr) -> Result<LetPat, TypingErr> {
                 pattern.push(expr2letpat(it)?);
             }
 
-            Ok(LetPat::LetPatTuple(LetPatTupleNode{pattern: pattern, ast: expr}))
+            Ok(LetPat::LetPatTuple(LetPatTupleNode{pattern: pattern, ast: expr, ty: None}))
         }
         parser::Expr::Apply(exprs) => {
             // ($TID $LETPAT+ )
@@ -1644,7 +1879,7 @@ fn expr2letpat(expr: &parser::Expr) -> Result<LetPat, TypingErr> {
                 v.push(expr2letpat(it)?);
             }
 
-            Ok(LetPat::LetPatLabel(LetPatLabelNode{id: tid, pattern: v, ast: expr}))
+            Ok(LetPat::LetPatLabel(LetPatLabelNode{id: tid, pattern: v, ast: expr, ty: None}))
         }
         _ => {
             Err(TypingErr::new("error: invalid pattern", expr))
@@ -1665,7 +1900,7 @@ fn expr2def_vars(expr: &parser::Expr) -> Result<DefVar, TypingErr> {
             let pattern = expr2letpat(iter.next().unwrap())?;  // $LETPAT
             let body = expr2typed_expr(iter.next().unwrap())?; // $EXPR
 
-            Ok(DefVar{pattern: pattern, expr: body, ast: expr})
+            Ok(DefVar{pattern: pattern, expr: body, ast: expr, ty: None})
         }
         _ => {
             Err(TypingErr::new("must be variable definition(s)", expr))
@@ -1832,8 +2067,10 @@ impl Tycon {
 fn unify(lhs: &Type, rhs: &Type) -> Option<Sbst> {
     let mut sbst = Sbst::new();
     match (lhs, rhs) {
-        (Type::TVar(id), Type::TVar(_)) => {
-            sbst.insert(*id, rhs.clone());
+        (Type::TVar(id1), Type::TVar(id2)) => {
+            if id1 != id2 {
+                sbst.insert(*id1, rhs.clone());
+            }
             Some(sbst)
         }
         (Type::TVar(id), _) => {

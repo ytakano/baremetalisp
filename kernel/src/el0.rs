@@ -10,6 +10,9 @@ pub fn el0_entry() -> ! {
 
     let code =
 "
+(data (Dim2 t)
+    (Dim2 t t))
+
 (data (Maybe t)
     (Just t)
     Nothing)
@@ -20,6 +23,10 @@ pub fn el0_entry() -> ! {
 
 (defun test_if (x y) (Pure (-> (Bool Bool) Bool))
     (if x x y))
+
+(defun test_let (z) (Pure (-> ((Dim2 Int)) Int))
+    (let (((Dim2 n1 n2) z))
+        n1))
 ";
 
     driver::uart::puts("Input:\n  ");
