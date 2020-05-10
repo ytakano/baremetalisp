@@ -98,9 +98,6 @@ example:
 
 ## Built-in Functions
 
-- cons: (Pure (-> (T '(T)) '(T)))
-- car: (Pure (-> ('(T)) (Maybe T)))
-- cdr: (Pure (-> ('(T)) (Maybe '(T))))
 - nth: (Pure (-> (Int \[T\]) (Maybe T)))
 - nth: (Pure (-> (Int '(T)) (Maybe T)))
 - +, -, *, /, %: (Pure (-> (Int Int) Int))

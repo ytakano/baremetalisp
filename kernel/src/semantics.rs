@@ -211,18 +211,47 @@ struct IfNode<'t> {
 }
 
 #[derive(Debug, Clone)]
-enum LetPat<'t> {
-    LetPatID(IDNode<'t>),
-    LetPatTuple(LetPatTupleNode<'t>),
-    LetPatLabel(LetPatLabelNode<'t>)
+struct LetNode<'t> {
+    def_vars: Vec<DefVar<'t>>,
+    expr: LangExpr<'t>,
+    ast: &'t parser::Expr,
+    ty: Option<Type>
 }
 
-impl<'t> LetPat<'t> {
+#[derive(Debug, Clone)]
+struct DefVar<'t> {
+    pattern: Pattern<'t>,
+    expr: LangExpr<'t>,
+    ast: &'t parser::Expr,
+    ty: Option<Type>
+}
+
+#[derive(Debug, Clone)]
+struct MatchNode<'t> {
+    expr: LangExpr<'t>,
+    cases: Vec<MatchCase<'t>>,
+    ast: &'t parser::Expr
+}
+
+#[derive(Debug, Clone)]
+enum Pattern<'t> {
+    PatNum(NumNode<'t>),
+    PatBool(BoolNode<'t>),
+    PatID(IDNode<'t>),
+    PatTuple(PatTupleNode<'t>),
+    PatData(PatDataNode<'t>),
+    PatNil(PatNilNode<'t>),
+}
+
+impl<'t> Pattern<'t> {
     fn get_ast(&self) -> &'t parser::Expr {
         match self {
-            LetPat::LetPatID(e)    => e.ast,
-            LetPat::LetPatTuple(e) => e.ast,
-            LetPat::LetPatLabel(e) => e.ast
+            Pattern::PatNum(e)   => e.ast,
+            Pattern::PatBool(e)  => e.ast,
+            Pattern::PatID(e)    => e.ast,
+            Pattern::PatTuple(e) => e.ast,
+            Pattern::PatData(e)  => e.ast,
+            Pattern::PatNil(e)   => e.ast,
         }
     }
 
@@ -237,89 +266,53 @@ impl<'t> LetPat<'t> {
         };
 
         match self {
-            LetPat::LetPatID(e) => {
+            Pattern::PatID(e) => {
                 e.ty = app(&e.ty);
             }
-            LetPat::LetPatTuple(e) => {
+            Pattern::PatTuple(e) => {
                 for pat in e.pattern.iter_mut() {
                     pat.apply_sbst(sbst);
                 }
                 e.ty = app(&e.ty);
             }
-            LetPat::LetPatLabel(e) => {
+            Pattern::PatData(e) => {
                 for pat in e.pattern.iter_mut() {
                     pat.apply_sbst(sbst);
                 }
                 e.ty = app(&e.ty);
             }
+            Pattern::PatNil(e) => {
+                e.ty = app(&e.ty);
+            }
+            _ => (),
         }
     }
 }
 
 #[derive(Debug, Clone)]
-struct LetPatTupleNode<'t> {
-    pattern: Vec::<LetPat<'t>>,
+struct PatTupleNode<'t> {
+    pattern: Vec<Pattern<'t>>,
     ast: &'t parser::Expr,
     ty: Option<Type>
 }
 
 #[derive(Debug, Clone)]
-struct LetPatLabelNode<'t> {
-    id: TIDNode<'t>,
-    pattern: Vec::<LetPat<'t>>,
+struct PatDataNode<'t> {
+    label: TIDNode<'t>,
+    pattern: Vec<Pattern<'t>>,
     ast: &'t parser::Expr,
     ty: Option<Type>
 }
 
 #[derive(Debug, Clone)]
-struct LetNode<'t> {
-    def_vars: Vec<DefVar<'t>>,
-    expr: LangExpr<'t>,
+struct PatNilNode<'t> {
     ast: &'t parser::Expr,
     ty: Option<Type>
-}
-
-#[derive(Debug, Clone)]
-struct DefVar<'t> {
-    pattern: LetPat<'t>,
-    expr: LangExpr<'t>,
-    ast: &'t parser::Expr,
-    ty: Option<Type>
-}
-
-#[derive(Debug, Clone)]
-struct MatchNode<'t> {
-    expr: LangExpr<'t>,
-    cases: Vec<MatchCase<'t>>,
-    ast: &'t parser::Expr
-}
-
-#[derive(Debug, Clone)]
-enum MatchPat<'t> {
-    MatchPatNum(NumNode<'t>),
-    MatchPatBool(BoolNode<'t>),
-    MatchPatID(IDNode<'t>),
-    MatchPatTuple(MatchPatTupleNode<'t>),
-    MatchPatData(MatchPatDataNode<'t>),
-    MatchPatElist(&'t parser::Expr),
-}
-
-#[derive(Debug, Clone)]
-struct MatchPatTupleNode<'t> {
-    pattern: Vec<MatchPat<'t>>,
-    ast: &'t parser::Expr
-}
-
-#[derive(Debug, Clone)]
-struct MatchPatDataNode<'t> {
-    ty: TIDNode<'t>,
-    pattern: Vec<MatchPat<'t>>,
-    ast: &'t parser::Expr
 }
 
 #[derive(Debug, Clone)]
 struct MatchCase<'t> {
-    pattern: MatchPat<'t>,
+    pattern: Pattern<'t>,
     expr: LangExpr<'t>,
     ast: &'t parser::Expr
 }
@@ -758,7 +751,7 @@ impl<'t> Context<'t> {
 
         for dv in expr.def_vars.iter_mut() {
             let (t1, s) = self.typing_expr(&mut dv.expr, sbst, var_type, num_tv)?;
-            let (t2, s) = self.typing_let_pat(&mut dv.pattern, s, var_type, num_tv)?;
+            let (t2, s) = self.typing_pat(&mut dv.pattern, s, var_type, num_tv)?;
             sbst = s;
 
             let s1;
@@ -783,18 +776,21 @@ impl<'t> Context<'t> {
         Ok(r)
     }
 
-    fn typing_let_pat(&self, expr: &mut LetPat<'t>, sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'t>> {
+    fn typing_pat(&self, expr: &mut Pattern<'t>, sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'t>> {
         match expr {
-            LetPat::LetPatID(e)    => self.typing_let_pat_id(e, sbst, var_type, num_tv),
-            LetPat::LetPatLabel(e) => self.typing_let_pat_label(e, sbst, var_type, num_tv),
-            LetPat::LetPatTuple(e) => self.typing_let_pat_tuple(e, sbst, var_type, num_tv)
+            Pattern::PatBool(_)  => Ok((ty_bool(), sbst)),
+            Pattern::PatNum(_)   => Ok((ty_int(), sbst)),
+            Pattern::PatID(e)    => self.typing_pat_id(e, sbst, var_type, num_tv),
+            Pattern::PatData(e)  => self.typing_pat_data(e, sbst, var_type, num_tv),
+            Pattern::PatTuple(e) => self.typing_pat_tuple(e, sbst, var_type, num_tv),
+            Pattern::PatNil(e)   => self.typing_pat_nil(e, sbst, num_tv),
         }
     }
 
-    fn typing_let_pat_tuple(&self, expr: &mut LetPatTupleNode<'t>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'t>> {
+    fn typing_pat_tuple(&self, expr: &mut PatTupleNode<'t>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'t>> {
         let mut v = Vec::new();
         for pat in expr.pattern.iter_mut() {
-            let (t, s) = self.typing_let_pat(pat, sbst, var_type, num_tv)?;
+            let (t, s) = self.typing_pat(pat, sbst, var_type, num_tv)?;
             sbst = s;
             v.push(t);
         }
@@ -805,7 +801,7 @@ impl<'t> Context<'t> {
         Ok((ty, sbst))
     }
 
-    fn typing_let_pat_id(&self, expr: &mut IDNode<'t>, sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'t>> {
+    fn typing_pat_id(&self, expr: &mut IDNode<'t>, sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'t>> {
         // generate new type variable (internal representation)
         let ty = ty_var(*num_tv);
         *num_tv += 1;
@@ -818,11 +814,11 @@ impl<'t> Context<'t> {
         Ok((ty, sbst))
     }
 
-    fn typing_let_pat_label(&self, expr: &mut LetPatLabelNode<'t>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'t>> {
+    fn typing_pat_data(&self, expr: &mut PatDataNode<'t>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'t>> {
         // get the type of label and the types of label's elements
         let data_type;   // type of label
         let label_types; // types of label's elements
-        match self.get_type_of_label(expr.id.id, num_tv) {
+        match self.get_type_of_label(expr.label.id, num_tv) {
             Ok((t, m)) => {
                 data_type = t;
                 label_types = m;
@@ -834,13 +830,13 @@ impl<'t> Context<'t> {
 
         // check the number of arguments
         if label_types.len() != expr.pattern.len() {
-            let msg = format!("error: {:?} requires exactly {:?} arguments but actually passed {:?}", expr.id.id, label_types.len(), expr.pattern.len());
+            let msg = format!("error: {:?} requires exactly {:?} arguments but actually passed {:?}", expr.label.id, label_types.len(), expr.pattern.len());
             return Err(TypingErr{msg: msg, ast: expr.ast});
         }
 
         // check type of each element
         for (pat, lt) in expr.pattern.iter_mut().zip(label_types.iter()) {
-            let r = self.typing_let_pat(pat, sbst, var_type, num_tv)?;
+            let r = self.typing_pat(pat, sbst, var_type, num_tv)?;
             sbst = r.1;
             let lt = lt.apply_sbst(&sbst);
             let s1;
@@ -859,6 +855,14 @@ impl<'t> Context<'t> {
         expr.ty = Some(data_type.clone());
 
         Ok((data_type, sbst))
+    }
+
+    fn typing_pat_nil(&self, expr: &mut PatNilNode<'t>, sbst: Sbst, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'t>> {
+        let tv = ty_var(*num_tv);
+        *num_tv += 1;
+        let ty = ty_list(tv);
+        expr.ty = Some(ty.clone());
+        Ok((ty, sbst))
     }
 
     /// If
@@ -1793,7 +1797,7 @@ fn expr2let(expr: &parser::Expr) -> Result<LangExpr, TypingErr> {
 }
 
 /// $LETPAT := $ID | [ $LETPAT+ ] | ($TID $LETPAT+ )
-fn expr2letpat(expr: &parser::Expr) -> Result<LetPat, TypingErr> {
+fn expr2letpat(expr: &parser::Expr) -> Result<Pattern, TypingErr> {
     match expr {
         parser::Expr::ID(id) => {
             // $ID
@@ -1801,7 +1805,7 @@ fn expr2letpat(expr: &parser::Expr) -> Result<LetPat, TypingErr> {
             if 'A' <= c && c <= 'Z' {
                 Err(TypingErr::new("error: invalid pattern", expr))
             } else {
-                Ok(LetPat::LetPatID(IDNode{id: id, ast: expr, ty: None}))
+                Ok(Pattern::PatID(IDNode{id: id, ast: expr, ty: None}))
             }
         }
         parser::Expr::Tuple(tuple) => {
@@ -1815,7 +1819,7 @@ fn expr2letpat(expr: &parser::Expr) -> Result<LetPat, TypingErr> {
                 pattern.push(expr2letpat(it)?);
             }
 
-            Ok(LetPat::LetPatTuple(LetPatTupleNode{pattern: pattern, ast: expr, ty: None}))
+            Ok(Pattern::PatTuple(PatTupleNode{pattern: pattern, ast: expr, ty: None}))
         }
         parser::Expr::Apply(exprs) => {
             // ($TID $LETPAT+ )
@@ -1831,7 +1835,7 @@ fn expr2letpat(expr: &parser::Expr) -> Result<LetPat, TypingErr> {
                 v.push(expr2letpat(it)?);
             }
 
-            Ok(LetPat::LetPatLabel(LetPatLabelNode{id: tid, pattern: v, ast: expr, ty: None}))
+            Ok(Pattern::PatData(PatDataNode{label: tid, pattern: v, ast: expr, ty: None}))
         }
         _ => {
             Err(TypingErr::new("error: invalid pattern", expr))
@@ -1861,27 +1865,27 @@ fn expr2def_vars(expr: &parser::Expr) -> Result<DefVar, TypingErr> {
 }
 
 /// $PATTERN := $LITERAL | $ID | $TID | [ $PATTERN+ ] | ( $TID $PATTERN* ) | '()
-fn expr2mpat(expr: &parser::Expr) -> Result<MatchPat, TypingErr> {
+fn expr2mpat(expr: &parser::Expr) -> Result<Pattern, TypingErr> {
     match expr {
         parser::Expr::ID(id) => {
             let c = id.chars().nth(0).unwrap();
             if 'A' <= c && c <= 'Z' {
                 // $TID
                 let tid = expr2type_id(expr)?;
-                Ok(MatchPat::MatchPatData(MatchPatDataNode{ty: tid, pattern: Vec::new(), ast: expr}))
+                Ok(Pattern::PatData(PatDataNode{label: tid, pattern: Vec::new(), ast: expr, ty: None}))
             } else {
                 // $ID
                 let id_node = expr2id(expr)?;
-                Ok(MatchPat::MatchPatID(id_node))
+                Ok(Pattern::PatID(id_node))
             }
         }
         parser::Expr::Bool(val) => {
             // $LITERAL
-            Ok(MatchPat::MatchPatBool(BoolNode{val: *val, ast: expr}))
+            Ok(Pattern::PatBool(BoolNode{val: *val, ast: expr}))
         }
         parser::Expr::Num(num) => {
             // $LITERAL
-            Ok(MatchPat::MatchPatNum(NumNode{num: *num, ast: expr}))
+            Ok(Pattern::PatNum(NumNode{num: *num, ast: expr}))
         }
         parser::Expr::Tuple(exprs) => {
             // [ $PATTERN+ ]
@@ -1890,7 +1894,7 @@ fn expr2mpat(expr: &parser::Expr) -> Result<MatchPat, TypingErr> {
                 pattern.push(expr2mpat(it)?);
             }
 
-            Ok(MatchPat::MatchPatTuple(MatchPatTupleNode{pattern: pattern, ast: expr}))
+            Ok(Pattern::PatTuple(PatTupleNode{pattern: pattern, ast: expr, ty: None}))
         }
         parser::Expr::Apply(exprs) => {
             // ( $TID $PATTERN* )
@@ -1911,14 +1915,14 @@ fn expr2mpat(expr: &parser::Expr) -> Result<MatchPat, TypingErr> {
                 pattern.push(expr2mpat(it)?);
             }
 
-            Ok(MatchPat::MatchPatData(MatchPatDataNode{ty: tid, pattern: pattern, ast: expr}))
+            Ok(Pattern::PatData(PatDataNode{label: tid, pattern: pattern, ast: expr, ty: None}))
         }
         parser::Expr::List(list) => {
             if list.len() > 0 {
                 return Err(TypingErr::new("error: list pattern is not supported", expr));
             }
 
-            Ok(MatchPat::MatchPatElist(expr))
+            Ok(Pattern::PatNil(PatNilNode{ast: expr, ty: None}))
         }
     }
 }
