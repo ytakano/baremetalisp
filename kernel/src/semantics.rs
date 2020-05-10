@@ -173,8 +173,15 @@ impl<'t> LangExpr<'t> {
             LangExpr::IDExpr(e) => {
                 e.ty = app(&e.ty);
             },
+            LangExpr::MatchExpr(e) => {
+                e.expr.apply_sbst(sbst);
+                for cs in e.cases.iter_mut() {
+                    cs.pattern.apply_sbst(sbst);
+                    cs.expr.apply_sbst(sbst);
+                    cs.ty = app(&cs.ty);
+                }
+            },
             // TODO:
-            LangExpr::MatchExpr(_e) => (),
             LangExpr::ApplyExpr(_e) => (),
             LangExpr::ListExpr(_e)  => (),
             LangExpr::TupleExpr(_e) => (),
@@ -230,7 +237,8 @@ struct DefVar<'t> {
 struct MatchNode<'t> {
     expr: LangExpr<'t>,
     cases: Vec<MatchCase<'t>>,
-    ast: &'t parser::Expr
+    ast: &'t parser::Expr,
+    ty: Option<Type>
 }
 
 #[derive(Debug, Clone)]
@@ -314,7 +322,8 @@ struct PatNilNode<'t> {
 struct MatchCase<'t> {
     pattern: Pattern<'t>,
     expr: LangExpr<'t>,
-    ast: &'t parser::Expr
+    ast: &'t parser::Expr,
+    ty: Option<Type>
 }
 
 #[derive(Debug, Clone)]
@@ -677,13 +686,94 @@ impl<'t> Context<'t> {
     // TODO: implementing
     fn typing_expr(&self, expr: &mut LangExpr<'t>, sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'t>> {
         match expr {
-            LangExpr::LitBool(_) => Ok((ty_bool(), Sbst::new())),
-            LangExpr::LitNum(_)  => Ok((ty_int(), Sbst::new())),
-            LangExpr::IfExpr(e)  => self.typing_if(e, sbst, var_type, num_tv),
-            LangExpr::IDExpr(e)  => self.typing_var(e, sbst, var_type),
-            LangExpr::LetExpr(e) => self.typing_let(e, sbst, var_type, num_tv),
+            LangExpr::LitBool(_)   => Ok((ty_bool(), sbst)),
+            LangExpr::LitNum(_)    => Ok((ty_int(), sbst)),
+            LangExpr::IfExpr(e)    => self.typing_if(e, sbst, var_type, num_tv),
+            LangExpr::IDExpr(e)    => self.typing_var(e, sbst, var_type),
+            LangExpr::LetExpr(e)   => self.typing_let(e, sbst, var_type, num_tv),
+            LangExpr::MatchExpr(e) => self.typing_match(e, sbst, var_type, num_tv),
             _ => Err(TypingErr::new("not yet implemented", expr.get_ast()))
         }
+    }
+
+    fn typing_match(&self, expr: &mut MatchNode<'t>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'t>> {
+        // for (match e_0 (c_1 e_1) (c_2 e_2) ... (c_n e_n))
+
+        // get e_0's type
+        let r = self.typing_expr(&mut expr.expr, sbst, var_type, num_tv)?;
+        let mut type_head = r.0;
+        sbst = r.1;
+
+        let mut e_ty = None;
+        for cs in expr.cases.iter_mut() {
+            var_type.push();
+
+            // get c_n's type
+            let (pat_ty, s) = self.typing_pat(&mut cs.pattern, sbst, var_type, num_tv)?;
+            sbst = s;
+
+
+            let msg = format!("typing_match 1: sbst = {:?}\n", sbst);
+            uart::puts(&msg);
+
+            // check types of e_0 and c_n are same
+            let s1;
+            type_head = type_head.apply_sbst(&sbst);
+            match unify(&type_head, &pat_ty) {
+                Some(s) => {
+                    s1 = s;
+                }
+                None => {
+                    let msg = format!("error: mismatched type\n  expected: {:?}\n    actual: {:?}", type_head, pat_ty);
+                    return Err(TypingErr{msg: msg, ast: cs.pattern.get_ast()});
+                }
+            }
+
+            sbst = compose(&s1, &sbst);
+
+            let msg = format!("typing_match 2: sbst = {:?}\n", sbst);
+            uart::puts(&msg);
+
+            // get e_n's type
+            let (ty, s) = self.typing_expr(&mut cs.expr, sbst, var_type, num_tv)?;
+            sbst = s;
+
+            let msg = format!("typing_match 3: sbst = {:?}\n", sbst);
+            uart::puts(&msg);
+
+            // check types of e_{n-1} and e_n are same
+            match e_ty {
+                Some(t_prev) => {
+                    let s1;
+                    match unify(&t_prev, &ty) {
+                        Some(s) => {
+                            s1 = s;
+                        }
+                        None => {
+                            let msg = format!("error: mismatched type\n  expected: {:?}\n    actual: {:?}", t_prev, ty);
+                            return Err(TypingErr{msg: msg, ast: cs.expr.get_ast()});
+                        }
+                    }
+
+                    sbst = compose(&s1, &sbst);
+                }
+                None => ()
+            }
+
+            let ty = ty.apply_sbst(&sbst);
+            cs.ty = Some(ty.clone());
+            e_ty = Some(ty);
+
+
+            let msg = format!("typing_match 4: sbst = {:?}\n", sbst);
+            uart::puts(&msg);
+
+            var_type.pop();
+        }
+
+        expr.ty = e_ty.clone();
+
+        Ok((e_ty.unwrap(), sbst))
     }
 
     fn typing_var(&self, expr: &mut IDNode<'t>, sbst: Sbst, var_type: &VarType) -> Result<(Type, Sbst), TypingErr<'t>> {
@@ -1939,7 +2029,7 @@ fn expr2case(expr: &parser::Expr) -> Result<MatchCase, TypingErr> {
             let pattern = expr2mpat(iter.next().unwrap())?;
             let body = expr2typed_expr(iter.next().unwrap())?;
 
-            Ok(MatchCase{pattern: pattern, expr: body, ast: expr})
+            Ok(MatchCase{pattern: pattern, expr: body, ast: expr, ty: None})
         }
         _ => {
             Err(TypingErr::new("error: invalid case", expr))
@@ -1969,7 +2059,7 @@ fn expr2match(expr: &parser::Expr) -> Result<LangExpr, TypingErr> {
                 cases.push(expr2case(it)?);
             }
 
-            let node = MatchNode{expr: cond, cases: cases, ast: expr};
+            let node = MatchNode{expr: cond, cases: cases, ast: expr, ty: None};
             Ok(LangExpr::MatchExpr(Box::new(node)))
         }
         _ => {

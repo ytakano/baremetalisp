@@ -10,11 +10,28 @@ pub fn el0_entry() -> ! {
 
     let code =
 "
+(data Dim2 (Dim2 Int Int))
+
+(data (Maybe t)
+    (Just t)
+    Nothing)
+
+(defun match-let (a) (Pure (-> ((Maybe Dim2)) Int))
+    (match a
+        ((Just val)
+            (let (((Dim2 x y) val))
+                y))
+        (Nothing
+            0)))
+";
+/*
+    let code =
+"
 (defun test_tuple (z) (Pure (-> ([Bool Int]) Bool))
     (let (([v1 v2] z))
         v1))
 ";
-/*
+
     let code =
 "
 (data (Dim2 t)
