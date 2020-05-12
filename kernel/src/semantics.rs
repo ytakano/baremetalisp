@@ -329,7 +329,8 @@ struct MatchCase<'t> {
 #[derive(Debug, Clone)]
 struct Exprs<'t> {
     exprs: Vec<LangExpr<'t>>,
-    ast: &'t parser::Expr
+    ast: &'t parser::Expr,
+    ty: Option<Type>
 }
 
 #[derive(Debug, Clone)]
@@ -692,7 +693,66 @@ impl<'t> Context<'t> {
             LangExpr::IDExpr(e)    => self.typing_var(e, sbst, var_type),
             LangExpr::LetExpr(e)   => self.typing_let(e, sbst, var_type, num_tv),
             LangExpr::MatchExpr(e) => self.typing_match(e, sbst, var_type, num_tv),
+            LangExpr::TupleExpr(e) => self.typing_tuple(e, sbst, var_type, num_tv),
+            LangExpr::ListExpr(e)  => self.typing_list(e, sbst, var_type, num_tv),
             _ => Err(TypingErr::new("not yet implemented", expr.get_ast()))
+        }
+    }
+
+    fn typing_tuple(&self, expr: &mut Exprs<'t>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'t>> {
+        let mut v = Vec::new();
+        for e in expr.exprs.iter_mut() {
+            let (t, s) = self.typing_expr(e, sbst, var_type, num_tv)?;
+            sbst = s;
+            v.push(t);
+        }
+
+        let ty = ty_tuple(v);
+        expr.ty = Some(ty.clone());
+
+        Ok((ty, sbst))
+    }
+
+    fn typing_list(&self, expr: &mut Exprs<'t>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'t>> {
+        let mut ty = None; // type of the first element
+
+        for e in expr.exprs.iter_mut() {
+            let (t, s) = self.typing_expr(e, sbst, var_type, num_tv)?;
+            sbst = s;
+            match &ty {
+                None => {
+                    ty = Some(t);
+                }
+                Some(t0) => {
+                    let t0 = t0.apply_sbst(&sbst);
+                    // check current element's type is same as the first element's type
+                    match unify(&t0, &t) {
+                        Some(s1) => {
+                            sbst = compose(&s1, &sbst);
+                        }
+                        None => {
+                            let msg = format!("error: mismatched type\n  expected: {:?}\n    actual: {:?}", t0, t);
+                            return Err(TypingErr{msg: msg, ast: e.get_ast()});
+                        }
+                    }
+                }
+            }
+        }
+
+        match ty {
+            Some(t0) => {
+                let tyls = ty_list(t0.apply_sbst(&sbst));
+                expr.ty = Some(tyls.clone());
+                Ok((tyls, sbst))
+            }
+            None => {
+                // Nil
+                let t = ty_var(*num_tv);
+                let tyls = ty_list(t);
+                *num_tv += 1;
+                expr.ty = Some(tyls.clone());
+                Ok((tyls, sbst))
+            }
         }
     }
 
@@ -1768,14 +1828,14 @@ fn expr2typed_expr(expr: &parser::Expr) -> Result<LangExpr, TypingErr> {
             for it in list {
                 elms.push(expr2typed_expr(it)?);
             }
-            Ok(LangExpr::ListExpr(Exprs{exprs: elms, ast: expr}))
+            Ok(LangExpr::ListExpr(Exprs{exprs: elms, ast: expr, ty: None}))
         }
         parser::Expr::Tuple(tuple) => {
             let mut elms = Vec::new();
             for it in tuple {
                 elms.push(expr2typed_expr(it)?);
             }
-            Ok(LangExpr::TupleExpr(Exprs{exprs: elms, ast: expr}))
+            Ok(LangExpr::TupleExpr(Exprs{exprs: elms, ast: expr, ty: None}))
         }
         parser::Expr::Apply(exprs) => {
             let mut iter = exprs.iter();
@@ -1800,7 +1860,7 @@ fn expr2typed_expr(expr: &parser::Expr) -> Result<LangExpr, TypingErr> {
             for it in exprs {
                 elms.push(expr2typed_expr(it)?);
             }
-            Ok(LangExpr::ApplyExpr(Exprs{exprs: elms, ast: expr}))
+            Ok(LangExpr::ApplyExpr(Exprs{exprs: elms, ast: expr, ty: None}))
         }
     }
 }

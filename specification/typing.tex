@@ -264,7 +264,33 @@ and $Size(\mathrm{Dim2}) = 1$ because Dim2 type has 1 label in listings~\ref{src
         }$
         } & (T-Defun)
     \end{tabular}
-    \caption{Typing rule}
+    \caption{Typing rule (1/2)}
+\end{figure}
+
+\begin{figure}[tb]
+    \centering
+    \begin{tabular}{rl}
+        $\Gamma \vdash\ '() :\ '(T)\ |_{\{T\}}\ \varnothing$ & (T-Nil) \vspace{5mm} \\
+
+        $\dfrac{
+            \begin{aligned}
+                &\Gamma \vdash e_1 : T_1\ |_{\mathcal{X}_1}\ C_1 \land \cdots \land \Gamma \vdash e_n : T_n\ |_{\mathcal{X}_n}\ C_n \\
+                &\mathcal{X}_1 \cap \cdots \cap \mathcal{X}_n = \varnothing \hspace{5mm}
+                \mathcal{X} = \mathcal{X}_1 \cup \cdots \cup \mathcal{X}_n \\
+                &C = C_1 \cup \cdots \cup C_n
+            \end{aligned}
+        }{\Gamma \vdash [e_1\ \cdots\ e_n] : [T_1\ \cdots\ T_n]\ |_\mathcal{X}\ C}$ & (T-Tuple) \vspace{5mm} \\
+
+        $\dfrac{
+            \begin{aligned}
+                &\Gamma \vdash e_1 : T_1\ |_{\mathcal{X}_1}\ C_1 \land \cdots \land \Gamma \vdash e_n : T_n\ |_{\mathcal{X}_n}\ C_n \\
+                &\mathcal{X}_1 \cap \cdots \cap \mathcal{X}_n = \varnothing \hspace{5mm}
+                \mathcal{X} = \mathcal{X}_1 \cup \cdots \cup \mathcal{X}_n \\
+                &C = C_1 \cup \cdots \cup C_n \cup \{T_1 = T_2, \cdots, T_1 = T_n \}
+            \end{aligned}
+        }{\Gamma \vdash\ '(e_1\ \cdots\ e_n) :\ '(T_1)\ |_\mathcal{X}\ C}$ & (T-List) \\
+    \end{tabular}
+    \caption{Typing rule (2/2)}
 \end{figure}
 
 
