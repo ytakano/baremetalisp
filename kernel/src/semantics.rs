@@ -131,6 +131,7 @@ enum LangExpr<'t> {
     LitNum(NumNode<'t>),
     LitBool(BoolNode<'t>),
     IDExpr(IDNode<'t>),
+    DataExpr(DataNode<'t>),
     MatchExpr(Box::<MatchNode<'t>>),
     ApplyExpr(Exprs<'t>),
     ListExpr(Exprs<'t>),
@@ -145,6 +146,7 @@ impl<'t> LangExpr<'t> {
             LangExpr::LitNum(e)    => e.ast,
             LangExpr::LitBool(e)   => e.ast,
             LangExpr::IDExpr(e)    => e.ast,
+            LangExpr::DataExpr(e)  => e.ast,
             LangExpr::MatchExpr(e) => e.ast,
             LangExpr::ApplyExpr(e) => e.ast,
             LangExpr::ListExpr(e)  => e.ast,
@@ -181,6 +183,12 @@ impl<'t> LangExpr<'t> {
             LangExpr::LitNum(_) => (),
             LangExpr::LitBool(_) => (),
             LangExpr::IDExpr(e) => {
+                e.ty = app(&e.ty);
+            },
+            LangExpr::DataExpr(e) => {
+                for it in e.exprs.iter_mut() {
+                    it.apply_sbst(sbst);
+                }
                 e.ty = app(&e.ty);
             },
             LangExpr::MatchExpr(e) => {
@@ -261,6 +269,14 @@ struct DefVar<'t> {
 struct MatchNode<'t> {
     expr: LangExpr<'t>,
     cases: Vec<MatchCase<'t>>,
+    ast: &'t parser::Expr,
+    ty: Option<Type>
+}
+
+#[derive(Debug, Clone)]
+struct DataNode<'t> {
+    label: TIDNode<'t>,
+    exprs: Vec<LangExpr<'t>>,
     ast: &'t parser::Expr,
     ty: Option<Type>
 }
@@ -360,7 +376,8 @@ struct Exprs<'t> {
 #[derive(Debug, Clone)]
 struct TIDNode<'t> {
     id: &'t str,
-    ast: &'t parser::Expr
+    ast: &'t parser::Expr,
+    ty: Option<Type>
 }
 
 #[derive(Debug, Clone)]
@@ -720,7 +737,51 @@ impl<'t> Context<'t> {
             LangExpr::TupleExpr(e) => self.typing_tuple(e, sbst, var_type, num_tv),
             LangExpr::ListExpr(e)  => self.typing_list(e, sbst, var_type, num_tv),
             LangExpr::ApplyExpr(e) => self.typing_app(e, sbst, var_type, num_tv),
+            LangExpr::DataExpr(e)  => self.typing_data(e, sbst, var_type, num_tv),
         }
+    }
+
+    fn typing_data(&self, expr: &mut DataNode<'t>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'t>> {
+        let data_type;
+        let label_types;
+        // get type of label and types of label's elements
+        match self.get_type_of_label(expr.label.id, num_tv) {
+            Ok((t, m)) => {
+                data_type = t;
+                label_types = m;
+            }
+            Err(msg) => {
+                return Err(TypingErr{msg: msg, ast: expr.ast});
+            }
+        }
+
+        // check the number of elements
+        if label_types.len() != expr.exprs.len() {
+            let msg = format!("error: {:?} requires exactly {:?} arguments but actually passed {:?}", expr.label.id, label_types.len(), expr.exprs.len());
+            return Err(TypingErr{msg: msg, ast: expr.ast});
+        }
+
+        // check types of the elements and arguments
+        for (e, ty) in expr.exprs.iter_mut().zip(label_types.iter()) {
+            let r = self.typing_expr(e, sbst, var_type, num_tv)?;
+            sbst = r.1;
+            let lt = ty.apply_sbst(&sbst);
+            let s1;
+            match unify(&lt, &r.0) {
+                Some(s) => {
+                    s1 = s;
+                }
+                None => {
+                    let msg = format!("error: mismatched type\n  expected: {:?}\n    actual: {:?}", lt, r.0);
+                    return Err(TypingErr{msg: msg, ast: e.get_ast()});
+                }
+            }
+            sbst = compose(&s1, &sbst);
+        }
+
+        expr.ty = Some(data_type.clone());
+
+        Ok((data_type, sbst))
     }
 
     fn typing_app(&self, expr: &mut Exprs<'t>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'t>> {
@@ -1559,7 +1620,7 @@ fn expr2type_id(expr: &parser::Expr) -> Result<TIDNode, TypingErr> {
             match id.chars().nth(0) {
                 Some(c) => {
                     if 'A' <= c && c <= 'Z' {
-                        Ok(TIDNode{id: id, ast: expr})
+                        Ok(TIDNode{id: id, ast: expr, ty: None})
                     } else {
                         Err(TypingErr::new("error: the first character must be captal", expr))
                     }
@@ -1884,7 +1945,7 @@ fn list_types2vec_types(exprs: &LinkedList<parser::Expr>) -> Result<Vec<TypeExpr
     Ok(v)
 }
 
-/// $EXPR := $LITERAL | $ID | $LET | $IF | $MATCH | $LIST | $TUPLE | $APPLY
+/// $EXPR := $LITERAL | $ID | $TID | $LET | $IF | $MATCH | $LIST | $TUPLE | $APPLY
 fn expr2typed_expr(expr: &parser::Expr) -> Result<LangExpr, TypingErr> {
     match expr {
         parser::Expr::Num(num) => {
@@ -1894,7 +1955,14 @@ fn expr2typed_expr(expr: &parser::Expr) -> Result<LangExpr, TypingErr> {
             Ok(LangExpr::LitBool(BoolNode{val: *val, ast: expr}))
         }
         parser::Expr::ID(id) => {
-            Ok(LangExpr::IDExpr(IDNode{id: id, ast: expr, ty: None}))
+            let c = id.chars().nth(0).unwrap();
+            if 'A' <= c && c <= 'Z' {
+                // $TID
+                let tid = expr2type_id(expr)?;
+                Ok(LangExpr::DataExpr(DataNode{label: tid, exprs: Vec::new(), ast: expr, ty: None}))
+            } else {
+                Ok(LangExpr::IDExpr(IDNode{id: id, ast: expr, ty: None}))
+            }
         }
         parser::Expr::List(list) => {
             let mut elms = Vec::new();
@@ -1912,14 +1980,18 @@ fn expr2typed_expr(expr: &parser::Expr) -> Result<LangExpr, TypingErr> {
         }
         parser::Expr::Apply(exprs) => {
             if exprs.len() == 0 {
-                return Err(TypingErr::new("error: require function", expr));
+                return Err(TypingErr::new("error: empty expression", expr));
             }
 
             let mut iter = exprs.iter();
 
             match iter.next() {
                 Some(parser::Expr::ID(id)) => {
-                    if id == "if" {
+                    let c = id.chars().nth(0).unwrap();
+                    if 'A' <= c && c <= 'Z' {
+                        // $TID
+                        return Ok(expr2data_expr(expr)?);
+                    } else if id == "if" {
                         return Ok(expr2if(expr)?);
                     } else if id == "let" {
                         return Ok(expr2let(expr)?);
@@ -1940,6 +2012,28 @@ fn expr2typed_expr(expr: &parser::Expr) -> Result<LangExpr, TypingErr> {
             Ok(LangExpr::ApplyExpr(Exprs{exprs: elms, ast: expr, ty: None}))
         }
     }
+}
+
+fn expr2data_expr(expr: &parser::Expr) -> Result<LangExpr, TypingErr> {
+    let exprs;
+    match expr {
+        parser::Expr::Apply(e) => {
+            exprs = e;
+        }
+        _ => {
+            return Err(TypingErr::new("error: data expression", expr));
+        }
+    }
+
+    let mut iter = exprs.iter();
+    let tid = expr2type_id(iter.next().unwrap())?;
+
+    let mut v = Vec::new();
+    for e in iter {
+        v.push(expr2typed_expr(e)?);
+    }
+
+    Ok(LangExpr::DataExpr(DataNode{label: tid, exprs: v, ast: expr, ty: None}))
 }
 
 /// $IF := ( if $EXPR $EXPR $EXPR )
@@ -2197,7 +2291,7 @@ fn expr2match(expr: &parser::Expr) -> Result<LangExpr, TypingErr> {
             }
 
             if cases.len() == 0 {
-                return Err(TypingErr::new("error: require at least one case", exprs))
+                return Err(TypingErr::new("error: require at least one case", expr))
             }
 
             let node = MatchNode{expr: cond, cases: cases, ast: expr, ty: None};

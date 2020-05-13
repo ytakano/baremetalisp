@@ -70,7 +70,7 @@ example:
 
 ## Expression
 
-- $EXPR := $LITERAL | $ID | $LET | $IF | $MATCH | $LIST | $TUPLE | $APPLY
+- $EXPR := $LITERAL | $ID | $TID | $LET | $IF | $MATCH | $LIST | $TUPLE | $APPLY
 
 ### Let Expression
 

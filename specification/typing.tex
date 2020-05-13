@@ -261,36 +261,58 @@ and $Size(\mathrm{Dim2}) = 1$ because Dim2 type has 1 label in listings~\ref{src
 
 \begin{figure}[tb]
     \centering
-    \begin{tabular}{rl}
-        $\Gamma \vdash\ '() :\ '(T)\ |_{\{T\}}\ \varnothing$ & (T-Nil) \vspace{5mm} \\
+    \begin{tabular}{rlrl}
+        $\Gamma \vdash\ '() :\ '(T)\ |_{\{T\}}\ \varnothing$ & (T-Nil) &
+        $\dfrac{L : \mathcal{T}' \in \Gamma \hspace{5mm} \mathcal{T}' \cdot \mathcal{S} \equiv_\alpha \mathcal{T}}{\Gamma \vdash L : \mathcal{T}\ |_{FV_\mathcal{T}(\mathcal{T})}\ \varnothing}$ & (T-Label0) \vspace{5mm} \\
 
+        \multicolumn{3}{r}{
+            $\dfrac{
+                \begin{aligned}
+                    &\Gamma \vdash e_1 : T_1\ |_{\mathcal{X}_1}\ C_1 \land \cdots \land \Gamma \vdash e_n : T_n\ |_{\mathcal{X}_n}\ C_n \\
+                    &\mathcal{X}_1 \cap \cdots \cap \mathcal{X}_n = \varnothing \hspace{5mm}
+                    \mathcal{X} = \mathcal{X}_1 \cup \cdots \cup \mathcal{X}_n \hspace{5mm}
+                    C = C_1 \cup \cdots \cup C_n
+                \end{aligned}
+            }{\Gamma \vdash [e_1\ \cdots\ e_n] : [T_1\ \cdots\ T_n]\ |_\mathcal{X}\ C}$
+        } & (T-Tuple) \vspace{5mm} \\
+
+        \multicolumn{3}{r}{
+            $\dfrac{
+                \begin{aligned}
+                    &\Gamma \vdash e_1 : T_1\ |_{\mathcal{X}_1}\ C_1 \land \cdots \land \Gamma \vdash e_n : T_n\ |_{\mathcal{X}_n}\ C_n \\
+                    &\mathcal{X}_1 \cap \cdots \cap \mathcal{X}_n = \varnothing \hspace{5mm}
+                    \mathcal{X} = \mathcal{X}_1 \cup \cdots \cup \mathcal{X}_n \\
+                    &C = C_1 \cup \cdots \cup C_n \cup \{T_1 = T_2, \cdots, T_1 = T_n \}
+                \end{aligned}
+            }{\Gamma \vdash\ '(e_1\ \cdots\ e_n) :\ '(T_1)\ |_\mathcal{X}\ C}$
+        } & (T-List) \vspace{5mm} \\
+
+        \multicolumn{3}{r}{
         $\dfrac{
             \begin{aligned}
-                &\Gamma \vdash e_1 : T_1\ |_{\mathcal{X}_1}\ C_1 \land \cdots \land \Gamma \vdash e_n : T_n\ |_{\mathcal{X}_n}\ C_n \\
-                &\mathcal{X}_1 \cap \cdots \cap \mathcal{X}_n = \varnothing \hspace{5mm}
-                \mathcal{X} = \mathcal{X}_1 \cup \cdots \cup \mathcal{X}_n \\
-                &C = C_1 \cup \cdots \cup C_n
-            \end{aligned}
-        }{\Gamma \vdash [e_1\ \cdots\ e_n] : [T_1\ \cdots\ T_n]\ |_\mathcal{X}\ C}$ & (T-Tuple) \vspace{5mm} \\
-
-        $\dfrac{
-            \begin{aligned}
-                &\Gamma \vdash e_1 : T_1\ |_{\mathcal{X}_1}\ C_1 \land \cdots \land \Gamma \vdash e_n : T_n\ |_{\mathcal{X}_n}\ C_n \\
-                &\mathcal{X}_1 \cap \cdots \cap \mathcal{X}_n = \varnothing \hspace{5mm}
-                \mathcal{X} = \mathcal{X}_1 \cup \cdots \cup \mathcal{X}_n \\
-                &C = C_1 \cup \cdots \cup C_n \cup \{T_1 = T_2, \cdots, T_1 = T_n \}
-            \end{aligned}
-        }{\Gamma \vdash\ '(e_1\ \cdots\ e_n) :\ '(T_1)\ |_\mathcal{X}\ C}$ & (T-List) \vspace{5mm} \\
-
-        $\dfrac{
-            \begin{aligned}
-                &\Gamma \vdash x_1 : \mathcal{T}_1\ |_\varnothing\ \varnothing \land \cdots \land \Gamma \vdash x_n : \mathcal{T}_n\ |_\varnothing\ \varnothing \\
-                &\Gamma \vdash e : \mathcal{T}_0\ |_{\mathcal{X}}\ C_0 \hspace{5mm} FV_\mathcal{T}(\mathcal{T}) = FV_\mathcal{T}(\mathcal{T}_1) = \cdots = FV_\mathcal{T}(\mathcal{T}_n) = \varnothing \\
-                &E = E_\mathcal{T}(\mathcal{T}) \hspace{5mm} C = C_0 \cup \{\mathcal{T} = (E\ (\rightarrow (\mathcal{T}_1\ \cdots\ \mathcal{T}_n)\ \mathcal{T}_0)) \}
+                &\Gamma \vdash e_1 : \mathcal{T}_1\ |_{\mathcal{X}_1}\ C_1 \land \cdots \land
+                    \Gamma \vdash e_n : \mathcal{T}_n\ |_{\mathcal{X}_n}\ C_n \\
+                &L : \mathcal{T}_0' \in \Gamma \hspace{5mm} \mathcal{T}_0' \cdot \mathcal{S}\equiv_\alpha \mathcal{T}_0 \hspace{5mm} FV(\mathcal{T}_0) \cap \mathcal{X}_1 \cap \cdots \cap \mathcal{X}_n = \varnothing \\
+                &FV_\mathcal{T}(\mathcal{T}_0) \cap FV_\Gamma(\Gamma) = \varnothing \hspace{5mm}
+                    \mathcal{X} = FV(\mathcal{T}_0) \cup \mathcal{X}_1 \cup \cdots \cup \mathcal{X}_n \\
+                &L_{1st} : T_1' \in \Gamma \land \cdots \land L_{nth} : T_n' \in \Gamma \\
+                &C = C_1 \cup \cdots \cup C_n \cup \{T_1' \cdot \mathcal{S} = \mathcal{T}_1, \cdots, T_n' \cdot \mathcal{S} = \mathcal{T}_n\} \\
             \end{aligned}
         }{
-            \Gamma \vdash (\mathtt{defun}\ \mathrm{name}\ (x_1\ \cdots\ x_n)\ \mathcal{T}\ e) : \mathcal{T}\ |_\mathcal{X}\ C
-        }$ & (T-Defun)
+            \Gamma \vdash (L\ e_1\ \cdots\ e_n) : \mathcal{T}_0\ |_{\mathcal{X}}\ C
+        }$} & (T-Label) \vspace{5mm} \\
+
+        \multicolumn{3}{r}{
+            $\dfrac{
+                \begin{aligned}
+                    &\Gamma \vdash x_1 : \mathcal{T}_1\ |_\varnothing\ \varnothing \land \cdots \land \Gamma \vdash x_n : \mathcal{T}_n\ |_\varnothing\ \varnothing \\
+                    &\Gamma \vdash e : \mathcal{T}_0\ |_{\mathcal{X}}\ C_0 \hspace{5mm} FV_\mathcal{T}(\mathcal{T}) = FV_\mathcal{T}(\mathcal{T}_1) = \cdots = FV_\mathcal{T}(\mathcal{T}_n) = \varnothing \\
+                    &E = E_\mathcal{T}(\mathcal{T}) \hspace{5mm} C = C_0 \cup \{\mathcal{T} = (E\ (\rightarrow (\mathcal{T}_1\ \cdots\ \mathcal{T}_n)\ \mathcal{T}_0)) \}
+                \end{aligned}
+            }{
+                \Gamma \vdash (\mathtt{defun}\ \mathrm{name}\ (x_1\ \cdots\ x_n)\ \mathcal{T}\ e) : \mathcal{T}\ |_\mathcal{X}\ C
+            }$
+        } & (T-Defun)
     \end{tabular}
     \caption{Typing rule (2/2)}
 \end{figure}

@@ -18,7 +18,9 @@ pub fn el0_entry() -> ! {
 
 (defun test-label () (Pure (-> () Dim2))
     (Dim2 10 20))
+";
 
+/*
 (defun test-match (a) (Pure (-> ((Maybe Dim2)) Int))
     (match a
         ((Just val)
@@ -31,7 +33,7 @@ pub fn el0_entry() -> ! {
                 y))
 ";
 
-/*
+
     let code =
 "
 (defun test_tuple (z) (Pure (-> ([Bool Int]) Bool))
