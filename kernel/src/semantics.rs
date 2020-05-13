@@ -43,9 +43,19 @@ fn ty_list(ty: Type) -> Type {
     Type::TCon(Tycon{id: "List".to_string(), args: vec!(ty)})
 }
 
-fn ty_fun(args: Vec<Type>, ret: Type) -> Type {
+fn ty_fun(effect: &Effect, args: Vec<Type>, ret: Type) -> Type {
     let tuple = ty_tuple(args);
-    Type::TCon(Tycon{id: "->".to_string(), args: vec!(tuple, ret)})
+    let ty_effect = match effect {
+        Effect::Pure => Type::TCon(Tycon{id: "Pure".to_string(), args: Vec::new()}),
+        Effect::IO   => Type::TCon(Tycon{id: "IO".to_string(), args: Vec::new()})
+    };
+    Type::TCon(Tycon{id: "->".to_string(), args: vec!(ty_effect, tuple, ret)})
+}
+
+fn ty_fun_gen_effect(n: ID, args: Vec<Type>, ret: Type) -> Type {
+    let tuple = ty_tuple(args);
+    let ty_effect = ty_var(n);
+    Type::TCon(Tycon{id: "->".to_string(), args: vec!(ty_effect, tuple, ret)})
 }
 
 #[derive(Debug)]
@@ -181,10 +191,24 @@ impl<'t> LangExpr<'t> {
                     cs.ty = app(&cs.ty);
                 }
             },
-            // TODO:
-            LangExpr::ApplyExpr(_e) => (),
-            LangExpr::ListExpr(_e)  => (),
-            LangExpr::TupleExpr(_e) => (),
+            LangExpr::ApplyExpr(e) => {
+                for it in e.exprs.iter_mut() {
+                    it.apply_sbst(sbst);
+                }
+                e.ty = app(&e.ty);
+            },
+            LangExpr::ListExpr(e)  => {
+                for it in e.exprs.iter_mut() {
+                    it.apply_sbst(sbst);
+                }
+                e.ty = app(&e.ty);
+            },
+            LangExpr::TupleExpr(e) => {
+                for it in e.exprs.iter_mut() {
+                    it.apply_sbst(sbst);
+                }
+                e.ty = app(&e.ty);
+            }
         }
     }
 }
@@ -399,7 +423,7 @@ impl<'t> TypeExpr<'t> {
                 for t in &fun.args {
                     targs.push(t.to_type());
                 }
-                ty_fun(targs, fun.ret.to_type())
+                ty_fun(&fun.effect, targs, fun.ret.to_type())
             }
             TypeExpr::TEData(data) => {
                 let mut v = Vec::new();
@@ -455,6 +479,7 @@ struct Defun<'t> {
     id: IDNode<'t>,
     args: Vec<IDNode<'t>>,
     fun_type: TypeExpr<'t>,
+    effect: Effect,
     expr: LangExpr<'t>,
     ast: &'t parser::Expr,
     ty: Option<Type>,
@@ -651,7 +676,7 @@ impl<'t> Context<'t> {
         let args = args_orig.iter().into_iter().map(|x| x.apply_sbst(&sbst)).collect();
 
         let fun_type1 = defun.fun_type.to_type(); // defined type
-        let fun_type2 = ty_fun(args, ret);        // inferred type
+        let fun_type2 = ty_fun(&defun.effect, args, ret);        // inferred type
 
         // check defined function types with inferred type
         let s1;
@@ -684,7 +709,6 @@ impl<'t> Context<'t> {
         Ok(defun)
     }
 
-    // TODO: implementing
     fn typing_expr(&self, expr: &mut LangExpr<'t>, sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'t>> {
         match expr {
             LangExpr::LitBool(_)   => Ok((ty_bool(), sbst)),
@@ -695,8 +719,59 @@ impl<'t> Context<'t> {
             LangExpr::MatchExpr(e) => self.typing_match(e, sbst, var_type, num_tv),
             LangExpr::TupleExpr(e) => self.typing_tuple(e, sbst, var_type, num_tv),
             LangExpr::ListExpr(e)  => self.typing_list(e, sbst, var_type, num_tv),
-            _ => Err(TypingErr::new("not yet implemented", expr.get_ast()))
+            LangExpr::ApplyExpr(e) => self.typing_app(e, sbst, var_type, num_tv),
         }
+    }
+
+    fn typing_app(&self, expr: &mut Exprs<'t>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'t>> {
+        let mut iter = expr.exprs.iter_mut();
+
+        // get function
+        let mut e1;
+        match iter.next() {
+            Some(e) => {
+                e1 = e;
+            }
+            None => {
+                return Err(TypingErr::new("error: require function", expr.ast));
+            }
+        }
+
+        // get function type
+        let r = self.typing_expr(&mut e1, sbst, var_type, num_tv)?;
+        sbst = r.1;
+        let t1 = r.0;
+
+        // get arguments
+        let mut v = Vec::new();
+        for mut e in iter {
+            let r = self.typing_expr(&mut e, sbst, var_type, num_tv)?;
+            sbst = r.1;
+            v.push(r.0);
+        }
+
+        // get return type
+        let ret = ty_var(*num_tv);
+        *num_tv += 1;
+
+        // get inferred function type
+        let fun_ty = ty_fun_gen_effect(*num_tv, v, ret.clone());
+        *num_tv += 1;
+
+        match unify(&t1, &fun_ty) {
+            Some(s1) => {
+                sbst = compose(&s1, &sbst);
+            }
+            None => {
+                let msg = format!("error: mismatched type\n  expected: {:?}\n    actual: {:?}", fun_ty, t1);
+                return Err(TypingErr{msg: msg, ast: e1.get_ast()});
+            }
+        }
+
+        let t = ret.apply_sbst(&sbst);
+        expr.ty = Some(t.clone());
+
+        Ok((t, sbst))
     }
 
     fn typing_tuple(&self, expr: &mut Exprs<'t>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'t>> {
@@ -772,10 +847,6 @@ impl<'t> Context<'t> {
             let (pat_ty, s) = self.typing_pat(&mut cs.pattern, sbst, var_type, num_tv)?;
             sbst = s;
 
-
-            let msg = format!("typing_match 1: sbst = {:?}\n", sbst);
-            uart::puts(&msg);
-
             // check types of e_0 and c_n are same
             let s1;
             type_head = type_head.apply_sbst(&sbst);
@@ -791,15 +862,9 @@ impl<'t> Context<'t> {
 
             sbst = compose(&s1, &sbst);
 
-            let msg = format!("typing_match 2: sbst = {:?}\n", sbst);
-            uart::puts(&msg);
-
             // get e_n's type
             let (ty, s) = self.typing_expr(&mut cs.expr, sbst, var_type, num_tv)?;
             sbst = s;
-
-            let msg = format!("typing_match 3: sbst = {:?}\n", sbst);
-            uart::puts(&msg);
 
             // check types of e_{n-1} and e_n are same
             match e_ty {
@@ -824,10 +889,6 @@ impl<'t> Context<'t> {
             cs.ty = Some(ty.clone());
             e_ty = Some(ty);
 
-
-            let msg = format!("typing_match 4: sbst = {:?}\n", sbst);
-            uart::puts(&msg);
-
             var_type.pop();
         }
 
@@ -840,12 +901,19 @@ impl<'t> Context<'t> {
         let ty;
         match var_type.get(&expr.id.to_string()) {
             Some(t) => {
-                ty = t.apply_sbst(&sbst)
+                ty = t.apply_sbst(&sbst);
             }
             None => {
-                // TODO: look up function
-                let msg = format!("error: {:?} is not defined\n{:?}", expr.id, var_type);
-                return Err(TypingErr{msg: msg, ast: expr.ast});
+                // look up function
+                match self.funs.get(&expr.id) {
+                    Some(defun) => {
+                        ty = defun.fun_type.to_type();
+                    }
+                    None => {
+                        let msg = format!("error: {:?} is not defined\n{:?}", expr.id, var_type);
+                        return Err(TypingErr{msg: msg, ast: expr.ast});
+                    }
+                }
             }
         }
 
@@ -1119,7 +1187,7 @@ impl<'t> Context<'t> {
                     args.push(self.apply_tv2type_to_type_expr(a, tv2type)?);
                 }
                 let r = self.apply_tv2type_to_type_expr(&fun.ret, tv2type)?;
-                Ok(ty_fun(args, r))
+                Ok(ty_fun(&fun.effect, args, r))
             }
             TypeExpr::TEData(data) => {
                 let mut v = Vec::new();
@@ -1446,7 +1514,7 @@ fn expr2data(expr: &parser::Expr) -> Result<DataType, TypingErr> {
             Ok(DataType{name: data_name, members: mems, ast: expr})
         }
         _ => {
-            Err(TypingErr::new("error", expr))
+            Err(TypingErr::new("error: syntax error on data definition", expr))
         }
     }
 }
@@ -1622,15 +1690,24 @@ fn expr2defun(expr: &parser::Expr) -> Result<Defun, TypingErr> {
             }
 
             let ty = fun.to_type();
-            Ok(Defun{id: id, args: args, fun_type: fun, expr: body, ast: expr, ty: Some(ty)})
+            let effect;
+            match &fun {
+                TypeExpr::TEFun(e) => {
+                    effect = e.effect.clone();
+                }
+                _ => {
+                    panic!("failed to get effect");
+                }
+            }
+            Ok(Defun{id: id, args: args, fun_type: fun, effect: effect, expr: body, ast: expr, ty: Some(ty)})
         }
         _ => {
-            Err(TypingErr::new("error", expr))
+            Err(TypingErr::new("error: syntax error on function definition", expr))
         }
     }
 }
 
-/// $TYPE_FUN := ( $EFFECT ( -> $TYPES $TYPES ) )
+/// $TYPE_FUN := ( $EFFECT ( -> ($TYPES) $TYPE ) )
 fn expr2type_fun(expr: &parser::Expr) -> Result<TypeExpr, TypingErr> {
     match expr {
         parser::Expr::Apply(exprs) => {
@@ -1654,7 +1731,7 @@ fn expr2type_fun(expr: &parser::Expr) -> Result<TypeExpr, TypingErr> {
                 }
             }
 
-            // ( -> $TYPES $TYPE )
+            // ( -> ($TYPES) $TYPE )
             let e1 = iter.next();
             let args;
             let ret;

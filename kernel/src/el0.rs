@@ -16,14 +16,18 @@ pub fn el0_entry() -> ! {
     (Just t)
     Nothing)
 
-(defun match-let (a) (Pure (-> ((Maybe Dim2)) Int))
+(defun test-match (a) (Pure (-> ((Maybe Dim2)) Int))
     (match a
         ((Just val)
-            (let (((Dim2 x y) val))
-                y))
+            (test-let val))
         (Nothing
             0)))
+
+(defun test-let (b) (Pure (-> (Dim2) Int))
+    (let (((Dim2 x y) b))
+                y))
 ";
+
 /*
     let code =
 "

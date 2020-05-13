@@ -48,6 +48,8 @@ which is a well typed Lisp for trusted execution environment.
         $t$ & type variable \\
         $D$ & type name of user defined data \\
         $L$ & label of user defined data \\
+        $E$ & effect \\
+        $E_\mathcal{T}: T \rightarrow E$ & effect of type \\
         $\mathcal{T}$ & type \\
         $C$ & type constraint \\
         $\Gamma$ & context \\
@@ -77,6 +79,8 @@ which is a well typed Lisp for trusted execution environment.
         & $|$ & $L_{nth}: \mathcal{T}, \Gamma$ & n-th type of label's element \\
         & $|$ & $\varnothing$ \\ \\
 
+    $E$ & := & $\mathtt{Pure}\ |\ \mathtt{IO}$ & \bf{effect} \\ \\
+
     $\mathcal{T}$ & := & & \bf{type} \\
         &     & $\mathtt{Int}$ \\
         & $|$ & $\mathtt{Bool}$ \\
@@ -84,7 +88,7 @@ which is a well typed Lisp for trusted execution environment.
         & $|$ & $[\mathcal{T}+]$ & tuple type \\
         & $|$ & $D$    & user defined type \\
         & $|$ & $(D\ \mathcal{T}+)$ & user defined type with type arguments \\
-        & $|$ & $(\rightarrow\ (\mathcal{T}*)\ \mathcal{T})$ & function type \\
+        & $|$ & $(E\ (\rightarrow\ (\mathcal{T}*)\ \mathcal{T}))$ & function type \\
         & $|$ & $t$ & type variable \\ \\
 
     $\mathcal{P}$ & := & & \bf{pattern} \\
@@ -227,8 +231,8 @@ and $Size(\mathrm{Dim2}) = 1$ because Dim2 type has 1 label in listings~\ref{src
                 &\Gamma \vdash e_1 : \mathcal{T}_1\ |_{\mathcal{X}_1}\ C_1 \hspace{5mm}
                     \Gamma \vdash e_2 : \mathcal{T}_2\ |_{\mathcal{X}_2}\ C_2 \land \cdots \land \Gamma \vdash e_n : \mathcal{T}_n\ |_{\mathcal{X}_n}\ C_n \\
                 &\{t\} \cap FV_\Gamma(\Gamma) = \varnothing \hspace{5mm} \{t\} \cap \mathcal{X}_1 \cap \cdots \cap \mathcal{X}_n = \varnothing\\
-                &\mathcal{X} = \{t\} \cup \mathcal{X}_1 \cup \cdots \cup \mathcal{X}_n \\
-                &C = C_1 \cup \cdots \cup C_n \cup \{ \mathcal{T}_1 = (\rightarrow\ (\mathcal{T}_2\ \cdots\ \mathcal{T}_n)\ t) \}
+                &\mathcal{X} = \{t\} \cup \mathcal{X}_1 \cup \cdots \cup \mathcal{X}_n \hspace{5mm} E = E_\mathcal{T}(\mathcal{T}_1) \\
+                &C = C_1 \cup \cdots \cup C_n \cup \{ \mathcal{T}_1 = (E\ (\rightarrow\ (\mathcal{T}_2\ \cdots\ \mathcal{T}_n)\ t)) \}
             \end{aligned}
         }{
             \Gamma \vdash (e_1\ e_2\ \cdots\ e_n) : t\ |_\mathcal{X}\ C
@@ -250,19 +254,7 @@ and $Size(\mathrm{Dim2}) = 1$ because Dim2 type has 1 label in listings~\ref{src
             \end{aligned}
         }{
             \Gamma \vdash (\mathtt{match}\ e_0\ (\mathcal{P}_1\ e_1)\ \cdots\ (\mathcal{P}_n\ e_n)) : T_{e1}\ |_\mathcal{X}\ C
-        }$} & (T-Match) \vspace{5mm} \\
-
-        \multicolumn{3}{r}{
-        $\dfrac{
-            \begin{aligned}
-                &\Gamma \vdash x_1 : \mathcal{T}_1\ |_\varnothing\ \varnothing \land \cdots \land \Gamma \vdash x_n : \mathcal{T}_n\ |_\varnothing\ \varnothing \\
-                &\Gamma \vdash e : \mathcal{T}_0\ |_{\mathcal{X}}\ C_0 \hspace{5mm} FV_\mathcal{T}(\mathcal{T}) = FV_\mathcal{T}(\mathcal{T}_1) = \cdots = FV_\mathcal{T}(\mathcal{T}_n) = \varnothing \\
-                &C = C_0 \cup \{\mathcal{T} = (\rightarrow (\mathcal{T}_1\ \cdots\ \mathcal{T}_n)\ \mathcal{T}_0) \}
-            \end{aligned}
-        }{
-            \Gamma \vdash (\mathtt{defun}\ \mathrm{name}\ (x_1\ \cdots\ x_n)\ \mathcal{T}\ e) : \mathcal{T}\ |_\mathcal{X}\ C
-        }$
-        } & (T-Defun)
+        }$} & (T-Match)
     \end{tabular}
     \caption{Typing rule (1/2)}
 \end{figure}
@@ -288,7 +280,17 @@ and $Size(\mathrm{Dim2}) = 1$ because Dim2 type has 1 label in listings~\ref{src
                 \mathcal{X} = \mathcal{X}_1 \cup \cdots \cup \mathcal{X}_n \\
                 &C = C_1 \cup \cdots \cup C_n \cup \{T_1 = T_2, \cdots, T_1 = T_n \}
             \end{aligned}
-        }{\Gamma \vdash\ '(e_1\ \cdots\ e_n) :\ '(T_1)\ |_\mathcal{X}\ C}$ & (T-List) \\
+        }{\Gamma \vdash\ '(e_1\ \cdots\ e_n) :\ '(T_1)\ |_\mathcal{X}\ C}$ & (T-List) \vspace{5mm} \\
+
+        $\dfrac{
+            \begin{aligned}
+                &\Gamma \vdash x_1 : \mathcal{T}_1\ |_\varnothing\ \varnothing \land \cdots \land \Gamma \vdash x_n : \mathcal{T}_n\ |_\varnothing\ \varnothing \\
+                &\Gamma \vdash e : \mathcal{T}_0\ |_{\mathcal{X}}\ C_0 \hspace{5mm} FV_\mathcal{T}(\mathcal{T}) = FV_\mathcal{T}(\mathcal{T}_1) = \cdots = FV_\mathcal{T}(\mathcal{T}_n) = \varnothing \\
+                &E = E_\mathcal{T}(\mathcal{T}) \hspace{5mm} C = C_0 \cup \{\mathcal{T} = (E\ (\rightarrow (\mathcal{T}_1\ \cdots\ \mathcal{T}_n)\ \mathcal{T}_0)) \}
+            \end{aligned}
+        }{
+            \Gamma \vdash (\mathtt{defun}\ \mathrm{name}\ (x_1\ \cdots\ x_n)\ \mathcal{T}\ e) : \mathcal{T}\ |_\mathcal{X}\ C
+        }$ & (T-Defun)
     \end{tabular}
     \caption{Typing rule (2/2)}
 \end{figure}
@@ -297,6 +299,12 @@ and $Size(\mathrm{Dim2}) = 1$ because Dim2 type has 1 label in listings~\ref{src
 \begin{figure}[tb]
     \centering
     \begin{tabular}{rlrl}
+        $\Gamma \vdash \mathtt{true} : \mathtt{Bool}\ |_\varnothing\ \varnothing$ & (P-True) &
+        $\Gamma \vdash \mathtt{false} : \mathtt{Bool}\ |_\varnothing\ \varnothing$ & (P-False) \vspace{5mm} \\
+
+        $\dfrac{x : T \in \Gamma}{\Gamma \vdash x : T\ |_\varnothing\ \varnothing}$ & (P-Var) &
+        $\Gamma \vdash z : \mathtt{Int}\ |_\varnothing\ \varnothing$ & (P-Num) \vspace{5mm} \\
+
         $\Gamma \vdash\ '() :\ '(T)\ |_{\{T\}}\ \varnothing$ & (P-Nil) &
         $\dfrac{L : \mathcal{T}' \in \Gamma \hspace{5mm} \mathcal{T}' \cdot \mathcal{S} \equiv_\alpha \mathcal{T}}{\Gamma \vdash L : \mathcal{T}\ |_{FV_\mathcal{T}(\mathcal{T})}\ \varnothing}$ & (P-Label0) \vspace{5mm} \\
 
