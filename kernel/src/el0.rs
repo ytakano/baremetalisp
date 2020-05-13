@@ -16,8 +16,11 @@ pub fn el0_entry() -> ! {
     (Just t)
     Nothing)
 
+(defun id (x) (Pure (-> (t) t))
+    x)
+
 (defun test-label () (Pure (-> () Dim2))
-    (Dim2 10 20))
+    (id (Dim2 10 20)))
 ";
 
 /*

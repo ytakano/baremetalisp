@@ -422,42 +422,6 @@ enum TypeExpr<'t> {
     TEID(IDNode<'t>)
 }
 
-impl<'t> TypeExpr<'t> {
-    fn to_type(&self) -> Type {
-        match self {
-            TypeExpr::TEBool(_)      => ty_bool(),
-            TypeExpr::TEInt(_)       => ty_int(),
-            TypeExpr::TEList(list)   => ty_list(list.ty.to_type()),
-            TypeExpr::TETuple(tuple) => {
-                let mut v = Vec::new();
-                for t in &tuple.ty {
-                    v.push(t.to_type());
-                }
-                ty_tuple(v)
-            }
-            TypeExpr::TEFun(fun) => {
-                let mut targs = Vec::new();
-                for t in &fun.args {
-                    targs.push(t.to_type());
-                }
-                ty_fun(&fun.effect, targs, fun.ret.to_type())
-            }
-            TypeExpr::TEData(data) => {
-                let mut v = Vec::new();
-
-                for t in &data.type_args {
-                    v.push(t.to_type());
-                }
-
-                Type::TCon(Tycon{id: data.id.id.to_string(), args: v})
-            }
-            TypeExpr::TEID(id) => {
-                Type::TCon(Tycon{id: id.id.to_string(), args: Vec::new()})
-            }
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 struct TEListNode<'t> {
     ty: Box::<TypeExpr<'t>>,
@@ -692,8 +656,8 @@ impl<'t> Context<'t> {
 
         let args = args_orig.iter().into_iter().map(|x| x.apply_sbst(&sbst)).collect();
 
-        let fun_type1 = defun.fun_type.to_type(); // defined type
-        let fun_type2 = ty_fun(&defun.effect, args, ret);        // inferred type
+        let fun_type1 = self.to_type(&defun.fun_type, &mut num_tv).unwrap(); // defined type
+        let fun_type2 = ty_fun(&defun.effect, args, ret);                    // inferred type
 
         // check defined function types with inferred type
         let s1;
@@ -731,7 +695,7 @@ impl<'t> Context<'t> {
             LangExpr::LitBool(_)   => Ok((ty_bool(), sbst)),
             LangExpr::LitNum(_)    => Ok((ty_int(), sbst)),
             LangExpr::IfExpr(e)    => self.typing_if(e, sbst, var_type, num_tv),
-            LangExpr::IDExpr(e)    => self.typing_var(e, sbst, var_type),
+            LangExpr::IDExpr(e)    => self.typing_var(e, sbst, var_type, num_tv),
             LangExpr::LetExpr(e)   => self.typing_let(e, sbst, var_type, num_tv),
             LangExpr::MatchExpr(e) => self.typing_match(e, sbst, var_type, num_tv),
             LangExpr::TupleExpr(e) => self.typing_tuple(e, sbst, var_type, num_tv),
@@ -958,7 +922,7 @@ impl<'t> Context<'t> {
         Ok((e_ty.unwrap(), sbst))
     }
 
-    fn typing_var(&self, expr: &mut IDNode<'t>, sbst: Sbst, var_type: &VarType) -> Result<(Type, Sbst), TypingErr<'t>> {
+    fn typing_var(&self, expr: &mut IDNode<'t>, sbst: Sbst, var_type: &VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'t>> {
         let ty;
         match var_type.get(&expr.id.to_string()) {
             Some(t) => {
@@ -968,7 +932,7 @@ impl<'t> Context<'t> {
                 // look up function
                 match self.funs.get(&expr.id) {
                     Some(defun) => {
-                        ty = defun.fun_type.to_type();
+                        ty = self.to_type(&defun.fun_type, num_tv).unwrap();
                     }
                     None => {
                         let msg = format!("error: {:?} is not defined\n{:?}", expr.id, var_type);
@@ -1144,6 +1108,41 @@ impl<'t> Context<'t> {
         Ok((ty, sbst))
     }
 
+    fn to_type(&self, expr: &TypeExpr<'t>, num_tv: &mut ID) -> Result<Type, String> {
+        let mut tv2type = BTreeMap::new();
+        self.get_tv2type_from_type_expr(expr, num_tv, &mut tv2type);
+        self.apply_tv2type_to_type_expr(expr, &tv2type)
+    }
+
+    fn get_tv2type_from_type_expr(&self, expr: &TypeExpr<'t>, num_tv: &mut ID, tv2type: &mut BTreeMap<&'t str, Type>) {
+        match expr {
+            TypeExpr::TEList(e) => {
+                self.get_tv2type_from_type_expr(&e.ty, num_tv, tv2type);
+            }
+            TypeExpr::TETuple(e) => {
+                for it in &e.ty {
+                    self.get_tv2type_from_type_expr(it, num_tv, tv2type);
+                }
+            }
+            TypeExpr::TEFun(e) => {
+                for it in &e.args {
+                    self.get_tv2type_from_type_expr(it, num_tv, tv2type);
+                }
+                self.get_tv2type_from_type_expr(&e.ret, num_tv, tv2type);
+            }
+            TypeExpr::TEData(e) => {
+                for it in &e.type_args {
+                    self.get_tv2type_from_type_expr(it, num_tv, tv2type);
+                }
+            }
+            TypeExpr::TEID(e) => {
+                tv2type.insert(e.id, ty_var(*num_tv));
+                *num_tv += 1;
+            }
+            _ => ()
+        }
+    }
+
     /// If
     /// ```
     /// (data (Tree t)
@@ -1300,18 +1299,23 @@ impl<'t> Context<'t> {
 
     fn check_data_def_mem(&self, mem: &DataTypeMem<'t>, args: &BTreeSet<&str>) -> Result<(), TypingErr<'t>> {
         for it in mem.types.iter() {
-            self.check_def_type(it, args)?
+            self.check_def_type(it, Some(args))?
         }
 
         Ok(())
     }
 
-    fn check_def_type(&self, ty: &TypeExpr<'t>, args: &BTreeSet<&str>) -> Result<(), TypingErr<'t>> {
+    fn check_def_type(&self, ty: &TypeExpr<'t>, args: Option<&BTreeSet<&str>>) -> Result<(), TypingErr<'t>> {
         match ty {
             TypeExpr::TEID(id) => {
-                if !args.contains(id.id) {
-                    let msg = format!("error: {:?} is undefined", id.id);
-                    return Err(TypingErr{msg: msg, ast: id.ast})
+                match args {
+                    Some(m) => {
+                        if !m.contains(id.id) {
+                            let msg = format!("error: {:?} is undefined", id.id);
+                            return Err(TypingErr{msg: msg, ast: id.ast})
+                        }
+                    }
+                    None => ()
                 }
             }
             TypeExpr::TEList(list) => {
@@ -1491,9 +1495,8 @@ impl<'t> Context<'t> {
     }
 
     fn check_defun_type(&self) -> Result<(), TypingErr<'t>> {
-        let m = BTreeSet::new();
         for (_,fun) in self.funs.iter() {
-            self.check_def_type(&fun.fun_type, &m)?;
+            self.check_def_type(&fun.fun_type, None)?;
         }
 
         Ok(())
@@ -1750,7 +1753,6 @@ fn expr2defun(expr: &parser::Expr) -> Result<Defun, TypingErr> {
                 }
             }
 
-            let ty = fun.to_type();
             let effect;
             match &fun {
                 TypeExpr::TEFun(e) => {
@@ -1760,7 +1762,7 @@ fn expr2defun(expr: &parser::Expr) -> Result<Defun, TypingErr> {
                     panic!("failed to get effect");
                 }
             }
-            Ok(Defun{id: id, args: args, fun_type: fun, effect: effect, expr: body, ast: expr, ty: Some(ty)})
+            Ok(Defun{id: id, args: args, fun_type: fun, effect: effect, expr: body, ast: expr, ty: None})
         }
         _ => {
             Err(TypingErr::new("error: syntax error on function definition", expr))
@@ -1768,7 +1770,7 @@ fn expr2defun(expr: &parser::Expr) -> Result<Defun, TypingErr> {
     }
 }
 
-/// $TYPE_FUN := ( $EFFECT ( -> ($TYPES) $TYPE ) )
+/// $TYPE_FUN := ( $EFFECT ( -> $TYPES $TYPE ) )
 fn expr2type_fun(expr: &parser::Expr) -> Result<TypeExpr, TypingErr> {
     match expr {
         parser::Expr::Apply(exprs) => {
@@ -1792,7 +1794,7 @@ fn expr2type_fun(expr: &parser::Expr) -> Result<TypeExpr, TypingErr> {
                 }
             }
 
-            // ( -> ($TYPES) $TYPE )
+            // ( -> $TYPES $TYPE )
             let e1 = iter.next();
             let args;
             let ret;
@@ -1811,7 +1813,7 @@ fn expr2type_fun(expr: &parser::Expr) -> Result<TypeExpr, TypingErr> {
                         }
                     }
 
-                    // ( $TYPE* )
+                    // $TYPES
                     match iter2.next() {
                         Some(t) => {
                             args = expr2types(t)?;
@@ -1945,7 +1947,7 @@ fn list_types2vec_types(exprs: &LinkedList<parser::Expr>) -> Result<Vec<TypeExpr
     Ok(v)
 }
 
-/// $EXPR := $LITERAL | $ID | $TID | $LET | $IF | $MATCH | $LIST | $TUPLE | $APPLY
+/// $EXPR := $LITERAL | $ID | $TID | $LET | $IF | $MATCH | $LIST | $TUPLE | $GENDATA | $APPLY
 fn expr2typed_expr(expr: &parser::Expr) -> Result<LangExpr, TypingErr> {
     match expr {
         parser::Expr::Num(num) => {
@@ -2014,6 +2016,7 @@ fn expr2typed_expr(expr: &parser::Expr) -> Result<LangExpr, TypingErr> {
     }
 }
 
+/// $GENDATA := ( $TID $EXPR* )
 fn expr2data_expr(expr: &parser::Expr) -> Result<LangExpr, TypingErr> {
     let exprs;
     match expr {

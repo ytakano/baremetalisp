@@ -25,7 +25,8 @@
 - $TYPE_LIST := '( $TYPE )
 - $TYPE_TUPLE := \[ $TYPE* \]
 - $TYPE_DATA := $TID | ( $TID $TYPE* )
-- $TYPE_FUN := ( $EFFECT ( -> ( $TYPES* ) $TYPE ) )
+- $TYPE_FUN := ( $EFFECT ( -> $TYPES $TYPE ) )
+- $TYPES := ( $TYPE* )
 - $EFFECT := Pure | IO
 
 examples:
@@ -70,7 +71,7 @@ example:
 
 ## Expression
 
-- $EXPR := $LITERAL | $ID | $TID | $LET | $IF | $MATCH | $LIST | $TUPLE | $APPLY
+- $EXPR := $LITERAL | $ID | $TID | $LET | $IF | $MATCH | $LIST | $TUPLE | $GENDATA | $APPLY
 
 ### Let Expression
 
@@ -96,10 +97,13 @@ example:
 - $CASE := ( $PATTERN $EXPR )
 - $PATTERN := $LITERAL | $ID | $TID | \[ $PATTERN+ \] | ( $TID $PATTERN* ) | '()
 
-
 ### Function Application
 
 - $APPLY := ( $EXPR+ )
+
+### Data Creataion
+
+- $GENDATA := ( $TID $EXPR* )
 
 ## Built-in Functions
 
