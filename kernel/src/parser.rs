@@ -2,11 +2,11 @@
  * $NUM   := [1-9][0-9]*
  * $BOOL  := true | false
  * $ID    := string
- * $LIST  := '() | '( $EXPS )
+ * $LIST  := '( $EXPRS )
  * $TUPLE := [ $EXPRS ]
  * $APPLY := ( $EXPRS )
  * $EXP   := $NUM | $BOOL | $ID | $LIST | $TUPLE | $APPLY
- * $EXPS  := $EXP | $EXP $EXPS
+ * $EXPRS := $EXP $EXPRS | ∅
  */
 
 use alloc::string::{String, ToString};
@@ -156,13 +156,12 @@ impl<'a> Parser<'a> {
         self.skip_spaces();
 
         loop {
-            exprs.push_back(self.parse_expr()?);
-
             self.skip_spaces();
             let c0 = self.remain.chars().nth(0);
             if self.remain.len() == 0 || c0 == Some(')') || c0 == Some(']') {
                 break;
             }
+            exprs.push_back(self.parse_expr()?);
         }
 
         Ok(exprs)

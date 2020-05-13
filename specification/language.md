@@ -23,7 +23,7 @@
 
 - $TYPE := Int | Bool | $TYPE_LIST | $TYPE_TUPLE | $TYPE_FUN | $TYPE_DATA | $ID
 - $TYPE_LIST := '( $TYPE )
-- $TYPE_TUPLE := \[ $TYPE+ \]
+- $TYPE_TUPLE := \[ $TYPE* \]
 - $TYPE_DATA := $TID | ( $TID $TYPE* )
 - $TYPE_FUN := ( $EFFECT ( -> ( $TYPES* ) $TYPE ) )
 - $EFFECT := Pure | IO
@@ -88,13 +88,18 @@ example:
 
 ### Tuple Expression
 
-- $TUPLE := [ $EXPR+ ]
+- $TUPLE := [ $EXPR* ]
 
 ### Match Expression
 
 - $MATCH := ( match $EXPR $CASE+ )
 - $CASE := ( $PATTERN $EXPR )
 - $PATTERN := $LITERAL | $ID | $TID | \[ $PATTERN+ \] | ( $TID $PATTERN* ) | '()
+
+
+### Function Application
+
+- $APPLY := ( $EXPR+ )
 
 ## Built-in Functions
 

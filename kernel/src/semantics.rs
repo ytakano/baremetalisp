@@ -1832,11 +1832,7 @@ fn expr2type(expr: &parser::Expr) -> Result<TypeExpr, TypingErr> {
             }
         }
         parser::Expr::Tuple(tuple) => {
-            // $TYPE_TUPLE := [ $TYPE+ ]
-            if tuple.len() < 1 {
-                return Err(TypingErr::new("error: require more than or equal to oen type", expr));
-            }
-
+            // $TYPE_TUPLE := [ $TYPE* ]
             let mut types = Vec::new();
             for it in tuple {
                 types.push(expr2type(it)?);
@@ -1915,6 +1911,10 @@ fn expr2typed_expr(expr: &parser::Expr) -> Result<LangExpr, TypingErr> {
             Ok(LangExpr::TupleExpr(Exprs{exprs: elms, ast: expr, ty: None}))
         }
         parser::Expr::Apply(exprs) => {
+            if exprs.len() == 0 {
+                return Err(TypingErr::new("error: require function", expr));
+            }
+
             let mut iter = exprs.iter();
 
             match iter.next() {
@@ -2194,6 +2194,10 @@ fn expr2match(expr: &parser::Expr) -> Result<LangExpr, TypingErr> {
             let mut cases = Vec::new();
             for it in iter {
                 cases.push(expr2case(it)?);
+            }
+
+            if cases.len() == 0 {
+                return Err(TypingErr::new("error: require at least one case", exprs))
             }
 
             let node = MatchNode{expr: cond, cases: cases, ast: expr, ty: None};

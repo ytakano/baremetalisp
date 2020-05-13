@@ -16,6 +16,9 @@ pub fn el0_entry() -> ! {
     (Just t)
     Nothing)
 
+(defun test-label () (Pure (-> () Dim2))
+    (Dim2 10 20))
+
 (defun test-match (a) (Pure (-> ((Maybe Dim2)) Int))
     (match a
         ((Just val)
