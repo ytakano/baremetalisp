@@ -18,8 +18,8 @@ TARGET=aarch64-unknown-none
 RUSTLIB=target/$(TARGET)/release/libbaremetalisp.a
 RUSTFLAGS=$(RUSTC_MISC_ARGS)
 
-CC=aarch64-linux-gnu-gcc
-LD=aarch64-linux-gnu-ld
+CC=clang --target=aarch64-elf
+LD=ld.lld -m aarch64elf -nostdlib 
 
 all: kernel8.img
 
@@ -36,7 +36,7 @@ baremetalisp: $(RUSTLIB) $(MMU_OBJ) $(ASM_OBJ)
 	$(LD) -T link.ld -o baremetalisp $(ASM_OBJ) $(RUSTLIB)
 
 kernel8.img: baremetalisp
-	aarch64-linux-gnu-objcopy -O binary baremetalisp kernel8.img
+	llvm-objcopy-10 -O binary baremetalisp kernel8.img
 
 rmobj: FORCE
 	rm -f baremetalisp kernel8.img *.o
