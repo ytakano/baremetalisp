@@ -30,4 +30,4 @@ jobs:
 
       # Runs a single command using the runners shell
       - name: Compile
-        run: cd $GITHUB_WORKSPACE/kernel && export PATH=~/.cargo/bin && make
+        run: cd $GITHUB_WORKSPACE/kernel && export PATH=~/.cargo/bin:/usr/bin && make
