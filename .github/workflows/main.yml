@@ -24,10 +24,13 @@ jobs:
 
       - name: Install Rust
         run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain nightly-2020-05-01 --component clippy rust-src llvm-tools-preview rustfmt rls rust-analysis -y && /bin/bash -c "source $HOME/.cargo/env" && export PATH=$HOME/.cargo/bin:$PATH && cargo install cargo-xbuild cargo-binutils
+      
+      - name: Install LLVM 10
+        run: sudo echo "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-10 main\ndeb-src http://apt.llvm.org/bionic/ llvm-toolchain-bionic-10 main" >> /etc/apt/sources.list && sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 15CF4D18AF4F7421 && sudo apt-get -y update upgrade && sudo apt-get -y install clang-10 
 
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v2
 
       # Runs a single command using the runners shell
       - name: Compile
-        run: cd $GITHUB_WORKSPACE/kernel && /bin/bash -c "source $HOME/.cargo/env" && export PATH=$HOME/.cargo/bin:$PATH && make
+        run: cd $GITHUB_WORKSPACE/kernel && /bin/bash -c "source $HOME/.cargo/env && export PATH=$HOME/.cargo/bin:$PATH && make"
