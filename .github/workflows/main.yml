@@ -28,7 +28,12 @@ jobs:
           profile: minimal
           toolchain: nightly-2020-05-01
           override: true
-          components: cargo-xbuild cargo-binutils
+
+      - name: Install cargo-*
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: cargo-xbuild cargo-binutils
 
       - name: Install LLVM 10
         run: sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 15CF4D18AF4F7421 && sudo apt-add-repository "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-10 main" && sudo apt-get -y update && sudo apt-get -y install clang-10 lld-10
