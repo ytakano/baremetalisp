@@ -18,13 +18,18 @@ TARGET=aarch64-unknown-none
 RUSTLIB=target/$(TARGET)/release/libbaremetalisp.a
 RUSTFLAGS=$(RUSTC_MISC_ARGS)
 
-CC=clang --target=aarch64-elf
-LD=ld.lld -m aarch64elf -nostdlib 
+ifndef CC
+	CC = clang
+endif
+
+ifndef LD
+	LD = ld.lld
+endif
 
 all: kernel8.img
 
 $(ASM_OBJ): $(ASM_FILE)
-	$(CC) -c $(ASM_FILE) -o $(ASM_OBJ) -D$(BSP)
+	$(CC) --target=aarch64-elf -c $(ASM_FILE) -o $(ASM_OBJ) -D$(BSP)
 
 $(RUSTLIB): FORCE
 	RUSTFLAGS="$(RUSTFLAGS)" cargo xrustc --features $(BSP) --target $(TARGET) --release
@@ -33,7 +38,7 @@ doc:
 	cargo xdoc --target=$(TARGET) --features $(BSP) --document-private-items
 
 baremetalisp: $(RUSTLIB) $(MMU_OBJ) $(ASM_OBJ)
-	$(LD) -T link.ld -o baremetalisp $(ASM_OBJ) $(RUSTLIB)
+	$(LD) -m aarch64elf -nostdlib -T link.ld -o baremetalisp $(ASM_OBJ) $(RUSTLIB)
 
 kernel8.img: baremetalisp
 	llvm-objcopy-10 -O binary baremetalisp kernel8.img
