@@ -44,4 +44,4 @@ jobs:
 
       # Runs a single command using the runners shell
       - name: Compile
-        run: cd $GITHUB_WORKSPACE/kernel && make CC=clang-10 LD=lld-10
+        run: cd $GITHUB_WORKSPACE/kernel && make CC=clang-10 LD=ld.lld
