@@ -23,8 +23,13 @@ jobs:
         run: sudo apt-get -y install make curl software-properties-common
 
       - name: Install Rust
-        run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh && /bin/bash -c "source $HOME/.cargo/env && export PATH=$HOME/.cargo/bin:$PATH && rustup -y default nightly-2020-05-01 && cargo install cargo-xbuild cargo-binutils"
-      
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly-05-01
+          override: true
+          components: cargo-xbuild cargo-binutils
+
       - name: Install LLVM 10
         run: sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 15CF4D18AF4F7421 && sudo apt-add-repository "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-10 main" && sudo apt-get -y update && sudo apt-get -y install clang-10 lld-10
 
@@ -33,4 +38,4 @@ jobs:
 
       # Runs a single command using the runners shell
       - name: Compile
-        run: cd $GITHUB_WORKSPACE/kernel && /bin/bash -c "source $HOME/.cargo/env && export PATH=$HOME/.cargo/bin:$PATH && make CC=clang-10 LD=lld-10"
+        run: cd $GITHUB_WORKSPACE/kernel && make CC=clang-10 LD=lld-10
