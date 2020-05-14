@@ -1,5 +1,5 @@
 # Default to the RPi4
-ifndef BSP
+ifndef $(BSP)
 	BSP = raspi4
 endif
 
@@ -18,12 +18,12 @@ TARGET=aarch64-unknown-none
 RUSTLIB=target/$(TARGET)/release/libbaremetalisp.a
 RUSTFLAGS=$(RUSTC_MISC_ARGS)
 
-ifndef CC
+ifndef $(CC)
 	CC = clang
 endif
 
-ifndef LD
-	LD = ld.lld
+ifndef $(LD)
+	LD = rust-lld -flavor gnu
 endif
 
 all: kernel8.img
@@ -41,7 +41,7 @@ baremetalisp: $(RUSTLIB) $(MMU_OBJ) $(ASM_OBJ)
 	$(LD) -m aarch64elf -nostdlib -T link.ld -o baremetalisp $(ASM_OBJ) $(RUSTLIB)
 
 kernel8.img: baremetalisp
-	llvm-objcopy-10 -O binary baremetalisp kernel8.img
+	rust-objcopy -O binary baremetalisp kernel8.img
 
 rmobj: FORCE
 	rm -f baremetalisp kernel8.img *.o
