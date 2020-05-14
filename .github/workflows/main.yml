@@ -37,11 +37,11 @@ jobs:
           args: cargo-xbuild cargo-binutils
 
       - name: Install LLVM 10
-        run: sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 15CF4D18AF4F7421 && sudo apt-add-repository "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-10 main" && sudo apt-get -y update && sudo apt-get -y install clang-10 lld-10
+        run: sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 15CF4D18AF4F7421 && sudo apt-add-repository "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-10 main" && sudo apt-get -y update && sudo apt-get -y install clang-10
 
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v2
 
       # Runs a single command using the runners shell
       - name: Compile
-        run: cd $GITHUB_WORKSPACE/kernel && make CC=clang-10 LD=ld.lld
+        run: cd $GITHUB_WORKSPACE/kernel && make CC=clang-10
