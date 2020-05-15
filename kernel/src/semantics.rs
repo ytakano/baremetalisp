@@ -457,6 +457,7 @@ struct TEDataNode<'t> {
 
 #[derive(Debug, Clone)]
 struct Defun<'t> {
+    exported: bool,
     id: IDNode<'t>,
     args: Vec<IDNode<'t>>,
     fun_type: TypeExpr<'t>,
@@ -1495,11 +1496,103 @@ impl<'t> Context<'t> {
     }
 
     fn check_defun_type(&self) -> Result<(), TypingErr<'t>> {
-        for (_,fun) in self.funs.iter() {
-            self.check_def_type(&fun.fun_type, None)?;
+        for (_, fun) in self.funs.iter() {
+            let set;
+            let m = if fun.exported {
+                set = BTreeSet::new();
+                Some(&set)
+            } else {
+                None
+            };
+            self.check_def_type(&fun.fun_type, m)?;
         }
 
         Ok(())
+    }
+
+    fn check_type_infer(&self, defun: &Defun<'t>, fun_types: &mut BTreeMap<String, LinkedList<Type>>) -> Result<(), TypingErr<'t>> {
+        match &defun.ty {
+            Some(t) => {
+                if has_tvar(t) {
+                    return Ok(());
+                }
+            }
+            None => {
+                return Err(TypingErr::new("error: function type has not inferred yet", defun.ast));
+            }
+        }
+
+        let mut vars = VarType::new();
+        vars.push();
+        for arg in &defun.args {
+            match &arg.ty {
+                Some(t) => {
+                    vars.insert(arg.id.to_string(), t.clone());
+                }
+                None => {
+                    return Err(TypingErr::new("error: argument type has not inferred yet", arg.ast));
+                }
+            }
+        }
+        self.check_expr_type(&defun.expr, fun_types, &mut vars)
+    }
+
+    fn check_expr_type(&self, expr: &LangExpr, fun_types: &mut BTreeMap<String, LinkedList<Type>>, vars: &mut VarType) -> Result<(), TypingErr<'t>> {
+        match expr {
+            LangExpr::LitNum(_)  => Ok(()),
+            LangExpr::LitBool(_) => Ok(()),
+            LangExpr::LetExpr(e) => self.check_let_type(&e, fun_types, vars),
+            _ => Ok(())
+        }
+    }
+
+    fn check_let_type(&self, expr: &LetNode, fun_types: &mut BTreeMap<String, LinkedList<Type>>, vars: &mut VarType) -> Result<(), TypingErr<'t>> {
+        Ok(())
+    }
+
+    fn check_pat_type(&self, expr: &Pattern<'t>, vars: &mut VarType) -> Result<(), TypingErr<'t>> {
+        match expr {
+            Pattern::PatNum(_)  => Ok(()),
+            Pattern::PatBool(_) => Ok(()),
+            Pattern::PatNil(_)  => Ok(()),
+            Pattern::PatID(e)   => {
+                check_type_has_no_tvars(&e.ty, e.ast)?;
+                vars.insert(e.id.to_string(), e.ty.as_ref().unwrap().clone());
+                Ok(())
+            }
+            _ => Ok(())
+        }
+    }
+}
+
+fn check_type_has_no_tvars<'t>(ty: &Option<Type>, ast: &'t parser::Expr) -> Result<(), TypingErr<'t>> {
+    match ty {
+        Some(t) => {
+            if has_tvar(t) {
+                let msg = format!("error: inferred type still contains type variables\n  type: {:?}", t);
+                return Err(TypingErr{msg: msg, ast: ast});
+            }
+        }
+        None => {
+            return Err(TypingErr::new("error: type has not inferred yet", ast));
+        }
+    }
+    Ok(())
+}
+
+fn has_tvar(ty: &Type) -> bool {
+    match ty {
+        Type::TCon(t) => {
+            for arg in &t.args {
+                if has_tvar(arg) {
+                    return true;
+                }
+            }
+            false
+        }
+        Type::TVar(id) => {
+            true
+        }
     }
 }
 
@@ -1704,7 +1797,15 @@ fn expr2defun(expr: &parser::Expr) -> Result<Defun, TypingErr> {
             let mut iter = exprs.iter();
 
             // $HEAD_DEFUN := export | defun
-            iter.next(); // must be "export" or "defun"
+            let exported;
+            match iter.next() {
+                Some(parser::Expr::ID(id)) => {
+                    exported = id == "export";
+                }
+                _ => {
+                    return Err(TypingErr::new("error: require defun or export", expr));
+                }
+            }
 
             // $ID
             let id;
@@ -1762,7 +1863,7 @@ fn expr2defun(expr: &parser::Expr) -> Result<Defun, TypingErr> {
                     panic!("failed to get effect");
                 }
             }
-            Ok(Defun{id: id, args: args, fun_type: fun, effect: effect, expr: body, ast: expr, ty: None})
+            Ok(Defun{exported: exported, id: id, args: args, fun_type: fun, effect: effect, expr: body, ast: expr, ty: None})
         }
         _ => {
             Err(TypingErr::new("error: syntax error on function definition", expr))
