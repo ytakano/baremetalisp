@@ -58,6 +58,46 @@ fn ty_fun_gen_effect(n: ID, args: Vec<Type>, ret: Type) -> Type {
     Type::TCon(Tycon{id: "->".to_string(), args: vec!(ty_effect, tuple, ret)})
 }
 
+struct FunTypes {
+    fun_types: BTreeMap<String, LinkedList<Type>>
+}
+
+impl FunTypes {
+    fn new() -> FunTypes {
+        FunTypes{fun_types: BTreeMap::new()}
+    }
+
+    fn insert(&mut self, key: &String, val: Type) {
+        match self.fun_types.get_mut(key) {
+            Some(list) => {
+                list.push_back(val);
+            }
+            None => {
+                let mut list = LinkedList::new();
+                list.push_back(val);
+                self.fun_types.insert(key.to_string(), list);
+            }
+        }
+    }
+
+    fn contains(&self, key: &String, val: &Type) -> bool {
+        match self.fun_types.get(key) {
+            Some(list) => {
+                for t in list {
+                    match unify(&val, &t) {
+                        Some(_) => {
+                            return true;
+                        }
+                        None => ()
+                    }
+                }
+                false
+            }
+            None => false
+        }
+    }
+}
+
 #[derive(Debug)]
 struct VarType {
     var_stack: LinkedList<BTreeMap<String, LinkedList<Type>>>
@@ -606,6 +646,7 @@ impl<'t> Context<'t> {
         self.check_data_rec()?;
         self.check_defun_type()?;
         self.typing_functions()?;
+        self.check_defun_type_after_infer()?;
 
         Ok(())
     }
@@ -936,7 +977,7 @@ impl<'t> Context<'t> {
                         ty = self.to_type(&defun.fun_type, num_tv).unwrap();
                     }
                     None => {
-                        let msg = format!("error: {:?} is not defined\n{:?}", expr.id, var_type);
+                        let msg = format!("error: {:?} is not defined", expr.id);
                         return Err(TypingErr{msg: msg, ast: expr.ast});
                     }
                 }
@@ -1510,7 +1551,24 @@ impl<'t> Context<'t> {
         Ok(())
     }
 
-    fn check_type_infer(&self, defun: &Defun<'t>, fun_types: &mut BTreeMap<String, LinkedList<Type>>) -> Result<(), TypingErr<'t>> {
+    fn check_defun_type_after_infer(&self) -> Result<(), TypingErr<'t>> {
+        let mut m = FunTypes::new();
+        for (_, fun) in self.funs.iter() {
+            self.check_type_infer(fun, &mut m)?;
+        }
+
+        Ok(())
+    }
+
+    /// check type inference has been correctly done?
+    ///
+    /// If an inferred type of defun has no type variables,
+    /// then the types of the expression must not contain type variables.
+    ///
+    /// If an effect of a function is Pure,
+    /// then the expression must not contain IO function.
+    fn check_type_infer(&self, defun: &Defun<'t>, fun_types: &mut FunTypes) -> Result<(), TypingErr<'t>> {
+        // if function type contains type variables, just return Ok
         match &defun.ty {
             Some(t) => {
                 if has_tvar(t) {
@@ -1522,6 +1580,7 @@ impl<'t> Context<'t> {
             }
         }
 
+        // get arguments
         let mut vars = VarType::new();
         vars.push();
         for arg in &defun.args {
@@ -1534,30 +1593,171 @@ impl<'t> Context<'t> {
                 }
             }
         }
-        self.check_expr_type(&defun.expr, fun_types, &mut vars)
+
+        self.check_expr_type(&defun.expr, fun_types, &mut vars, &Sbst::new())
     }
 
-    fn check_expr_type(&self, expr: &LangExpr, fun_types: &mut BTreeMap<String, LinkedList<Type>>, vars: &mut VarType) -> Result<(), TypingErr<'t>> {
+    fn check_expr_type(&self, expr: &LangExpr<'t>, fun_types: &mut FunTypes, vars: &mut VarType, sbst: &Sbst) -> Result<(), TypingErr<'t>> {
         match expr {
-            LangExpr::LitNum(_)  => Ok(()),
-            LangExpr::LitBool(_) => Ok(()),
-            LangExpr::LetExpr(e) => self.check_let_type(&e, fun_types, vars),
+            LangExpr::IDExpr(e)    => self.check_id_type(&e, fun_types, vars, sbst),
+            LangExpr::IfExpr(e)    => self.check_if_type(&e, fun_types, vars, sbst),
+            LangExpr::LetExpr(e)   => self.check_let_type(&e, fun_types, vars, sbst),
+            LangExpr::MatchExpr(e) => self.check_match_type(&e, fun_types, vars, sbst),
+            LangExpr::ApplyExpr(e) => self.check_exprs_type(&e, fun_types, vars, sbst),
+            LangExpr::ListExpr(e)  => self.check_exprs_type(&e, fun_types, vars, sbst),
+            LangExpr::TupleExpr(e) => self.check_exprs_type(&e, fun_types, vars, sbst),
+            LangExpr::DataExpr(e)  => self.check_data_type(&e, fun_types, vars, sbst),
             _ => Ok(())
         }
     }
 
-    fn check_let_type(&self, expr: &LetNode, fun_types: &mut BTreeMap<String, LinkedList<Type>>, vars: &mut VarType) -> Result<(), TypingErr<'t>> {
+    fn check_data_type(&self, expr: &DataNode<'t>, fun_types: &mut FunTypes, vars: &mut VarType, sbst: &Sbst) -> Result<(), TypingErr<'t>> {
+        check_type_has_no_tvars(&expr.ty, expr.ast, sbst)?;
+        for e in &expr.exprs {
+            self.check_expr_type(&e, fun_types, vars, sbst)?;
+        }
         Ok(())
     }
 
-    fn check_pat_type(&self, expr: &Pattern<'t>, vars: &mut VarType) -> Result<(), TypingErr<'t>> {
+    fn check_exprs_type(&self, expr: &Exprs<'t>, fun_types: &mut FunTypes, vars: &mut VarType, sbst: &Sbst) -> Result<(), TypingErr<'t>> {
+        check_type_has_no_tvars(&expr.ty, expr.ast, sbst)?;
+        for e in &expr.exprs {
+            self.check_expr_type(&e, fun_types, vars, sbst)?;
+        }
+        Ok(())
+    }
+
+    fn check_match_type(&self, expr: &MatchNode<'t>, fun_types: &mut FunTypes, vars: &mut VarType, sbst: &Sbst) -> Result<(), TypingErr<'t>> {
+        check_type_has_no_tvars(&expr.ty, expr.ast, sbst)?;
+        self.check_expr_type(&expr.expr, fun_types, vars, sbst)?;
+
+        for c in &expr.cases {
+            vars.push();
+            self.check_pat_type(&c.pattern, vars, sbst)?;
+            self.check_expr_type(&c.expr, fun_types, vars, sbst)?;
+            vars.pop();
+        }
+
+        Ok(())
+    }
+
+    fn check_id_type(&self, expr: &IDNode<'t>, fun_types: &mut FunTypes, vars: &mut VarType, sbst: &Sbst) -> Result<(), TypingErr<'t>> {
+        check_type_has_no_tvars(&expr.ty, expr.ast, sbst)?;
+        match vars.get(&expr.id.to_string()) {
+            Some(_) => (),
+            None => {
+                match self.funs.get(expr.id) {
+                    Some(defun) => {
+                        self.check_defun_type_recur(&expr.ty.as_ref().unwrap(), defun, fun_types)?;
+                    }
+                    None => {
+                        let msg = format!("error: {:?} is not defined", expr.id);
+                        return Err(TypingErr{msg: msg, ast: expr.ast});
+                    }
+                }
+                ()
+            }
+        }
+        Ok(())
+    }
+
+    fn check_defun_type_recur(&self, call_ty: &Type, defun: &Defun<'t>, fun_types: &mut FunTypes) -> Result<(), TypingErr<'t>> {
+        let defun_ty;
+
+        // check only functions whose type has type variables
+        match &defun.ty {
+            Some(t) => {
+                if !has_tvar(t) {
+                    return Ok(());
+                }
+                defun_ty = t;
+            }
+            None => {
+                return Err(TypingErr::new("error: function type has not inferred yet", defun.ast));
+            }
+        }
+
+        // already checked?
+        let id = defun.id.id.to_string();
+        if fun_types.contains(&id, &call_ty) {
+            return Ok(())
+        }
+
+        fun_types.insert(&id, call_ty.clone());
+
+        // check type with caller side
+        let sbst;
+        match unify(call_ty, &defun_ty) {
+            Some(s) => {
+                sbst = s;
+            }
+            None => {
+                let msg = format!("error: mismatched type\n  expected: {:?}\n    actual: {:?}", call_ty, defun_ty);
+                return Err(TypingErr{msg: msg, ast: defun.ast});
+            }
+        }
+
+        // get arguments
+        let mut vars = VarType::new();
+        vars.push();
+        for arg in &defun.args {
+            match &arg.ty {
+                Some(t) => {
+                    vars.insert(arg.id.to_string(), t.apply_sbst(&sbst));
+                }
+                None => {
+                    return Err(TypingErr::new("error: argument type has not inferred yet", arg.ast));
+                }
+            }
+        }
+
+        // check function type recursively
+        self.check_expr_type(&defun.expr, fun_types, &mut vars, &sbst)
+    }
+
+    fn check_if_type(&self, expr: &IfNode<'t>, fun_types: &mut FunTypes, vars: &mut VarType, sbst: &Sbst) -> Result<(), TypingErr<'t>> {
+        check_type_has_no_tvars(&expr.ty, expr.ast, sbst)?;
+        self.check_expr_type(&expr.cond_expr, fun_types, vars, sbst)?;
+        self.check_expr_type(&expr.then_expr, fun_types, vars, sbst)?;
+        self.check_expr_type(&expr.else_expr, fun_types, vars, sbst)?;
+        Ok(())
+    }
+
+    fn check_let_type(&self, expr: &LetNode<'t>, fun_types: &mut FunTypes, vars: &mut VarType, sbst: &Sbst) -> Result<(), TypingErr<'t>> {
+        check_type_has_no_tvars(&expr.ty, expr.ast, sbst)?;
+
+        vars.push();
+
+        for def in &expr.def_vars {
+            self.check_expr_type(&def.expr, fun_types, vars, sbst)?;
+            self.check_pat_type(&def.pattern, vars, sbst)?;
+        }
+
+        self.check_expr_type(&expr.expr, fun_types, vars, sbst)?;
+        vars.pop();
+
+        Ok(())
+    }
+
+    fn check_pat_type(&self, expr: &Pattern<'t>, vars: &mut VarType, sbst: &Sbst) -> Result<(), TypingErr<'t>> {
         match expr {
-            Pattern::PatNum(_)  => Ok(()),
-            Pattern::PatBool(_) => Ok(()),
-            Pattern::PatNil(_)  => Ok(()),
-            Pattern::PatID(e)   => {
-                check_type_has_no_tvars(&e.ty, e.ast)?;
+            Pattern::PatID(e) => {
+                check_type_has_no_tvars(&e.ty, e.ast, sbst)?;
                 vars.insert(e.id.to_string(), e.ty.as_ref().unwrap().clone());
+                Ok(())
+            }
+            Pattern::PatTuple(e) => {
+                check_type_has_no_tvars(&e.ty, e.ast, sbst)?;
+                for it in &e.pattern {
+                    self.check_pat_type(it, vars, sbst)?;
+                }
+                Ok(())
+            }
+            Pattern::PatData(e) => {
+                check_type_has_no_tvars(&e.ty, e.ast, sbst)?;
+                for it in &e.pattern {
+                    self.check_pat_type(it, vars, sbst)?;
+                }
                 Ok(())
             }
             _ => Ok(())
@@ -1565,10 +1765,10 @@ impl<'t> Context<'t> {
     }
 }
 
-fn check_type_has_no_tvars<'t>(ty: &Option<Type>, ast: &'t parser::Expr) -> Result<(), TypingErr<'t>> {
+fn check_type_has_no_tvars<'t>(ty: &Option<Type>, ast: &'t parser::Expr, sbst: &Sbst) -> Result<(), TypingErr<'t>> {
     match ty {
         Some(t) => {
-            if has_tvar(t) {
+            if has_tvar(&t.apply_sbst(sbst)) {
                 let msg = format!("error: inferred type still contains type variables\n  type: {:?}", t);
                 return Err(TypingErr{msg: msg, ast: ast});
             }
@@ -1580,6 +1780,7 @@ fn check_type_has_no_tvars<'t>(ty: &Option<Type>, ast: &'t parser::Expr) -> Resu
     Ok(())
 }
 
+/// Does type contain type variables?
 fn has_tvar(ty: &Type) -> bool {
     match ty {
         Type::TCon(t) => {
@@ -1590,9 +1791,7 @@ fn has_tvar(ty: &Type) -> bool {
             }
             false
         }
-        Type::TVar(id) => {
-            true
-        }
+        Type::TVar(_) => true
     }
 }
 
