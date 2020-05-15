@@ -1,6 +1,7 @@
 use crate::slab;
 use crate::lang::parser;
 use crate::lang::semantics;
+use crate::lang::runtime;
 use crate::driver;
 
 #[no_mangle]
@@ -19,7 +20,7 @@ pub fn el0_entry() -> ! {
 (defun id (x) (Pure (-> (t) t))
     x)
 
-(defun test-label () (Pure (-> () Dim2))
+(export test-label () (Pure (-> () Dim2))
     (id (Dim2 10 20)))
 ";
 
@@ -76,24 +77,14 @@ pub fn el0_entry() -> ! {
     let mut ps = parser::Parser::new(code);
     match ps.parse() {
         Ok(e) => {
-            let msg = format!("AST:\n  {:#?}\n", e);
-            driver::uart::puts(&msg);
-
             match semantics::exprs2context(&e) {
-                Ok(mut ctx) => {
-                    match ctx.typing() {
-                        Err(err) => {
-                            let msg = format!("Typing Error:\n  {:?}\n", err);
-                            driver::uart::puts(&msg);
-                        }
-                        _ => {
-                            let msg = format!("Context:\n  {:#?}\n", ctx);
-                            driver::uart::puts(&msg);
-                        }
-                    }
+                Ok(ctx) => {
+                    let expr = "(test-label)";
+                    let mut evaluator = runtime::Evaluator::new();
+                    evaluator.eval(expr, &ctx);
                 }
                 Err(err) => {
-                    let msg = format!("Context Error:\n  {:?}\n", err);
+                    let msg = format!("{:#?}\n", err);
                     driver::uart::puts(&msg);
                 }
             }

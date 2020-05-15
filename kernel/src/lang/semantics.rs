@@ -628,19 +628,17 @@ impl<'t> TApp<'t> for TEDataNode<'t> {
 pub struct Context<'t> {
     funs: BTreeMap<&'t str, Defun<'t>>,
     data: BTreeMap<&'t str, DataType<'t>>,
-    label2data: BTreeMap<&'t str, &'t str>,
-    curr_id: ID,
+    label2data: BTreeMap<&'t str, &'t str>
 }
 
 impl<'t> Context<'t> {
     fn new(funs: BTreeMap<&'t str, Defun<'t>>, data: BTreeMap<&'t str, DataType<'t>>) -> Context<'t> {
         Context{funs: funs,
                 data: data,
-                label2data: BTreeMap::new(),
-                curr_id: 0}
+                label2data: BTreeMap::new()}
     }
 
-    pub fn typing(&mut self) -> Result<(), TypingErr<'t>> {
+    fn typing(&mut self) -> Result<(), TypingErr<'t>> {
         self.check_data_def()?;
         self.check_label()?;
         self.check_data_rec()?;
@@ -1898,7 +1896,10 @@ pub fn exprs2context(exprs: &LinkedList<parser::Expr>) -> Result<Context, Typing
         }
     }
 
-    Ok(Context::new(funs, data))
+    let mut ctx = Context::new(funs, data);
+    ctx.typing()?;
+
+    Ok(ctx)
 }
 
 /// $DATA := ( data $DATA_NAME $MEMBER+ )
