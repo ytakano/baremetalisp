@@ -1568,6 +1568,9 @@ impl<'t> Context<'t> {
     /// If an effect of a function is Pure,
     /// then the expression must not contain IO function.
     fn check_type_infer(&self, defun: &Defun<'t>, fun_types: &mut FunTypes) -> Result<(), TypingErr<'t>> {
+        // check effect
+        check_type_has_io(&defun.ty, defun.ast, &Sbst::new(), &defun.effect)?;
+
         // if function type contains type variables, just return Ok
         match &defun.ty {
             Some(t) => {
@@ -1594,55 +1597,62 @@ impl<'t> Context<'t> {
             }
         }
 
-        self.check_expr_type(&defun.expr, fun_types, &mut vars, &Sbst::new())
+        self.check_expr_type(&defun.expr, fun_types, &mut vars, &Sbst::new(), &defun.effect)
     }
 
-    fn check_expr_type(&self, expr: &LangExpr<'t>, fun_types: &mut FunTypes, vars: &mut VarType, sbst: &Sbst) -> Result<(), TypingErr<'t>> {
+    fn check_expr_type(&self, expr: &LangExpr<'t>, fun_types: &mut FunTypes, vars: &mut VarType, sbst: &Sbst, effect: &Effect) -> Result<(), TypingErr<'t>> {
         match expr {
-            LangExpr::IDExpr(e)    => self.check_id_type(&e, fun_types, vars, sbst),
-            LangExpr::IfExpr(e)    => self.check_if_type(&e, fun_types, vars, sbst),
-            LangExpr::LetExpr(e)   => self.check_let_type(&e, fun_types, vars, sbst),
-            LangExpr::MatchExpr(e) => self.check_match_type(&e, fun_types, vars, sbst),
-            LangExpr::ApplyExpr(e) => self.check_exprs_type(&e, fun_types, vars, sbst),
-            LangExpr::ListExpr(e)  => self.check_exprs_type(&e, fun_types, vars, sbst),
-            LangExpr::TupleExpr(e) => self.check_exprs_type(&e, fun_types, vars, sbst),
-            LangExpr::DataExpr(e)  => self.check_data_type(&e, fun_types, vars, sbst),
+            LangExpr::IDExpr(e)    => self.check_id_type(&e, fun_types, vars, sbst, effect),
+            LangExpr::IfExpr(e)    => self.check_if_type(&e, fun_types, vars, sbst, effect),
+            LangExpr::LetExpr(e)   => self.check_let_type(&e, fun_types, vars, sbst, effect),
+            LangExpr::MatchExpr(e) => self.check_match_type(&e, fun_types, vars, sbst, effect),
+            LangExpr::ApplyExpr(e) => self.check_exprs_type(&e, fun_types, vars, sbst, effect),
+            LangExpr::ListExpr(e)  => self.check_exprs_type(&e, fun_types, vars, sbst, effect),
+            LangExpr::TupleExpr(e) => self.check_exprs_type(&e, fun_types, vars, sbst, effect),
+            LangExpr::DataExpr(e)  => self.check_data_type(&e, fun_types, vars, sbst, effect),
             _ => Ok(())
         }
     }
 
-    fn check_data_type(&self, expr: &DataNode<'t>, fun_types: &mut FunTypes, vars: &mut VarType, sbst: &Sbst) -> Result<(), TypingErr<'t>> {
+    fn check_data_type(&self, expr: &DataNode<'t>, fun_types: &mut FunTypes, vars: &mut VarType, sbst: &Sbst, effect: &Effect) -> Result<(), TypingErr<'t>> {
         check_type_has_no_tvars(&expr.ty, expr.ast, sbst)?;
+        check_type_has_io(&expr.ty, expr.ast, sbst, effect)?;
+
         for e in &expr.exprs {
-            self.check_expr_type(&e, fun_types, vars, sbst)?;
+            self.check_expr_type(&e, fun_types, vars, sbst, effect)?;
         }
         Ok(())
     }
 
-    fn check_exprs_type(&self, expr: &Exprs<'t>, fun_types: &mut FunTypes, vars: &mut VarType, sbst: &Sbst) -> Result<(), TypingErr<'t>> {
+    fn check_exprs_type(&self, expr: &Exprs<'t>, fun_types: &mut FunTypes, vars: &mut VarType, sbst: &Sbst, effect: &Effect) -> Result<(), TypingErr<'t>> {
         check_type_has_no_tvars(&expr.ty, expr.ast, sbst)?;
+        check_type_has_io(&expr.ty, expr.ast, sbst, effect)?;
+
         for e in &expr.exprs {
-            self.check_expr_type(&e, fun_types, vars, sbst)?;
+            self.check_expr_type(&e, fun_types, vars, sbst, effect)?;
         }
         Ok(())
     }
 
-    fn check_match_type(&self, expr: &MatchNode<'t>, fun_types: &mut FunTypes, vars: &mut VarType, sbst: &Sbst) -> Result<(), TypingErr<'t>> {
+    fn check_match_type(&self, expr: &MatchNode<'t>, fun_types: &mut FunTypes, vars: &mut VarType, sbst: &Sbst, effect: &Effect) -> Result<(), TypingErr<'t>> {
         check_type_has_no_tvars(&expr.ty, expr.ast, sbst)?;
-        self.check_expr_type(&expr.expr, fun_types, vars, sbst)?;
+        check_type_has_io(&expr.ty, expr.ast, sbst, effect)?;
+
+        self.check_expr_type(&expr.expr, fun_types, vars, sbst, effect)?;
 
         for c in &expr.cases {
             vars.push();
-            self.check_pat_type(&c.pattern, vars, sbst)?;
-            self.check_expr_type(&c.expr, fun_types, vars, sbst)?;
+            self.check_pat_type(&c.pattern, vars, sbst, effect)?;
+            self.check_expr_type(&c.expr, fun_types, vars, sbst, effect)?;
             vars.pop();
         }
 
         Ok(())
     }
 
-    fn check_id_type(&self, expr: &IDNode<'t>, fun_types: &mut FunTypes, vars: &mut VarType, sbst: &Sbst) -> Result<(), TypingErr<'t>> {
+    fn check_id_type(&self, expr: &IDNode<'t>, fun_types: &mut FunTypes, vars: &mut VarType, sbst: &Sbst, effect: &Effect) -> Result<(), TypingErr<'t>> {
         check_type_has_no_tvars(&expr.ty, expr.ast, sbst)?;
+        check_type_has_io(&expr.ty, expr.ast, sbst, effect)?;
         match vars.get(&expr.id.to_string()) {
             Some(_) => (),
             None => {
@@ -1697,6 +1707,9 @@ impl<'t> Context<'t> {
             }
         }
 
+        // check effect
+        check_type_has_io(&defun.ty, defun.ast, &sbst, &defun.effect)?;
+
         // get arguments
         let mut vars = VarType::new();
         vars.push();
@@ -1712,51 +1725,56 @@ impl<'t> Context<'t> {
         }
 
         // check function type recursively
-        self.check_expr_type(&defun.expr, fun_types, &mut vars, &sbst)
+        self.check_expr_type(&defun.expr, fun_types, &mut vars, &sbst, &defun.effect)
     }
 
-    fn check_if_type(&self, expr: &IfNode<'t>, fun_types: &mut FunTypes, vars: &mut VarType, sbst: &Sbst) -> Result<(), TypingErr<'t>> {
+    fn check_if_type(&self, expr: &IfNode<'t>, fun_types: &mut FunTypes, vars: &mut VarType, sbst: &Sbst, effect: &Effect) -> Result<(), TypingErr<'t>> {
         check_type_has_no_tvars(&expr.ty, expr.ast, sbst)?;
-        self.check_expr_type(&expr.cond_expr, fun_types, vars, sbst)?;
-        self.check_expr_type(&expr.then_expr, fun_types, vars, sbst)?;
-        self.check_expr_type(&expr.else_expr, fun_types, vars, sbst)?;
+        check_type_has_io(&expr.ty, expr.ast, sbst, effect)?;
+        self.check_expr_type(&expr.cond_expr, fun_types, vars, sbst, effect)?;
+        self.check_expr_type(&expr.then_expr, fun_types, vars, sbst, effect)?;
+        self.check_expr_type(&expr.else_expr, fun_types, vars, sbst, effect)?;
         Ok(())
     }
 
-    fn check_let_type(&self, expr: &LetNode<'t>, fun_types: &mut FunTypes, vars: &mut VarType, sbst: &Sbst) -> Result<(), TypingErr<'t>> {
+    fn check_let_type(&self, expr: &LetNode<'t>, fun_types: &mut FunTypes, vars: &mut VarType, sbst: &Sbst, effect: &Effect) -> Result<(), TypingErr<'t>> {
         check_type_has_no_tvars(&expr.ty, expr.ast, sbst)?;
+        check_type_has_io(&expr.ty, expr.ast, sbst, effect)?;
 
         vars.push();
 
         for def in &expr.def_vars {
-            self.check_expr_type(&def.expr, fun_types, vars, sbst)?;
-            self.check_pat_type(&def.pattern, vars, sbst)?;
+            self.check_expr_type(&def.expr, fun_types, vars, sbst, effect)?;
+            self.check_pat_type(&def.pattern, vars, sbst, effect)?;
         }
 
-        self.check_expr_type(&expr.expr, fun_types, vars, sbst)?;
+        self.check_expr_type(&expr.expr, fun_types, vars, sbst, effect)?;
         vars.pop();
 
         Ok(())
     }
 
-    fn check_pat_type(&self, expr: &Pattern<'t>, vars: &mut VarType, sbst: &Sbst) -> Result<(), TypingErr<'t>> {
+    fn check_pat_type(&self, expr: &Pattern<'t>, vars: &mut VarType, sbst: &Sbst, effect: &Effect) -> Result<(), TypingErr<'t>> {
         match expr {
             Pattern::PatID(e) => {
                 check_type_has_no_tvars(&e.ty, e.ast, sbst)?;
+                check_type_has_io(&e.ty, e.ast, sbst, effect)?;
                 vars.insert(e.id.to_string(), e.ty.as_ref().unwrap().clone());
                 Ok(())
             }
             Pattern::PatTuple(e) => {
                 check_type_has_no_tvars(&e.ty, e.ast, sbst)?;
+                check_type_has_io(&e.ty, e.ast, sbst, effect)?;
                 for it in &e.pattern {
-                    self.check_pat_type(it, vars, sbst)?;
+                    self.check_pat_type(it, vars, sbst, effect)?;
                 }
                 Ok(())
             }
             Pattern::PatData(e) => {
                 check_type_has_no_tvars(&e.ty, e.ast, sbst)?;
+                check_type_has_io(&e.ty, e.ast, sbst, effect)?;
                 for it in &e.pattern {
-                    self.check_pat_type(it, vars, sbst)?;
+                    self.check_pat_type(it, vars, sbst, effect)?;
                 }
                 Ok(())
             }
@@ -1778,6 +1796,47 @@ fn check_type_has_no_tvars<'t>(ty: &Option<Type>, ast: &'t parser::Expr, sbst: &
         }
     }
     Ok(())
+}
+
+fn check_type_has_io<'t>(ty: &Option<Type>, ast: &'t parser::Expr, sbst: &Sbst, effect: &Effect) -> Result<(), TypingErr<'t>> {
+    match ty {
+        Some(t) => {
+            match effect {
+                Effect::IO => {
+                    if has_io(&t.apply_sbst(sbst)) {
+                        let msg = format!("error: Pure function contains an IO function\n type: {:?}", t);
+                        return Err(TypingErr{msg: msg, ast: ast});
+                    }
+                }
+                _ => ()
+            }
+        }
+        None => {
+            return Err(TypingErr::new("error: type has not inferred yet", ast));
+        }
+    }
+
+    Ok(())
+}
+
+/// Does type contain IO?
+fn has_io(ty: &Type) -> bool {
+    match ty {
+        Type::TCon(t) => {
+            if t.id == "IO" {
+                return true;
+            }
+
+            for arg in &t.args {
+                if has_io(arg) {
+                    return true;
+                }
+            }
+
+            false
+        }
+        Type::TVar(_) => false
+    }
 }
 
 /// Does type contain type variables?

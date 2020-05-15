@@ -202,6 +202,8 @@ and $Size(\mathrm{Dim2}) = 1$ because Dim2 type has 1 label in listings~\ref{src
         $\dfrac{x : T \in \Gamma}{\Gamma \vdash x : T\ |_\varnothing\ \varnothing}$ & (T-Var) &
         $\Gamma \vdash z : \mathtt{Int}\ |_\varnothing\ \varnothing$ & (T-Num) \vspace{5mm} \\
 
+        $\dfrac{x : T' \in \Gamma \hspace{5mm} T' \cdot S \equiv_\alpha T}{\Gamma \vdash x : T\ |_{FV_\mathcal{T}(T)}\ \varnothing}$ & (T-VarPoly) \vspace{5mm} \\
+
         \multicolumn{3}{r}{
         $\dfrac{
             \begin{aligned}
