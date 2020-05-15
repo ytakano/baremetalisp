@@ -6,7 +6,6 @@
 #![no_std]
 #![allow(dead_code)]
 
-mod parser;
 mod boot;
 mod driver;
 mod aarch64;
@@ -16,7 +15,7 @@ mod el2;
 mod el3;
 mod slab;
 mod pager;
-mod semantics;
+mod lang;
 
 #[macro_use]
 extern crate alloc;

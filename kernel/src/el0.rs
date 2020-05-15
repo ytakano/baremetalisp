@@ -1,6 +1,6 @@
 use crate::slab;
-use crate::parser;
-use crate::semantics;
+use crate::lang::parser;
+use crate::lang::semantics;
 use crate::driver;
 
 #[no_mangle]

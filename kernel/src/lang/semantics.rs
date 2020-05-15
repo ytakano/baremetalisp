@@ -1,4 +1,4 @@
-use crate::parser;
+use super::parser;
 use crate::driver::uart;
 
 use alloc::collections::linked_list::LinkedList;
