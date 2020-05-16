@@ -2,32 +2,34 @@ use super::parser;
 use super::semantics;
 
 use alloc::collections::linked_list::LinkedList;
+use alloc::vec::Vec;
 
-enum RTData {
+enum RTData<'t> {
     Int(u64),
-    Bool(bool)
+    Bool(bool),
+    Label(&'t str, Vec<RTData<'t>>)
 }
 
-struct RootObject {
-    objects: LinkedList<RTData>
+struct RootObject<'t> {
+    objects: LinkedList<RTData<'t>>
 }
 
-impl RootObject {
-    pub fn new() -> RootObject {
+impl<'t> RootObject<'t> {
+    pub fn new() -> RootObject<'t> {
         RootObject{objects: LinkedList::new()}
     }
 }
 
-pub struct Evaluator {
-    root: RootObject,
+pub struct Evaluator<'t> {
+    root: RootObject<'t>,
 }
 
-impl Evaluator {
-    pub fn new() -> Evaluator {
+impl<'t> Evaluator<'t> {
+    pub fn new() -> Evaluator<'t> {
         Evaluator{root: RootObject::new()}
     }
 
-    pub fn eval(&mut self, code: &str, ctx: &semantics::Context) {
+    pub fn eval(&mut self, code: &str, ctx: &semantics::Context<'t>) {
         self.root = RootObject::new();
 
         let mut ps = parser::Parser::new(code);
@@ -36,12 +38,23 @@ impl Evaluator {
             Ok(e) => {
                 exprs = e;
             }
-            Err(e) => {
+            Err(_e) => {
+                // TODO: return error message
                 return;
             }
         }
 
+        let mut typed_exprs = Vec::new();
         for expr in &exprs {
+            match semantics::typing_expr(expr, ctx) {
+                Ok(e) => {
+                    typed_exprs.push(e);
+                }
+                Err(_e) => {
+                    // TODO: return error message
+                    return;
+                }
+            }
         }
     }
 }

@@ -165,7 +165,7 @@ impl<'t> TypingErr<'t> {
 }
 
 #[derive(Debug, Clone)]
-enum LangExpr<'t> {
+pub enum LangExpr<'t> {
     IfExpr(Box::<IfNode<'t>>),
     LetExpr(Box::<LetNode<'t>>),
     LitNum(NumNode<'t>),
@@ -262,26 +262,26 @@ impl<'t> LangExpr<'t> {
 }
 
 #[derive(Debug, Clone)]
-struct NumNode<'t> {
+pub struct NumNode<'t> {
     num: i64,
     ast: &'t parser::Expr
 }
 
 #[derive(Debug, Clone)]
-struct BoolNode<'t> {
+pub struct BoolNode<'t> {
     val: bool,
     ast: &'t parser::Expr
 }
 
 #[derive(Debug, Clone)]
-struct IDNode<'t> {
+pub struct IDNode<'t> {
     id: &'t str,
     ast: &'t parser::Expr,
     ty: Option<Type>,
 }
 
 #[derive(Debug, Clone)]
-struct IfNode<'t> {
+pub struct IfNode<'t> {
     cond_expr: LangExpr<'t>,
     then_expr: LangExpr<'t>,
     else_expr: LangExpr<'t>,
@@ -290,7 +290,7 @@ struct IfNode<'t> {
 }
 
 #[derive(Debug, Clone)]
-struct LetNode<'t> {
+pub struct LetNode<'t> {
     def_vars: Vec<DefVar<'t>>,
     expr: LangExpr<'t>,
     ast: &'t parser::Expr,
@@ -298,7 +298,7 @@ struct LetNode<'t> {
 }
 
 #[derive(Debug, Clone)]
-struct DefVar<'t> {
+pub struct DefVar<'t> {
     pattern: Pattern<'t>,
     expr: LangExpr<'t>,
     ast: &'t parser::Expr,
@@ -306,7 +306,7 @@ struct DefVar<'t> {
 }
 
 #[derive(Debug, Clone)]
-struct MatchNode<'t> {
+pub struct MatchNode<'t> {
     expr: LangExpr<'t>,
     cases: Vec<MatchCase<'t>>,
     ast: &'t parser::Expr,
@@ -314,7 +314,7 @@ struct MatchNode<'t> {
 }
 
 #[derive(Debug, Clone)]
-struct DataNode<'t> {
+pub struct DataNode<'t> {
     label: TIDNode<'t>,
     exprs: Vec<LangExpr<'t>>,
     ast: &'t parser::Expr,
@@ -378,14 +378,14 @@ impl<'t> Pattern<'t> {
 }
 
 #[derive(Debug, Clone)]
-struct PatTupleNode<'t> {
+pub struct PatTupleNode<'t> {
     pattern: Vec<Pattern<'t>>,
     ast: &'t parser::Expr,
     ty: Option<Type>
 }
 
 #[derive(Debug, Clone)]
-struct PatDataNode<'t> {
+pub struct PatDataNode<'t> {
     label: TIDNode<'t>,
     pattern: Vec<Pattern<'t>>,
     ast: &'t parser::Expr,
@@ -393,13 +393,13 @@ struct PatDataNode<'t> {
 }
 
 #[derive(Debug, Clone)]
-struct PatNilNode<'t> {
+pub struct PatNilNode<'t> {
     ast: &'t parser::Expr,
     ty: Option<Type>
 }
 
 #[derive(Debug, Clone)]
-struct MatchCase<'t> {
+pub struct MatchCase<'t> {
     pattern: Pattern<'t>,
     expr: LangExpr<'t>,
     ast: &'t parser::Expr,
@@ -407,7 +407,7 @@ struct MatchCase<'t> {
 }
 
 #[derive(Debug, Clone)]
-struct Exprs<'t> {
+pub struct Exprs<'t> {
     exprs: Vec<LangExpr<'t>>,
     ast: &'t parser::Expr,
     ty: Option<Type>
@@ -730,7 +730,7 @@ impl<'t> Context<'t> {
         Ok(defun)
     }
 
-    fn typing_expr(&self, expr: &mut LangExpr<'t>, sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'t>> {
+    fn typing_expr<'a>(&self, expr: &mut LangExpr<'a>, sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'a>> {
         match expr {
             LangExpr::LitBool(_)   => Ok((ty_bool(), sbst)),
             LangExpr::LitNum(_)    => Ok((ty_int(), sbst)),
@@ -745,7 +745,7 @@ impl<'t> Context<'t> {
         }
     }
 
-    fn typing_data(&self, expr: &mut DataNode<'t>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'t>> {
+    fn typing_data<'a>(&self, expr: &mut DataNode<'a>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'a>> {
         let data_type;
         let label_types;
         // get type of label and types of label's elements
@@ -788,7 +788,7 @@ impl<'t> Context<'t> {
         Ok((data_type, sbst))
     }
 
-    fn typing_app(&self, expr: &mut Exprs<'t>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'t>> {
+    fn typing_app<'a>(&self, expr: &mut Exprs<'a>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'a>> {
         let mut iter = expr.exprs.iter_mut();
 
         // get function
@@ -839,7 +839,7 @@ impl<'t> Context<'t> {
         Ok((t, sbst))
     }
 
-    fn typing_tuple(&self, expr: &mut Exprs<'t>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'t>> {
+    fn typing_tuple<'a>(&self, expr: &mut Exprs<'a>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'a>> {
         let mut v = Vec::new();
         for e in expr.exprs.iter_mut() {
             let (t, s) = self.typing_expr(e, sbst, var_type, num_tv)?;
@@ -853,7 +853,7 @@ impl<'t> Context<'t> {
         Ok((ty, sbst))
     }
 
-    fn typing_list(&self, expr: &mut Exprs<'t>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'t>> {
+    fn typing_list<'a>(&self, expr: &mut Exprs<'a>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'a>> {
         let mut ty = None; // type of the first element
 
         for e in expr.exprs.iter_mut() {
@@ -896,7 +896,7 @@ impl<'t> Context<'t> {
         }
     }
 
-    fn typing_match(&self, expr: &mut MatchNode<'t>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'t>> {
+    fn typing_match<'a>(&self, expr: &mut MatchNode<'a>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'a>> {
         // for (match e_0 (c_1 e_1) (c_2 e_2) ... (c_n e_n))
 
         // get e_0's type
@@ -962,7 +962,7 @@ impl<'t> Context<'t> {
         Ok((e_ty.unwrap(), sbst))
     }
 
-    fn typing_var(&self, expr: &mut IDNode<'t>, sbst: Sbst, var_type: &VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'t>> {
+    fn typing_var<'a>(&self, expr: &mut IDNode<'a>, sbst: Sbst, var_type: &VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'a>> {
         let ty;
         match var_type.get(&expr.id.to_string()) {
             Some(t) => {
@@ -987,7 +987,7 @@ impl<'t> Context<'t> {
         Ok((ty, sbst))
     }
 
-    fn typing_if(&self, expr: &mut IfNode<'t>, sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'t>> {
+    fn typing_if<'a>(&self, expr: &mut IfNode<'a>, sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'a>> {
         // condition
         let (ty_cond, sbst) = self.typing_expr(&mut expr.cond_expr, sbst, var_type, num_tv)?;
 
@@ -1029,7 +1029,7 @@ impl<'t> Context<'t> {
         Ok((ty, sbst))
     }
 
-    fn typing_let(&self, expr: &mut LetNode<'t>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'t>> {
+    fn typing_let<'a>(&self, expr: &mut LetNode<'a>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'a>> {
         var_type.push();
 
         for dv in expr.def_vars.iter_mut() {
@@ -1059,7 +1059,7 @@ impl<'t> Context<'t> {
         Ok(r)
     }
 
-    fn typing_pat(&self, expr: &mut Pattern<'t>, sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'t>> {
+    fn typing_pat<'a>(&self, expr: &mut Pattern<'a>, sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'a>> {
         match expr {
             Pattern::PatBool(_)  => Ok((ty_bool(), sbst)),
             Pattern::PatNum(_)   => Ok((ty_int(), sbst)),
@@ -1070,7 +1070,7 @@ impl<'t> Context<'t> {
         }
     }
 
-    fn typing_pat_tuple(&self, expr: &mut PatTupleNode<'t>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'t>> {
+    fn typing_pat_tuple<'a>(&self, expr: &mut PatTupleNode<'a>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'a>> {
         let mut v = Vec::new();
         for pat in expr.pattern.iter_mut() {
             let (t, s) = self.typing_pat(pat, sbst, var_type, num_tv)?;
@@ -1084,7 +1084,7 @@ impl<'t> Context<'t> {
         Ok((ty, sbst))
     }
 
-    fn typing_pat_id(&self, expr: &mut IDNode<'t>, sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'t>> {
+    fn typing_pat_id<'a>(&self, expr: &mut IDNode<'a>, sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'a>> {
         // generate new type variable (internal representation)
         let ty = ty_var(*num_tv);
         *num_tv += 1;
@@ -1097,7 +1097,7 @@ impl<'t> Context<'t> {
         Ok((ty, sbst))
     }
 
-    fn typing_pat_data(&self, expr: &mut PatDataNode<'t>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'t>> {
+    fn typing_pat_data<'a>(&self, expr: &mut PatDataNode<'a>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'a>> {
         // get the type of label and the types of label's elements
         let data_type;   // type of label
         let label_types; // types of label's elements
@@ -1140,7 +1140,7 @@ impl<'t> Context<'t> {
         Ok((data_type, sbst))
     }
 
-    fn typing_pat_nil(&self, expr: &mut PatNilNode<'t>, sbst: Sbst, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'t>> {
+    fn typing_pat_nil<'a>(&self, expr: &mut PatNilNode<'a>, sbst: Sbst, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'a>> {
         let tv = ty_var(*num_tv);
         *num_tv += 1;
         let ty = ty_list(tv);
@@ -1850,6 +1850,20 @@ fn has_tvar(ty: &Type) -> bool {
         }
         Type::TVar(_) => true
     }
+}
+
+pub fn typing_expr<'a, 'b>(expr: &'a parser::Expr, ctx: &Context<'b>) -> Result<LangExpr<'a>, TypingErr<'a>> {
+    let mut expr = expr2typed_expr(expr)?;
+    let mut num_tv = 0;
+    ctx.typing_expr(&mut expr, Sbst::new(), &mut VarType::new(), &mut num_tv)?;
+
+    // TODO:
+    // type inference was successfuly completed
+    // ctx.check_expr_type()
+    //
+    // check call only exported functions
+
+    Ok(expr)
 }
 
 pub fn exprs2context(exprs: &LinkedList<parser::Expr>) -> Result<Context, TypingErr> {
