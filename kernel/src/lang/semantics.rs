@@ -58,7 +58,8 @@ fn ty_fun_gen_effect(n: ID, args: Vec<Type>, ret: Type) -> Type {
     Type::TCon(Tycon{id: "->".to_string(), args: vec!(ty_effect, tuple, ret)})
 }
 
-struct FunTypes {
+#[derive(Debug)]
+pub struct FunTypes {
     fun_types: BTreeMap<String, LinkedList<Type>>
 }
 
@@ -153,14 +154,16 @@ impl VarType {
 }
 
 #[derive(Debug)]
-pub struct TypingErr<'t> {
+pub struct TypingErr {
     msg: String,
-    ast: &'t parser::Expr
+//    line: usize,
+//    column: usize,
 }
 
-impl<'t> TypingErr<'t> {
-    fn new(msg: &str, ast: &'t parser::Expr) -> TypingErr<'t> {
-        TypingErr{msg: msg.to_string(), ast: ast}
+impl TypingErr {
+    fn new(msg: &str, _ast: &parser::Expr) -> TypingErr {
+        // TODO: line, column
+        TypingErr{msg: msg.to_string()}
     }
 }
 
@@ -508,11 +511,11 @@ struct Defun<'t> {
 }
 
 trait TApp<'t>: Sized {
-    fn apply(&self, ty: &BTreeMap<&str, TypeExpr<'t>>) -> Result<Self, TypingErr<'t>>;
+    fn apply(&self, ty: &BTreeMap<&str, TypeExpr<'t>>) -> Result<Self, TypingErr>;
 }
 
 impl<'t> TApp<'t> for DataType<'t> {
-    fn apply(&self, ty: &BTreeMap<&str, TypeExpr<'t>>) -> Result<DataType<'t>, TypingErr<'t>> {
+    fn apply(&self, ty: &BTreeMap<&str, TypeExpr<'t>>) -> Result<DataType<'t>, TypingErr> {
         let mut mems = Vec::new();
         for m in self.members.iter() {
             mems.push(m.apply(ty)?);
@@ -527,7 +530,7 @@ impl<'t> TApp<'t> for DataType<'t> {
 }
 
 impl<'t> TApp<'t> for DataTypeMem<'t> {
-    fn apply(&self, ty: &BTreeMap<&str, TypeExpr<'t>>) -> Result<DataTypeMem<'t>, TypingErr<'t>> {
+    fn apply(&self, ty: &BTreeMap<&str, TypeExpr<'t>>) -> Result<DataTypeMem<'t>, TypingErr> {
         let mut v = Vec::new();
         for it in self.types.iter() {
             v.push(it.apply(ty)?);
@@ -542,7 +545,7 @@ impl<'t> TApp<'t> for DataTypeMem<'t> {
 }
 
 impl<'t> TApp<'t> for TypeExpr<'t> {
-    fn apply(&self, ty: &BTreeMap<&str, TypeExpr<'t>>) -> Result<TypeExpr<'t>, TypingErr<'t>> {
+    fn apply(&self, ty: &BTreeMap<&str, TypeExpr<'t>>) -> Result<TypeExpr<'t>, TypingErr> {
         match self {
             TypeExpr::TEData(data) => {
                 Ok(TypeExpr::TEData(data.apply(ty)?))
@@ -574,7 +577,7 @@ impl<'t> TApp<'t> for TypeExpr<'t> {
 }
 
 impl<'t> TApp<'t> for TEListNode<'t> {
-    fn apply(&self, ty: &BTreeMap<&str, TypeExpr<'t>>) -> Result<TEListNode<'t>, TypingErr<'t>> {
+    fn apply(&self, ty: &BTreeMap<&str, TypeExpr<'t>>) -> Result<TEListNode<'t>, TypingErr> {
         Ok(TEListNode{
             ty: Box::new(self.ty.apply(ty)?),
             ast: self.ast
@@ -583,7 +586,7 @@ impl<'t> TApp<'t> for TEListNode<'t> {
 }
 
 impl<'t> TApp<'t> for TETupleNode<'t> {
-    fn apply(&self, ty: &BTreeMap<&str, TypeExpr<'t>>) -> Result<TETupleNode<'t>, TypingErr<'t>> {
+    fn apply(&self, ty: &BTreeMap<&str, TypeExpr<'t>>) -> Result<TETupleNode<'t>, TypingErr> {
         let mut v = Vec::new();
         for it in self.ty.iter() {
             v.push(it.apply(ty)?);
@@ -594,7 +597,7 @@ impl<'t> TApp<'t> for TETupleNode<'t> {
 }
 
 impl<'t> TApp<'t> for TEFunNode<'t> {
-    fn apply(&self, ty: &BTreeMap<&str, TypeExpr<'t>>) -> Result<TEFunNode<'t>, TypingErr<'t>> {
+    fn apply(&self, ty: &BTreeMap<&str, TypeExpr<'t>>) -> Result<TEFunNode<'t>, TypingErr> {
         let mut v = Vec::new();
         for it in self.args.iter() {
             v.push(it.apply(ty)?);
@@ -610,7 +613,7 @@ impl<'t> TApp<'t> for TEFunNode<'t> {
 }
 
 impl<'t> TApp<'t> for TEDataNode<'t> {
-    fn apply(&self, ty: &BTreeMap<&str, TypeExpr<'t>>) -> Result<TEDataNode<'t>, TypingErr<'t>> {
+    fn apply(&self, ty: &BTreeMap<&str, TypeExpr<'t>>) -> Result<TEDataNode<'t>, TypingErr> {
         let mut v = Vec::new();
         for it in self.type_args.iter() {
             v.push(it.apply(ty)?);
@@ -638,7 +641,7 @@ impl<'t> Context<'t> {
                 label2data: BTreeMap::new()}
     }
 
-    fn typing(&mut self) -> Result<(), TypingErr<'t>> {
+    fn typing(&mut self) -> Result<(), TypingErr> {
         self.check_data_def()?;
         self.check_label()?;
         self.check_data_rec()?;
@@ -649,12 +652,12 @@ impl<'t> Context<'t> {
         Ok(())
     }
 
-    fn check_label(&mut self) -> Result<(), TypingErr<'t>> {
+    fn check_label(&mut self) -> Result<(), TypingErr> {
         for (_, dt) in &self.data {
             for mem in &dt.members {
                 if self.label2data.contains_key(mem.id.id) {
                     let msg = format!("{:?} is multiply defined", mem.id.id);
-                    return Err(TypingErr{msg: msg, ast: mem.id.ast});
+                    return Err(TypingErr{msg: msg});
                 }
 
                 self.label2data.insert(mem.id.id, dt.name.id.id);
@@ -664,7 +667,7 @@ impl<'t> Context<'t> {
         Ok(())
     }
 
-    fn typing_functions(&mut self) -> Result<(), TypingErr<'t>> {
+    fn typing_functions(&mut self) -> Result<(), TypingErr> {
         let mut funs = BTreeMap::new();
         for (_, defun) in self.funs.iter() {
             let defun = defun.clone();
@@ -677,7 +680,7 @@ impl<'t> Context<'t> {
         Ok(())
     }
 
-    fn typing_defun(&self, mut defun: Defun<'t>) -> Result<Defun<'t>, TypingErr<'t>> {
+    fn typing_defun(&self, mut defun: Defun<'t>) -> Result<Defun<'t>, TypingErr> {
         let mut var_type = VarType::new();
         let mut num_tv = 0;
         let mut args_orig = Vec::new();
@@ -704,7 +707,7 @@ impl<'t> Context<'t> {
         match unify(&fun_type1, &fun_type2) {
             None => {
                 let msg = format!("error: function type was inferred as {:?} but defined as {:?}", fun_type2, fun_type1);
-                return Err(TypingErr{msg: msg, ast: defun.ast});
+                return Err(TypingErr{msg: msg});
             }
             Some(s) => {
                 s1 = s
@@ -730,7 +733,7 @@ impl<'t> Context<'t> {
         Ok(defun)
     }
 
-    fn typing_expr<'a>(&self, expr: &mut LangExpr<'a>, sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'a>> {
+    fn typing_expr<'a>(&self, expr: &mut LangExpr<'a>, sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr> {
         match expr {
             LangExpr::LitBool(_)   => Ok((ty_bool(), sbst)),
             LangExpr::LitNum(_)    => Ok((ty_int(), sbst)),
@@ -745,7 +748,7 @@ impl<'t> Context<'t> {
         }
     }
 
-    fn typing_data<'a>(&self, expr: &mut DataNode<'a>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'a>> {
+    fn typing_data<'a>(&self, expr: &mut DataNode<'a>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr> {
         let data_type;
         let label_types;
         // get type of label and types of label's elements
@@ -755,14 +758,14 @@ impl<'t> Context<'t> {
                 label_types = m;
             }
             Err(msg) => {
-                return Err(TypingErr{msg: msg, ast: expr.ast});
+                return Err(TypingErr{msg: msg});
             }
         }
 
         // check the number of elements
         if label_types.len() != expr.exprs.len() {
             let msg = format!("error: {:?} requires exactly {:?} arguments but actually passed {:?}", expr.label.id, label_types.len(), expr.exprs.len());
-            return Err(TypingErr{msg: msg, ast: expr.ast});
+            return Err(TypingErr{msg: msg});
         }
 
         // check types of the elements and arguments
@@ -777,7 +780,7 @@ impl<'t> Context<'t> {
                 }
                 None => {
                     let msg = format!("error: mismatched type\n  expected: {:?}\n    actual: {:?}", lt, r.0);
-                    return Err(TypingErr{msg: msg, ast: e.get_ast()});
+                    return Err(TypingErr{msg: msg});
                 }
             }
             sbst = compose(&s1, &sbst);
@@ -788,7 +791,7 @@ impl<'t> Context<'t> {
         Ok((data_type, sbst))
     }
 
-    fn typing_app<'a>(&self, expr: &mut Exprs<'a>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'a>> {
+    fn typing_app<'a>(&self, expr: &mut Exprs<'a>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr> {
         let mut iter = expr.exprs.iter_mut();
 
         // get function
@@ -829,7 +832,7 @@ impl<'t> Context<'t> {
             }
             None => {
                 let msg = format!("error: mismatched type\n  expected: {:?}\n    actual: {:?}", fun_ty, t1);
-                return Err(TypingErr{msg: msg, ast: e1.get_ast()});
+                return Err(TypingErr{msg: msg});
             }
         }
 
@@ -839,7 +842,7 @@ impl<'t> Context<'t> {
         Ok((t, sbst))
     }
 
-    fn typing_tuple<'a>(&self, expr: &mut Exprs<'a>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'a>> {
+    fn typing_tuple<'a>(&self, expr: &mut Exprs<'a>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr> {
         let mut v = Vec::new();
         for e in expr.exprs.iter_mut() {
             let (t, s) = self.typing_expr(e, sbst, var_type, num_tv)?;
@@ -853,7 +856,7 @@ impl<'t> Context<'t> {
         Ok((ty, sbst))
     }
 
-    fn typing_list<'a>(&self, expr: &mut Exprs<'a>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'a>> {
+    fn typing_list<'a>(&self, expr: &mut Exprs<'a>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr> {
         let mut ty = None; // type of the first element
 
         for e in expr.exprs.iter_mut() {
@@ -872,7 +875,7 @@ impl<'t> Context<'t> {
                         }
                         None => {
                             let msg = format!("error: mismatched type\n  expected: {:?}\n    actual: {:?}", t0, t);
-                            return Err(TypingErr{msg: msg, ast: e.get_ast()});
+                            return Err(TypingErr{msg: msg});
                         }
                     }
                 }
@@ -896,7 +899,7 @@ impl<'t> Context<'t> {
         }
     }
 
-    fn typing_match<'a>(&self, expr: &mut MatchNode<'a>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'a>> {
+    fn typing_match<'a>(&self, expr: &mut MatchNode<'a>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr> {
         // for (match e_0 (c_1 e_1) (c_2 e_2) ... (c_n e_n))
 
         // get e_0's type
@@ -921,7 +924,7 @@ impl<'t> Context<'t> {
                 }
                 None => {
                     let msg = format!("error: mismatched type\n  expected: {:?}\n    actual: {:?}", type_head, pat_ty);
-                    return Err(TypingErr{msg: msg, ast: cs.pattern.get_ast()});
+                    return Err(TypingErr{msg: msg});
                 }
             }
 
@@ -941,7 +944,7 @@ impl<'t> Context<'t> {
                         }
                         None => {
                             let msg = format!("error: mismatched type\n  expected: {:?}\n    actual: {:?}", t_prev, ty);
-                            return Err(TypingErr{msg: msg, ast: cs.expr.get_ast()});
+                            return Err(TypingErr{msg: msg});
                         }
                     }
 
@@ -962,7 +965,7 @@ impl<'t> Context<'t> {
         Ok((e_ty.unwrap(), sbst))
     }
 
-    fn typing_var<'a>(&self, expr: &mut IDNode<'a>, sbst: Sbst, var_type: &VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'a>> {
+    fn typing_var<'a>(&self, expr: &mut IDNode<'a>, sbst: Sbst, var_type: &VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr> {
         let ty;
         match var_type.get(&expr.id.to_string()) {
             Some(t) => {
@@ -976,7 +979,7 @@ impl<'t> Context<'t> {
                     }
                     None => {
                         let msg = format!("error: {:?} is not defined", expr.id);
-                        return Err(TypingErr{msg: msg, ast: expr.ast});
+                        return Err(TypingErr{msg: msg});
                     }
                 }
             }
@@ -987,7 +990,7 @@ impl<'t> Context<'t> {
         Ok((ty, sbst))
     }
 
-    fn typing_if<'a>(&self, expr: &mut IfNode<'a>, sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'a>> {
+    fn typing_if<'a>(&self, expr: &mut IfNode<'a>, sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr> {
         // condition
         let (ty_cond, sbst) = self.typing_expr(&mut expr.cond_expr, sbst, var_type, num_tv)?;
 
@@ -999,7 +1002,7 @@ impl<'t> Context<'t> {
             }
             None => {
                 let msg = format!("error: condition of if expression must be Bool, but found {:?}", ty_cond);
-                return Err(TypingErr{msg: msg, ast: expr.cond_expr.get_ast()});
+                return Err(TypingErr{msg: msg});
             }
         }
 
@@ -1017,7 +1020,7 @@ impl<'t> Context<'t> {
             }
             None => {
                 let msg = format!("error: when (if c e1 e2), the types of e1 and e2 must be same\n  e1: {:?}\n  e2: {:?}", ty_then, ty_else);
-                return Err(TypingErr{msg: msg, ast: expr.cond_expr.get_ast()});
+                return Err(TypingErr{msg: msg});
             }
         }
 
@@ -1029,7 +1032,7 @@ impl<'t> Context<'t> {
         Ok((ty, sbst))
     }
 
-    fn typing_let<'a>(&self, expr: &mut LetNode<'a>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'a>> {
+    fn typing_let<'a>(&self, expr: &mut LetNode<'a>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr> {
         var_type.push();
 
         for dv in expr.def_vars.iter_mut() {
@@ -1044,7 +1047,7 @@ impl<'t> Context<'t> {
                 }
                 None => {
                     let msg = format!("error: mismatched type\n   left: {:?}\n  right: {:?}", t2, t1);
-                    return Err(TypingErr{msg: msg, ast: dv.ast});
+                    return Err(TypingErr{msg: msg});
                 }
             }
             sbst = compose(&s1, &sbst);
@@ -1059,7 +1062,7 @@ impl<'t> Context<'t> {
         Ok(r)
     }
 
-    fn typing_pat<'a>(&self, expr: &mut Pattern<'a>, sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'a>> {
+    fn typing_pat<'a>(&self, expr: &mut Pattern<'a>, sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr> {
         match expr {
             Pattern::PatBool(_)  => Ok((ty_bool(), sbst)),
             Pattern::PatNum(_)   => Ok((ty_int(), sbst)),
@@ -1070,7 +1073,7 @@ impl<'t> Context<'t> {
         }
     }
 
-    fn typing_pat_tuple<'a>(&self, expr: &mut PatTupleNode<'a>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'a>> {
+    fn typing_pat_tuple<'a>(&self, expr: &mut PatTupleNode<'a>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr> {
         let mut v = Vec::new();
         for pat in expr.pattern.iter_mut() {
             let (t, s) = self.typing_pat(pat, sbst, var_type, num_tv)?;
@@ -1084,7 +1087,7 @@ impl<'t> Context<'t> {
         Ok((ty, sbst))
     }
 
-    fn typing_pat_id<'a>(&self, expr: &mut IDNode<'a>, sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'a>> {
+    fn typing_pat_id<'a>(&self, expr: &mut IDNode<'a>, sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr> {
         // generate new type variable (internal representation)
         let ty = ty_var(*num_tv);
         *num_tv += 1;
@@ -1097,7 +1100,7 @@ impl<'t> Context<'t> {
         Ok((ty, sbst))
     }
 
-    fn typing_pat_data<'a>(&self, expr: &mut PatDataNode<'a>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'a>> {
+    fn typing_pat_data<'a>(&self, expr: &mut PatDataNode<'a>, mut sbst: Sbst, var_type: &mut VarType, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr> {
         // get the type of label and the types of label's elements
         let data_type;   // type of label
         let label_types; // types of label's elements
@@ -1107,14 +1110,14 @@ impl<'t> Context<'t> {
                 label_types = m;
             }
             Err(msg) => {
-                return Err(TypingErr{msg: msg, ast: expr.ast});
+                return Err(TypingErr{msg: msg});
             }
         }
 
         // check the number of arguments
         if label_types.len() != expr.pattern.len() {
             let msg = format!("error: {:?} requires exactly {:?} arguments but actually passed {:?}", expr.label.id, label_types.len(), expr.pattern.len());
-            return Err(TypingErr{msg: msg, ast: expr.ast});
+            return Err(TypingErr{msg: msg});
         }
 
         // check type of each element
@@ -1129,7 +1132,7 @@ impl<'t> Context<'t> {
                 }
                 None => {
                     let msg = format!("error: mismatched type\n  expected: {:?}\n    actual: {:?}", lt, r.0);
-                    return Err(TypingErr{msg: msg, ast: pat.get_ast()});
+                    return Err(TypingErr{msg: msg});
                 }
             }
             sbst = compose(&s1, &sbst);
@@ -1140,7 +1143,7 @@ impl<'t> Context<'t> {
         Ok((data_type, sbst))
     }
 
-    fn typing_pat_nil<'a>(&self, expr: &mut PatNilNode<'a>, sbst: Sbst, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr<'a>> {
+    fn typing_pat_nil<'a>(&self, expr: &mut PatNilNode<'a>, sbst: Sbst, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr> {
         let tv = ty_var(*num_tv);
         *num_tv += 1;
         let ty = ty_list(tv);
@@ -1311,7 +1314,7 @@ impl<'t> Context<'t> {
         }
     }
 
-    fn check_data_def(&self) -> Result<(), TypingErr<'t>> {
+    fn check_data_def(&self) -> Result<(), TypingErr> {
         for (_, d) in self.data.iter() {
             self.check_data_def_data(d)?;
         }
@@ -1319,12 +1322,12 @@ impl<'t> Context<'t> {
         Ok(())
     }
 
-    fn check_data_def_data(&self, data: &DataType<'t>) -> Result<(), TypingErr<'t>> {
+    fn check_data_def_data(&self, data: &DataType<'t>) -> Result<(), TypingErr> {
         let mut args = BTreeSet::new();
         for arg in data.name.type_args.iter() {
             if args.contains(arg.id) {
                 let msg = format!("error: {:?} is multiply used", arg.id);
-                return Err(TypingErr{msg: msg, ast: arg.ast});
+                return Err(TypingErr{msg: msg});
             }
 
             args.insert(arg.id);
@@ -1337,7 +1340,7 @@ impl<'t> Context<'t> {
         Ok(())
     }
 
-    fn check_data_def_mem(&self, mem: &DataTypeMem<'t>, args: &BTreeSet<&str>) -> Result<(), TypingErr<'t>> {
+    fn check_data_def_mem(&self, mem: &DataTypeMem<'t>, args: &BTreeSet<&str>) -> Result<(), TypingErr> {
         for it in mem.types.iter() {
             self.check_def_type(it, Some(args))?
         }
@@ -1345,14 +1348,14 @@ impl<'t> Context<'t> {
         Ok(())
     }
 
-    fn check_def_type(&self, ty: &TypeExpr<'t>, args: Option<&BTreeSet<&str>>) -> Result<(), TypingErr<'t>> {
+    fn check_def_type(&self, ty: &TypeExpr<'t>, args: Option<&BTreeSet<&str>>) -> Result<(), TypingErr> {
         match ty {
             TypeExpr::TEID(id) => {
                 match args {
                     Some(m) => {
                         if !m.contains(id.id) {
                             let msg = format!("error: {:?} is undefined", id.id);
-                            return Err(TypingErr{msg: msg, ast: id.ast})
+                            return Err(TypingErr{msg: msg})
                         }
                     }
                     None => ()
@@ -1372,12 +1375,12 @@ impl<'t> Context<'t> {
                         if dt.name.type_args.len() != data.type_args.len() {
                             let msg = format!("error: {:?} takes {:?} type arguments but actually passed {:?}",
                                               data.id.id, dt.name.type_args.len(), data.type_args.len());
-                            return Err(TypingErr{msg: msg, ast: data.ast});
+                            return Err(TypingErr{msg: msg});
                         }
                     }
                     None => {
                         let msg = format!("error: {:?} is unkown type", data.id.id);
-                        return Err(TypingErr{msg: msg, ast: data.id.ast});
+                        return Err(TypingErr{msg: msg});
                     }
                 }
 
@@ -1399,7 +1402,7 @@ impl<'t> Context<'t> {
     }
 
     /// check data definition is not infinite recursive
-    fn check_data_rec(&self) -> Result<(), TypingErr<'t>> {
+    fn check_data_rec(&self) -> Result<(), TypingErr> {
         let mut checked = LinkedList::new();
         for (_, d) in self.data.iter() {
             let mut visited = BTreeSet::new();
@@ -1407,7 +1410,7 @@ impl<'t> Context<'t> {
             inst.push_back(d.ast);
             if self.check_data_rec_data(d, &mut visited, &mut checked, &mut inst)? {
                 let msg = format!("error: {:?}'s definition is inifinete recursive", d.name.id.id);
-                return Err(TypingErr{msg: msg, ast: d.ast});
+                return Err(TypingErr{msg: msg});
             }
             checked.push_back(d.clone());
         }
@@ -1437,7 +1440,7 @@ impl<'t> Context<'t> {
                            data: &DataType<'t>,
                            visited: &mut BTreeSet<&'t str>,
                            checked: &mut LinkedList<DataType<'t>>,
-                           inst: &mut LinkedList<&'t parser::Expr>) -> Result<bool, TypingErr<'t>> {
+                           inst: &mut LinkedList<&'t parser::Expr>) -> Result<bool, TypingErr> {
         if visited.contains(data.name.id.id) {
             return Ok(true);
         }
@@ -1459,7 +1462,7 @@ impl<'t> Context<'t> {
                           mem: &DataTypeMem<'t>,
                           visited: &mut BTreeSet<&'t str>,
                           checked: &mut LinkedList<DataType<'t>>,
-                          inst: &mut LinkedList<&'t parser::Expr>) -> Result<bool, TypingErr<'t>> {
+                          inst: &mut LinkedList<&'t parser::Expr>) -> Result<bool, TypingErr> {
         let mut ret = false;
 
         for ty in mem.types.iter() {
@@ -1475,7 +1478,7 @@ impl<'t> Context<'t> {
                          ty: &TypeExpr<'t>,
                          visited: &mut BTreeSet<&'t str>,
                          checked: &mut LinkedList<DataType<'t>>,
-                         inst: &mut LinkedList<&'t parser::Expr>) -> Result<bool, TypingErr<'t>> {
+                         inst: &mut LinkedList<&'t parser::Expr>) -> Result<bool, TypingErr> {
         match ty {
             TypeExpr::TEList(_list) => {
                 Ok(false)
@@ -1509,7 +1512,7 @@ impl<'t> Context<'t> {
         }
     }
 
-    fn type_data_node2data_type(&self, data: &TEDataNode<'t>) -> Result<DataType<'t>, TypingErr<'t>> {
+    fn type_data_node2data_type(&self, data: &TEDataNode<'t>) -> Result<DataType<'t>, TypingErr> {
         let dt;
         match self.data.get(data.id.id) {
             Some(t) => {
@@ -1523,7 +1526,7 @@ impl<'t> Context<'t> {
         if data.type_args.len() != dt.name.type_args.len() {
             let msg = format!("error: {:?} takes {:?} type arguments but actually passed {:?}",
                               data.id.id, dt.name.type_args.len(), data.type_args.len());
-            return Err(TypingErr{msg: msg, ast: data.ast});
+            return Err(TypingErr{msg: msg});
         }
 
         let mut map = BTreeMap::new();
@@ -1534,7 +1537,7 @@ impl<'t> Context<'t> {
         dt.apply(&map)
     }
 
-    fn check_defun_type(&self) -> Result<(), TypingErr<'t>> {
+    fn check_defun_type(&self) -> Result<(), TypingErr> {
         for (_, fun) in self.funs.iter() {
             let set;
             let m = if fun.exported {
@@ -1549,7 +1552,7 @@ impl<'t> Context<'t> {
         Ok(())
     }
 
-    fn check_defun_type_after_infer(&self) -> Result<(), TypingErr<'t>> {
+    fn check_defun_type_after_infer(&mut self) -> Result<(), TypingErr> {
         let mut m = FunTypes::new();
         for (_, fun) in self.funs.iter() {
             self.check_type_infer(fun, &mut m)?;
@@ -1565,7 +1568,7 @@ impl<'t> Context<'t> {
     ///
     /// If an effect of a function is Pure,
     /// then the expression must not contain IO function.
-    fn check_type_infer(&self, defun: &Defun<'t>, fun_types: &mut FunTypes) -> Result<(), TypingErr<'t>> {
+    fn check_type_infer(&self, defun: &Defun<'t>, fun_types: &mut FunTypes) -> Result<(), TypingErr> {
         // check effect
         check_type_has_io(&defun.ty, defun.ast, &Sbst::new(), &defun.effect)?;
 
@@ -1598,7 +1601,7 @@ impl<'t> Context<'t> {
         self.check_expr_type(&defun.expr, fun_types, &mut vars, &Sbst::new(), &defun.effect)
     }
 
-    fn check_expr_type(&self, expr: &LangExpr<'t>, fun_types: &mut FunTypes, vars: &mut VarType, sbst: &Sbst, effect: &Effect) -> Result<(), TypingErr<'t>> {
+    fn check_expr_type<'a>(&self, expr: &LangExpr<'a>, fun_types: &mut FunTypes, vars: &mut VarType, sbst: &Sbst, effect: &Effect) -> Result<(), TypingErr> {
         match expr {
             LangExpr::IDExpr(e)    => self.check_id_type(&e, fun_types, vars, sbst, effect),
             LangExpr::IfExpr(e)    => self.check_if_type(&e, fun_types, vars, sbst, effect),
@@ -1612,7 +1615,7 @@ impl<'t> Context<'t> {
         }
     }
 
-    fn check_data_type(&self, expr: &DataNode<'t>, fun_types: &mut FunTypes, vars: &mut VarType, sbst: &Sbst, effect: &Effect) -> Result<(), TypingErr<'t>> {
+    fn check_data_type<'a>(&self, expr: &DataNode<'a>, fun_types: &mut FunTypes, vars: &mut VarType, sbst: &Sbst, effect: &Effect) -> Result<(), TypingErr> {
         check_type_has_no_tvars(&expr.ty, expr.ast, sbst)?;
         check_type_has_io(&expr.ty, expr.ast, sbst, effect)?;
 
@@ -1622,7 +1625,7 @@ impl<'t> Context<'t> {
         Ok(())
     }
 
-    fn check_exprs_type(&self, expr: &Exprs<'t>, fun_types: &mut FunTypes, vars: &mut VarType, sbst: &Sbst, effect: &Effect) -> Result<(), TypingErr<'t>> {
+    fn check_exprs_type<'a>(&self, expr: &Exprs<'a>, fun_types: &mut FunTypes, vars: &mut VarType, sbst: &Sbst, effect: &Effect) -> Result<(), TypingErr> {
         check_type_has_no_tvars(&expr.ty, expr.ast, sbst)?;
         check_type_has_io(&expr.ty, expr.ast, sbst, effect)?;
 
@@ -1632,7 +1635,7 @@ impl<'t> Context<'t> {
         Ok(())
     }
 
-    fn check_match_type(&self, expr: &MatchNode<'t>, fun_types: &mut FunTypes, vars: &mut VarType, sbst: &Sbst, effect: &Effect) -> Result<(), TypingErr<'t>> {
+    fn check_match_type<'a>(&self, expr: &MatchNode<'a>, fun_types: &mut FunTypes, vars: &mut VarType, sbst: &Sbst, effect: &Effect) -> Result<(), TypingErr> {
         check_type_has_no_tvars(&expr.ty, expr.ast, sbst)?;
         check_type_has_io(&expr.ty, expr.ast, sbst, effect)?;
 
@@ -1648,19 +1651,19 @@ impl<'t> Context<'t> {
         Ok(())
     }
 
-    fn check_id_type(&self, expr: &IDNode<'t>, fun_types: &mut FunTypes, vars: &mut VarType, sbst: &Sbst, effect: &Effect) -> Result<(), TypingErr<'t>> {
+    fn check_id_type<'a>(&self, expr: &IDNode<'a>, fun_types: &mut FunTypes, vars: &mut VarType, sbst: &Sbst, effect: &Effect) -> Result<(), TypingErr> {
         check_type_has_no_tvars(&expr.ty, expr.ast, sbst)?;
         check_type_has_io(&expr.ty, expr.ast, sbst, effect)?;
         match vars.get(&expr.id.to_string()) {
             Some(_) => (),
             None => {
-                match self.funs.get(expr.id) {
+                match self.funs.get(&expr.id) {
                     Some(defun) => {
                         self.check_defun_type_recur(&expr.ty.as_ref().unwrap(), defun, fun_types)?;
                     }
                     None => {
                         let msg = format!("error: {:?} is not defined", expr.id);
-                        return Err(TypingErr{msg: msg, ast: expr.ast});
+                        return Err(TypingErr{msg: msg});
                     }
                 }
                 ()
@@ -1669,7 +1672,7 @@ impl<'t> Context<'t> {
         Ok(())
     }
 
-    fn check_defun_type_recur(&self, call_ty: &Type, defun: &Defun<'t>, fun_types: &mut FunTypes) -> Result<(), TypingErr<'t>> {
+    fn check_defun_type_recur(&self, call_ty: &Type, defun: &Defun<'t>, fun_types: &mut FunTypes) -> Result<(), TypingErr> {
         let defun_ty;
 
         // check only functions whose type has type variables
@@ -1701,7 +1704,7 @@ impl<'t> Context<'t> {
             }
             None => {
                 let msg = format!("error: mismatched type\n  expected: {:?}\n    actual: {:?}", call_ty, defun_ty);
-                return Err(TypingErr{msg: msg, ast: defun.ast});
+                return Err(TypingErr{msg: msg});
             }
         }
 
@@ -1726,7 +1729,7 @@ impl<'t> Context<'t> {
         self.check_expr_type(&defun.expr, fun_types, &mut vars, &sbst, &defun.effect)
     }
 
-    fn check_if_type(&self, expr: &IfNode<'t>, fun_types: &mut FunTypes, vars: &mut VarType, sbst: &Sbst, effect: &Effect) -> Result<(), TypingErr<'t>> {
+    fn check_if_type<'a>(&self, expr: &IfNode<'a>, fun_types: &mut FunTypes, vars: &mut VarType, sbst: &Sbst, effect: &Effect) -> Result<(), TypingErr> {
         check_type_has_no_tvars(&expr.ty, expr.ast, sbst)?;
         check_type_has_io(&expr.ty, expr.ast, sbst, effect)?;
         self.check_expr_type(&expr.cond_expr, fun_types, vars, sbst, effect)?;
@@ -1735,7 +1738,7 @@ impl<'t> Context<'t> {
         Ok(())
     }
 
-    fn check_let_type(&self, expr: &LetNode<'t>, fun_types: &mut FunTypes, vars: &mut VarType, sbst: &Sbst, effect: &Effect) -> Result<(), TypingErr<'t>> {
+    fn check_let_type<'a>(&self, expr: &LetNode<'a>, fun_types: &mut FunTypes, vars: &mut VarType, sbst: &Sbst, effect: &Effect) -> Result<(), TypingErr> {
         check_type_has_no_tvars(&expr.ty, expr.ast, sbst)?;
         check_type_has_io(&expr.ty, expr.ast, sbst, effect)?;
 
@@ -1752,7 +1755,7 @@ impl<'t> Context<'t> {
         Ok(())
     }
 
-    fn check_pat_type(&self, expr: &Pattern<'t>, vars: &mut VarType, sbst: &Sbst, effect: &Effect) -> Result<(), TypingErr<'t>> {
+    fn check_pat_type<'a>(&self, expr: &Pattern<'a>, vars: &mut VarType, sbst: &Sbst, effect: &Effect) -> Result<(), TypingErr> {
         match expr {
             Pattern::PatID(e) => {
                 check_type_has_no_tvars(&e.ty, e.ast, sbst)?;
@@ -1781,12 +1784,12 @@ impl<'t> Context<'t> {
     }
 }
 
-fn check_type_has_no_tvars<'t>(ty: &Option<Type>, ast: &'t parser::Expr, sbst: &Sbst) -> Result<(), TypingErr<'t>> {
+fn check_type_has_no_tvars<'t>(ty: &Option<Type>, ast: &'t parser::Expr, sbst: &Sbst) -> Result<(), TypingErr> {
     match ty {
         Some(t) => {
             if has_tvar(&t.apply_sbst(sbst)) {
                 let msg = format!("error: inferred type still contains type variables\n  type: {:?}", t);
-                return Err(TypingErr{msg: msg, ast: ast});
+                return Err(TypingErr{msg: msg});
             }
         }
         None => {
@@ -1796,14 +1799,14 @@ fn check_type_has_no_tvars<'t>(ty: &Option<Type>, ast: &'t parser::Expr, sbst: &
     Ok(())
 }
 
-fn check_type_has_io<'t>(ty: &Option<Type>, ast: &'t parser::Expr, sbst: &Sbst, effect: &Effect) -> Result<(), TypingErr<'t>> {
+fn check_type_has_io<'t>(ty: &Option<Type>, ast: &'t parser::Expr, sbst: &Sbst, effect: &Effect) -> Result<(), TypingErr> {
     match ty {
         Some(t) => {
             match effect {
                 Effect::IO => {
                     if has_io(&t.apply_sbst(sbst)) {
                         let msg = format!("error: Pure function contains an IO function\n type: {:?}", t);
-                        return Err(TypingErr{msg: msg, ast: ast});
+                        return Err(TypingErr{msg: msg});
                     }
                 }
                 _ => ()
@@ -1852,16 +1855,15 @@ fn has_tvar(ty: &Type) -> bool {
     }
 }
 
-pub fn typing_expr<'a, 'b>(expr: &'a parser::Expr, ctx: &Context<'b>) -> Result<LangExpr<'a>, TypingErr<'a>> {
+pub fn typing_expr<'a, 'b>(expr: &'a parser::Expr, ctx: &Context<'b>) -> Result<LangExpr<'a>, TypingErr> {
     let mut expr = expr2typed_expr(expr)?;
     let mut num_tv = 0;
-    ctx.typing_expr(&mut expr, Sbst::new(), &mut VarType::new(), &mut num_tv)?;
+    let (_, sbst) = ctx.typing_expr(&mut expr, Sbst::new(), &mut VarType::new(), &mut num_tv)?;
 
-    // TODO:
-    // type inference was successfuly completed
-    // ctx.check_expr_type()
-    //
-    // check call only exported functions
+    expr.apply_sbst(&sbst);
+
+    // TODO: check call only exported functions
+    ctx.check_expr_type(&expr, &mut FunTypes::new(), &mut VarType::new(), &Sbst::new(), &Effect::IO)?;
 
     Ok(expr)
 }
@@ -1883,7 +1885,7 @@ pub fn exprs2context(exprs: &LinkedList<parser::Expr>) -> Result<Context, Typing
 
                             if funs.contains_key(f.id.id) {
                                 let msg = format!("error: function {:?} is multiply defined", f.id.id);
-                                return Err(TypingErr{msg: msg, ast: e});
+                                return Err(TypingErr{msg: msg});
                             }
 
                             funs.insert(f.id.id, f);
@@ -1891,7 +1893,7 @@ pub fn exprs2context(exprs: &LinkedList<parser::Expr>) -> Result<Context, Typing
                             let d = expr2data(e)?;
                             if data.contains_key(d.name.id.id) {
                                 let msg = format!("error: data type {:?} is multiply defined", d.name.id.id);
-                                return Err(TypingErr{msg: msg, ast: e});
+                                return Err(TypingErr{msg: msg});
                             }
 
                             data.insert(d.name.id.id, d);
