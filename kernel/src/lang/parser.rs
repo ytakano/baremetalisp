@@ -12,32 +12,49 @@
 use alloc::string::{String, ToString};
 use alloc::collections::linked_list::LinkedList;
 
-#[derive(Debug)]
-pub struct SyntaxErr {
+#[derive(Debug, Clone, Copy)]
+pub struct Pos {
     line: usize,
     column: usize,
+}
+
+#[derive(Debug)]
+pub struct SyntaxErr {
+    pos: Pos,
     msg: &'static str
 }
 
 pub struct Parser<'a> {
-    line: usize,
-    column: usize,
+    pos: Pos,
     remain: &'a str,
 }
 
 #[derive(Debug)]
 pub enum Expr {
-    Num(i64),
-    ID(String),
-    Bool(bool),
-    List(LinkedList<Expr>),
-    Tuple(LinkedList<Expr>),
-    Apply(LinkedList<Expr>)
+    Num(i64, Pos),
+    ID(String, Pos),
+    Bool(bool, Pos),
+    List(LinkedList<Expr>, Pos),
+    Tuple(LinkedList<Expr>, Pos),
+    Apply(LinkedList<Expr>, Pos)
+}
+
+impl Expr {
+    pub fn get_pos(&self) -> Pos {
+        match self {
+            Expr::Num(_, pos)   => *pos,
+            Expr::ID(_, pos)    => *pos,
+            Expr::Bool(_, pos)  => *pos,
+            Expr::List(_, pos)  => *pos,
+            Expr::Tuple(_, pos) => *pos,
+            Expr::Apply(_, pos) => *pos,
+        }
+    }
 }
 
 impl<'a> Parser<'a> {
     pub fn new(code: &'a str) -> Parser<'a> {
-        Parser{line: 0, column:0, remain: code}
+        Parser{pos: Pos{line: 0, column:0}, remain: code}
     }
 
     pub fn parse(&mut self) -> Result<LinkedList<Expr>, SyntaxErr> {
@@ -64,18 +81,18 @@ impl<'a> Parser<'a> {
         }
 
         if i == 0 {
-            Err(SyntaxErr{line: self.line, column: self.column, msg: "unexpected EOF"})
+            Err(SyntaxErr{pos: self.pos, msg: "unexpected EOF"})
         } else {
             let c = self.remain[..i].to_string();
             self.remain = &self.remain[i..];
-            self.column += i;
+            self.pos.column += i;
 
             if c == "true" {
-                Ok(Expr::Bool(true))
+                Ok(Expr::Bool(true, self.pos))
             } else if c == "false" {
-                Ok(Expr::Bool(false))
+                Ok(Expr::Bool(false, self.pos))
             } else {
-                Ok(Expr::ID(c))
+                Ok(Expr::ID(c, self.pos))
             }
         }
     }
@@ -102,14 +119,14 @@ impl<'a> Parser<'a> {
 
         match self.remain[0..i].parse::<i64>() {
             Ok(num) => {
-                expr = Ok(Expr::Num(num));
+                expr = Ok(Expr::Num(num, self.pos));
             }
             Err(_msg) => {
-                return Err(SyntaxErr{line: self.line, column: self.column, msg: "failed to parse number"})
+                return Err(SyntaxErr{pos: self.pos, msg: "failed to parse number"})
             }
         };
 
-        self.column += i;
+        self.pos.column += i;
         self.remain = &self.remain[i..];
 
         if self.remain.len() == 0 {
@@ -121,11 +138,11 @@ impl<'a> Parser<'a> {
                 if is_paren(c0) || is_space(c0) {
                     expr
                 } else {
-                    Err(SyntaxErr{line: self.line, column: self.column, msg: "expected '(', ')', '[', ']' or space"})
+                    Err(SyntaxErr{pos: self.pos, msg: "expected '(', ')', '[', ']' or space"})
                 }
             }
             None => {
-                Err(SyntaxErr{line: self.line, column: self.column, msg: "unexpected EOF"})
+                Err(SyntaxErr{pos: self.pos, msg: "unexpected EOF"})
             }
         }
     }
@@ -137,10 +154,10 @@ impl<'a> Parser<'a> {
         for s in self.remain.chars() {
             if is_space(s) {
                 if s == '\r' || (s == '\n' && prev != '\r') {
-                    self.line += 1;
-                    self.column = 0;
+                    self.pos.line += 1;
+                    self.pos.column = 0;
                 } else {
-                    self.column += 1;
+                    self.pos.column += 1;
                 }
                 i += 1;
                 prev = s;
@@ -200,28 +217,28 @@ impl<'a> Parser<'a> {
                 }
             }
             _ => {
-                Err(SyntaxErr{line: self.line, column: self.column, msg: "unexpected character"})
+                Err(SyntaxErr{pos: self.pos, msg: "unexpected character"})
             }
         }
     }
 
     fn parse_apply(&mut self) -> Result<Expr, SyntaxErr> {
         self.remain = &self.remain[1..]; // skip '('
-        self.column += 1;
+        self.pos.column += 1;
 
         let exprs = self.parse_exprs()?;
         if self.remain.chars().nth(0) == Some(')') {
             self.remain = &self.remain[1..];
-            self.column += 1;
-            Ok(Expr::Apply(exprs))
+            self.pos.column += 1;
+            Ok(Expr::Apply(exprs, self.pos))
         } else {
-            Err(SyntaxErr{line: self.line, column: self.column, msg: "expected ')'"})
+            Err(SyntaxErr{pos: self.pos, msg: "expected ')'"})
         }
     }
 
     fn parse_list(&mut self) -> Result<Expr, SyntaxErr> {
         let c = &self.remain[1..]; // skip '\''
-        self.column += 1;
+        self.pos.column += 1;
 
         match c.chars().nth(0) {
             Some('(') => {
@@ -229,29 +246,29 @@ impl<'a> Parser<'a> {
                 let exprs = self.parse_exprs()?;
                 if self.remain.chars().nth(0) == Some(')') {
                     self.remain = &self.remain[1..];
-                    self.column += 1;
-                    Ok(Expr::List(exprs))
+                    self.pos.column += 1;
+                    Ok(Expr::List(exprs, self.pos))
                 } else {
-                    Err(SyntaxErr{line: self.line, column: self.column, msg: "expected ')'"})
+                    Err(SyntaxErr{pos: self.pos, msg: "expected ')'"})
                 }
             }
             _ => {
-                Err(SyntaxErr{line: self.line, column: self.column, msg: "expected '('"})
+                Err(SyntaxErr{pos: self.pos, msg: "expected '('"})
             }
         }
     }
 
     fn parse_tuple(&mut self) -> Result<Expr, SyntaxErr> {
         self.remain = &self.remain[1..]; // skip '['
-        self.column += 1;
+        self.pos.column += 1;
 
         let exprs = self.parse_exprs()?;
         if self.remain.chars().nth(0) == Some(']') {
             self.remain = &self.remain[1..];
-            self.column += 1;
-            Ok(Expr::Tuple(exprs))
+            self.pos.column += 1;
+            Ok(Expr::Tuple(exprs, self.pos))
         } else {
-            Err(SyntaxErr{line: self.line, column: self.column, msg: "expected ']'"})
+            Err(SyntaxErr{pos: self.pos, msg: "expected ']'"})
         }
     }
 }
