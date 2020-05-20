@@ -79,9 +79,16 @@ pub fn el0_entry() -> ! {
         Ok(e) => {
             match semantics::exprs2context(&e) {
                 Ok(ctx) => {
-                    let expr = "(test-label)";
-                    let mut evaluator = runtime::Evaluator::new();
-                    evaluator.eval(expr, &ctx);
+                    let expr = "
+                    123
+                    true
+                    (if false 10 20)
+                    (test-label)
+                    ";
+                    let root = runtime::RootObject::new();
+                    let result = runtime::eval(expr, &ctx, root);
+                    let msg = format!("{:#?}\n", result);
+                    driver::uart::puts(&msg);
                 }
                 Err(err) => {
                     let msg = format!("{:#?}\n", err);

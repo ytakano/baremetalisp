@@ -14,14 +14,14 @@ use alloc::collections::linked_list::LinkedList;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Pos {
-    line: usize,
-    column: usize,
+    pub line: usize,
+    pub column: usize,
 }
 
 #[derive(Debug)]
 pub struct SyntaxErr {
-    pos: Pos,
-    msg: &'static str
+    pub pos: Pos,
+    pub msg: &'static str
 }
 
 pub struct Parser<'a> {

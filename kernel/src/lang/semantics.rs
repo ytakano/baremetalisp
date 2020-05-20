@@ -155,8 +155,8 @@ impl VarType {
 
 #[derive(Debug)]
 pub struct TypingErr {
-    msg: String,
-    pos: parser::Pos
+    pub msg: String,
+    pub pos: parser::Pos
 }
 
 impl TypingErr {
@@ -181,7 +181,7 @@ pub enum LangExpr<'t> {
 }
 
 impl<'t> LangExpr<'t> {
-    fn get_ast(&self) -> &'t parser::Expr {
+    pub fn get_ast(&self) -> &'t parser::Expr {
         match self {
             LangExpr::IfExpr(e)    => e.ast,
             LangExpr::LetExpr(e)   => e.ast,
@@ -265,13 +265,13 @@ impl<'t> LangExpr<'t> {
 
 #[derive(Debug, Clone)]
 pub struct NumNode<'t> {
-    num: i64,
+    pub num: i64,
     ast: &'t parser::Expr
 }
 
 #[derive(Debug, Clone)]
 pub struct BoolNode<'t> {
-    val: bool,
+    pub val: bool,
     ast: &'t parser::Expr
 }
 
@@ -284,25 +284,25 @@ pub struct IDNode<'t> {
 
 #[derive(Debug, Clone)]
 pub struct IfNode<'t> {
-    cond_expr: LangExpr<'t>,
-    then_expr: LangExpr<'t>,
-    else_expr: LangExpr<'t>,
+    pub cond_expr: LangExpr<'t>,
+    pub then_expr: LangExpr<'t>,
+    pub else_expr: LangExpr<'t>,
     ast: &'t parser::Expr,
     ty: Option<Type>
 }
 
 #[derive(Debug, Clone)]
 pub struct LetNode<'t> {
-    def_vars: Vec<DefVar<'t>>,
-    expr: LangExpr<'t>,
+    pub def_vars: Vec<DefVar<'t>>,
+    pub expr: LangExpr<'t>,
     ast: &'t parser::Expr,
     ty: Option<Type>
 }
 
 #[derive(Debug, Clone)]
 pub struct DefVar<'t> {
-    pattern: Pattern<'t>,
-    expr: LangExpr<'t>,
+    pub pattern: Pattern<'t>,
+    pub expr: LangExpr<'t>,
     ast: &'t parser::Expr,
     ty: Option<Type>
 }
@@ -324,7 +324,7 @@ pub struct DataNode<'t> {
 }
 
 #[derive(Debug, Clone)]
-enum Pattern<'t> {
+pub enum Pattern<'t> {
     PatNum(NumNode<'t>),
     PatBool(BoolNode<'t>),
     PatID(IDNode<'t>),
