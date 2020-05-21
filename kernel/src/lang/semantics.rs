@@ -410,7 +410,7 @@ pub struct MatchCase<'t> {
 
 #[derive(Debug, Clone)]
 pub struct Exprs<'t> {
-    exprs: Vec<LangExpr<'t>>,
+    pub exprs: Vec<LangExpr<'t>>,
     ast: &'t parser::Expr,
     ty: Option<Type>
 }

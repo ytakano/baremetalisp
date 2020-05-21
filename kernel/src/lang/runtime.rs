@@ -49,14 +49,16 @@ impl Variables {
 pub enum RTData {
     Int(i64),
     Bool(bool),
+    Defun(String),
     LData(*const LabeledData),
 }
 
 impl RTData {
     fn get_by_lisp(&self) -> String {
         match self {
-            RTData::Int(n)  => format!("{:?}", n),
-            RTData::Bool(n) => format!("{:?}", n),
+            RTData::Int(n)   => format!("{:?}", n),
+            RTData::Bool(n)  => format!("{:?}", n),
+            RTData::Defun(n) => format!("{}", n),
             RTData::LData(n) => {
                 let mut msg = format!("({}", unsafe { &(*(*n)).label });
                 match unsafe { (*(*n)).data.as_ref() } {
@@ -154,8 +156,29 @@ fn eval_expr(expr: &Expr, ctx: &semantics::Context, root: &mut RootObject, vars:
         Expr::LitBool(e)  => Ok(RTData::Bool(e.val)),
         Expr::IfExpr(e)   => eval_if(&e, ctx, root, vars),
         Expr::DataExpr(e) => eval_data(&e, ctx, root, vars),
+        Expr::ListExpr(e) => eval_list(&e, ctx, root, vars),
+        Expr::LetExpr(e)  => eval_let(&e, ctx, root, vars),
+        Expr::IDExpr(e)   => eval_id(&e, vars),
         _ => Err(RuntimeErr{msg: "not yet implemented".to_string()})
     }
+}
+
+fn eval_id(expr: &semantics::IDNode, vars: &mut Variables) -> Result<RTData, RuntimeErr> {
+    let id = expr.id.to_string();
+    match vars.get(&id) {
+        Some(data) => Ok(data.clone()),
+        None => Ok(RTData::Defun(id))
+    }
+}
+
+fn eval_list(expr: &semantics::Exprs, ctx: &semantics::Context, root: &mut RootObject, vars: &mut Variables) -> Result<RTData, RuntimeErr> {
+    let mut elm = root.make_obj("Nil".to_string(), None);
+    for e in expr.exprs.iter().rev() {
+        let val = eval_expr(e, ctx, root, vars)?;
+        elm = root.make_obj("Cons".to_string(), Some(vec!(val, RTData::LData(elm))));
+    }
+
+    Ok(RTData::LData(elm))
 }
 
 fn eval_if(expr: &semantics::IfNode, ctx: &semantics::Context, root: &mut RootObject, vars: &mut Variables) -> Result<RTData, RuntimeErr> {
