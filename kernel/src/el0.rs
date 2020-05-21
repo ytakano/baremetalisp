@@ -70,7 +70,7 @@ pub fn el0_entry() -> ! {
         v1))
 ";
 */
-    driver::uart::puts("Input:\n  ");
+    driver::uart::puts("Input:\n");
     driver::uart::puts(code);
     driver::uart::puts("\n");
 
@@ -79,14 +79,16 @@ pub fn el0_entry() -> ! {
         Ok(e) => {
             match semantics::exprs2context(&e) {
                 Ok(ctx) => {
-                    let expr = "
-                    123
-                    true
-                    (if false 10 20)
-                    (test-label)
-                    ";
-                    let root = runtime::RootObject::new();
-                    let result = runtime::eval(expr, &ctx, root);
+                    let expr =
+"
+(Cons 30 (Cons 20 (Cons 10 Nil)))
+'(30 20 10)
+";
+                    driver::uart::puts("Eval:\n");
+                    driver::uart::puts(expr);
+                    driver::uart::puts("\n");
+
+                    let result = runtime::eval(expr, &ctx);
                     let msg = format!("{:#?}\n", result);
                     driver::uart::puts(&msg);
                 }

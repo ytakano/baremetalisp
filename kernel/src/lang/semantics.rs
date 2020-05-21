@@ -1,5 +1,5 @@
 use super::parser;
-use crate::driver::uart;
+//use crate::driver;
 
 use alloc::collections::linked_list::LinkedList;
 use alloc::collections::btree_map::BTreeMap;
@@ -726,9 +726,6 @@ impl<'t> Context<'t> {
             arg.ty = Some(ty.apply_sbst(&sbst));
         }
 
-        let msg = format!("typing_defun: sbst = {:?}\n", sbst);
-        uart::puts(&msg);
-
         Ok(defun)
     }
 
@@ -771,14 +768,16 @@ impl<'t> Context<'t> {
         for (e, ty) in expr.exprs.iter_mut().zip(label_types.iter()) {
             let r = self.typing_expr(e, sbst, var_type, num_tv)?;
             sbst = r.1;
-            let lt = ty.apply_sbst(&sbst);
+            let t0 = ty.apply_sbst(&sbst);
+            let t1 = r.0.apply_sbst(&sbst);
             let s1;
-            match unify(&lt, &r.0) {
+
+            match unify(&t0, &t1) {
                 Some(s) => {
                     s1 = s;
                 }
                 None => {
-                    let msg = format!("error: mismatched type\n  expected: {:?}\n    actual: {:?}", lt, r.0);
+                    let msg = format!("error: mismatched type\n  expected: {:?}\n    actual: {:?}", t0, t1);
                     return Err(TypingErr{msg: msg, pos: e.get_ast().get_pos()});
                 }
             }
@@ -1201,8 +1200,28 @@ impl<'t> Context<'t> {
                 data_name = n;
             }
             None => {
-                let msg = format!("error: {:?} is not defined", label);
-                return Err(msg);
+                match label {
+                    // built-in data type
+                    // (data (List a)
+                    //     (Cons a (List a))
+                    //     Nil)
+                    "Cons" => {
+                        let tv = ty_var(*num_tv);
+                        let ty = ty_list(tv.clone());
+                        *num_tv += 1;
+                        return Ok((ty.clone(), vec!(tv, ty)));
+                    }
+                    "Nil" => {
+                        let tv = ty_var(*num_tv);
+                        let ty = ty_list(tv.clone());
+                        *num_tv += 1;
+                        return Ok((ty.clone(), vec!()));
+                    }
+                    _ => {
+                        let msg = format!("error: {:?} is not defined", label);
+                        return Err(msg);
+                    }
+                }
             }
         }
 

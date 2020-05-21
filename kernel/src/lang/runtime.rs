@@ -1,7 +1,7 @@
 use super::parser;
 use super::semantics;
 
-//use crate::driver;
+// use crate::driver;
 
 use alloc::collections::linked_list::LinkedList;
 use alloc::collections::btree_map::BTreeMap;
@@ -10,6 +10,10 @@ use alloc::string::{ToString, String};
 
 type Expr<'a> = semantics::LangExpr<'a>;
 type Pattern<'a> = semantics::Pattern<'a>;
+
+struct RuntimeErr {
+    msg: String
+}
 
 struct Variables {
     vars: LinkedList<BTreeMap<String, RTData>>
@@ -46,7 +50,29 @@ pub enum RTData {
     Int(i64),
     Bool(bool),
     LData(*const LabeledData),
-    RuntimeErr(String)
+}
+
+impl RTData {
+    fn get_by_lisp(&self) -> String {
+        match self {
+            RTData::Int(n)  => format!("{:?}", n),
+            RTData::Bool(n) => format!("{:?}", n),
+            RTData::LData(n) => {
+                let mut msg = format!("({}", unsafe { &(*(*n)).label });
+                match unsafe { (*(*n)).data.as_ref() } {
+                    Some(ld) => {
+                        for d in ld.iter() {
+                            msg = format!("{} {}", msg, d.get_by_lisp());
+                        }
+                        format!("{})", msg)
+                    }
+                    None => {
+                        format!("{})", msg)
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -55,7 +81,7 @@ pub struct LabeledData {
     data: Option<Vec<RTData>>
 }
 
-pub struct RootObject {
+struct RootObject {
     objects: LinkedList<LabeledData>
 }
 
@@ -76,7 +102,7 @@ pub struct EvalErr {
     pub msg: String
 }
 
-pub fn eval(code: &str, ctx: &semantics::Context, mut root: RootObject) -> Result<LinkedList<RTData>, EvalErr> {
+pub fn eval(code: &str, ctx: &semantics::Context) -> Result<LinkedList<String>, EvalErr> {
     let mut ps = parser::Parser::new(code);
     let exprs;
     match ps.parse() {
@@ -102,27 +128,38 @@ pub fn eval(code: &str, ctx: &semantics::Context, mut root: RootObject) -> Resul
         }
     }
 
+    let mut root = RootObject::new();
     let mut result = LinkedList::new();
     for expr in &typed_exprs {
         let mut vars = Variables::new();
-        result.push_back(eval_expr(expr, ctx, &mut root, &mut vars));
+        match eval_expr(expr, ctx, &mut root, &mut vars) {
+            Ok(val) => {
+                result.push_back(val.get_by_lisp());
+            }
+            Err(e) => {
+                let msg = format!("(RuntimeErr {:?})", e.msg);
+                result.push_back(msg);
+                return Ok(result);
+            }
+        }
+
     }
 
     Ok(result)
 }
 
-fn eval_expr(expr: &Expr, ctx: &semantics::Context, root: &mut RootObject, vars: &mut Variables) -> RTData {
+fn eval_expr(expr: &Expr, ctx: &semantics::Context, root: &mut RootObject, vars: &mut Variables) -> Result<RTData, RuntimeErr> {
     match expr {
-        Expr::LitNum(e)   => RTData::Int(e.num),
-        Expr::LitBool(e)  => RTData::Bool(e.val),
+        Expr::LitNum(e)   => Ok(RTData::Int(e.num)),
+        Expr::LitBool(e)  => Ok(RTData::Bool(e.val)),
         Expr::IfExpr(e)   => eval_if(&e, ctx, root, vars),
         Expr::DataExpr(e) => eval_data(&e, ctx, root, vars),
-        _ => RTData::RuntimeErr("not yet implemented".to_string())
+        _ => Err(RuntimeErr{msg: "not yet implemented".to_string()})
     }
 }
 
-fn eval_if(expr: &semantics::IfNode, ctx: &semantics::Context, root: &mut RootObject, vars: &mut Variables) -> RTData {
-    let cond = eval_expr(&expr.cond_expr, ctx ,root, vars);
+fn eval_if(expr: &semantics::IfNode, ctx: &semantics::Context, root: &mut RootObject, vars: &mut Variables) -> Result<RTData, RuntimeErr> {
+    let cond = eval_expr(&expr.cond_expr, ctx ,root, vars)?;
     let flag;
     match cond {
         RTData::Bool(e) => {
@@ -131,7 +168,7 @@ fn eval_if(expr: &semantics::IfNode, ctx: &semantics::Context, root: &mut RootOb
         _ => {
             let pos = expr.cond_expr.get_ast().get_pos();
             let msg = format!("{:?}:{:?}: type mismatched", pos.line, pos.column);
-            return RTData::RuntimeErr(msg);
+            return Err(RuntimeErr{msg: msg});
         }
     }
 
@@ -142,38 +179,38 @@ fn eval_if(expr: &semantics::IfNode, ctx: &semantics::Context, root: &mut RootOb
     }
 }
 
-fn eval_data(expr: &semantics::DataNode, ctx: &semantics::Context, root: &mut RootObject, vars: &mut Variables) -> RTData {
+fn eval_data(expr: &semantics::DataNode, ctx: &semantics::Context, root: &mut RootObject, vars: &mut Variables) -> Result<RTData, RuntimeErr> {
     let data = if expr.exprs.len() == 0 {
         None
     } else {
         let mut v = Vec::new();
         for e in &expr.exprs {
-            v.push(eval_expr(e, ctx, root, vars));
+            v.push(eval_expr(e, ctx, root, vars)?);
         }
         Some(v)
     };
 
     let ptr = root.make_obj(expr.label.id.to_string(), data);
 
-    RTData::LData(ptr)
+    Ok(RTData::LData(ptr))
 }
 
-fn eval_let(expr: &semantics::LetNode, ctx: &semantics::Context, root: &mut RootObject, vars: &mut Variables) -> RTData {
+fn eval_let(expr: &semantics::LetNode, ctx: &semantics::Context, root: &mut RootObject, vars: &mut Variables) -> Result<RTData, RuntimeErr> {
     vars.push();
 
     for def in &expr.def_vars {
-        let data = eval_expr(&def.expr, ctx, root, vars);
+        let data = eval_expr(&def.expr, ctx, root, vars)?;
         if !eval_pat(&def.pattern, data, vars) {
             let pos = def.pattern.get_ast().get_pos();
             let msg = format!("{:?}:{:?}: failed pattern matching", pos.line, pos.column);
-            return RTData::RuntimeErr(msg);
+            return Err(RuntimeErr{msg: msg});
         }
     }
 
-    let result = eval_expr(&expr.expr, ctx, root, vars);
+    let result = eval_expr(&expr.expr, ctx, root, vars)?;
     vars.pop();
 
-    result
+    Ok(result)
 }
 
 fn eval_pat(pat: &Pattern, data: RTData, vars: &mut Variables) -> bool {

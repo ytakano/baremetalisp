@@ -54,7 +54,7 @@ impl Expr {
 
 impl<'a> Parser<'a> {
     pub fn new(code: &'a str) -> Parser<'a> {
-        Parser{pos: Pos{line: 0, column:0}, remain: code}
+        Parser{pos: Pos{line: 0, column: 0}, remain: code}
     }
 
     pub fn parse(&mut self) -> Result<LinkedList<Expr>, SyntaxErr> {
@@ -85,14 +85,15 @@ impl<'a> Parser<'a> {
         } else {
             let c = self.remain[..i].to_string();
             self.remain = &self.remain[i..];
+            let pos = self.pos;
             self.pos.column += i;
 
             if c == "true" {
-                Ok(Expr::Bool(true, self.pos))
+                Ok(Expr::Bool(true, pos))
             } else if c == "false" {
-                Ok(Expr::Bool(false, self.pos))
+                Ok(Expr::Bool(false, pos))
             } else {
-                Ok(Expr::ID(c, self.pos))
+                Ok(Expr::ID(c, pos))
             }
         }
     }
@@ -224,13 +225,14 @@ impl<'a> Parser<'a> {
 
     fn parse_apply(&mut self) -> Result<Expr, SyntaxErr> {
         self.remain = &self.remain[1..]; // skip '('
+        let pos = self.pos;
         self.pos.column += 1;
 
         let exprs = self.parse_exprs()?;
         if self.remain.chars().nth(0) == Some(')') {
             self.remain = &self.remain[1..];
             self.pos.column += 1;
-            Ok(Expr::Apply(exprs, self.pos))
+            Ok(Expr::Apply(exprs, pos))
         } else {
             Err(SyntaxErr{pos: self.pos, msg: "expected ')'"})
         }
@@ -238,6 +240,7 @@ impl<'a> Parser<'a> {
 
     fn parse_list(&mut self) -> Result<Expr, SyntaxErr> {
         let c = &self.remain[1..]; // skip '\''
+        let pos = self.pos;
         self.pos.column += 1;
 
         match c.chars().nth(0) {
@@ -247,7 +250,7 @@ impl<'a> Parser<'a> {
                 if self.remain.chars().nth(0) == Some(')') {
                     self.remain = &self.remain[1..];
                     self.pos.column += 1;
-                    Ok(Expr::List(exprs, self.pos))
+                    Ok(Expr::List(exprs, pos))
                 } else {
                     Err(SyntaxErr{pos: self.pos, msg: "expected ')'"})
                 }
@@ -260,13 +263,14 @@ impl<'a> Parser<'a> {
 
     fn parse_tuple(&mut self) -> Result<Expr, SyntaxErr> {
         self.remain = &self.remain[1..]; // skip '['
+        let pos = self.pos;
         self.pos.column += 1;
 
         let exprs = self.parse_exprs()?;
         if self.remain.chars().nth(0) == Some(']') {
             self.remain = &self.remain[1..];
             self.pos.column += 1;
-            Ok(Expr::Tuple(exprs, self.pos))
+            Ok(Expr::Tuple(exprs, pos))
         } else {
             Err(SyntaxErr{pos: self.pos, msg: "expected ']'"})
         }
