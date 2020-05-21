@@ -277,7 +277,7 @@ pub struct BoolNode<'t> {
 
 #[derive(Debug, Clone)]
 pub struct IDNode<'t> {
-    id: &'t str,
+    pub id: &'t str,
     ast: &'t parser::Expr,
     ty: Option<Type>,
 }
@@ -317,8 +317,8 @@ pub struct MatchNode<'t> {
 
 #[derive(Debug, Clone)]
 pub struct DataNode<'t> {
-    label: TIDNode<'t>,
-    exprs: Vec<LangExpr<'t>>,
+    pub label: TIDNode<'t>,
+    pub exprs: Vec<LangExpr<'t>>,
     ast: &'t parser::Expr,
     ty: Option<Type>
 }
@@ -334,7 +334,7 @@ pub enum Pattern<'t> {
 }
 
 impl<'t> Pattern<'t> {
-    fn get_ast(&self) -> &'t parser::Expr {
+    pub fn get_ast(&self) -> &'t parser::Expr {
         match self {
             Pattern::PatNum(e)   => e.ast,
             Pattern::PatBool(e)  => e.ast,
@@ -381,15 +381,15 @@ impl<'t> Pattern<'t> {
 
 #[derive(Debug, Clone)]
 pub struct PatTupleNode<'t> {
-    pattern: Vec<Pattern<'t>>,
+    pub pattern: Vec<Pattern<'t>>,
     ast: &'t parser::Expr,
     ty: Option<Type>
 }
 
 #[derive(Debug, Clone)]
 pub struct PatDataNode<'t> {
-    label: TIDNode<'t>,
-    pattern: Vec<Pattern<'t>>,
+    pub label: TIDNode<'t>,
+    pub pattern: Vec<Pattern<'t>>,
     ast: &'t parser::Expr,
     ty: Option<Type>
 }
@@ -416,8 +416,8 @@ pub struct Exprs<'t> {
 }
 
 #[derive(Debug, Clone)]
-struct TIDNode<'t> {
-    id: &'t str,
+pub struct TIDNode<'t> {
+    pub id: &'t str,
     ast: &'t parser::Expr,
     ty: Option<Type>
 }
