@@ -86,6 +86,8 @@ pub fn el0_entry() -> ! {
 (let ((x 10) (y 20) (z 30))
     '(z y x))
 test-label
+(match (Cons 50 Nil)
+    ((Cons x _) x))
 ";
                     driver::uart::puts("Eval:\n");
                     driver::uart::puts(expr);

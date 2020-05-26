@@ -1,5 +1,5 @@
 use super::parser;
-//use crate::driver;
+// use crate::driver;
 
 use alloc::collections::linked_list::LinkedList;
 use alloc::collections::btree_map::BTreeMap;
@@ -309,9 +309,9 @@ pub struct DefVar<'t> {
 
 #[derive(Debug, Clone)]
 pub struct MatchNode<'t> {
-    expr: LangExpr<'t>,
-    cases: Vec<MatchCase<'t>>,
-    ast: &'t parser::Expr,
+    pub expr: LangExpr<'t>,
+    pub cases: Vec<MatchCase<'t>>,
+    pub ast: &'t parser::Expr,
     ty: Option<Type>
 }
 
@@ -402,8 +402,8 @@ pub struct PatNilNode<'t> {
 
 #[derive(Debug, Clone)]
 pub struct MatchCase<'t> {
-    pattern: Pattern<'t>,
-    expr: LangExpr<'t>,
+    pub pattern: Pattern<'t>,
+    pub expr: LangExpr<'t>,
     ast: &'t parser::Expr,
     ty: Option<Type>
 }
@@ -1136,9 +1136,10 @@ impl<'t> Context<'t> {
             sbst = compose(&s1, &sbst);
         }
 
-        expr.ty = Some(data_type.clone());
+        let ty = data_type.apply_sbst(&sbst);
+        expr.ty = Some(ty.clone());
 
-        Ok((data_type, sbst))
+        Ok((ty, sbst))
     }
 
     fn typing_pat_nil<'a>(&self, expr: &mut PatNilNode<'a>, sbst: Sbst, num_tv: &mut ID) -> Result<(Type, Sbst), TypingErr> {
@@ -1884,6 +1885,9 @@ pub fn typing_expr<'a, 'b>(expr: &'a parser::Expr, ctx: &Context<'b>) -> Result<
     let (_, sbst) = ctx.typing_expr(&mut expr, Sbst::new(), &mut VarType::new(), &mut num_tv)?;
 
     expr.apply_sbst(&sbst);
+
+//    let msg = format!("sbst = {:#?}\nexpr = {:#?}\n", sbst, expr);
+//    driver::uart::puts(&msg);
 
     // check call only exported functions
     ctx.check_expr_type(&expr, &mut FunTypes::new(), &mut VarType::new(), &Sbst::new(), &Effect::IO, false)?;

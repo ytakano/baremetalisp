@@ -158,9 +158,28 @@ fn eval_expr(expr: &Expr, ctx: &semantics::Context, root: &mut RootObject, vars:
         Expr::DataExpr(e) => eval_data(&e, ctx, root, vars),
         Expr::ListExpr(e) => eval_list(&e, ctx, root, vars),
         Expr::LetExpr(e)  => eval_let(&e, ctx, root, vars),
+        Expr::MatchExpr(e) => eval_match(&e, ctx, root, vars),
         Expr::IDExpr(e)   => eval_id(&e, vars),
         _ => Err(RuntimeErr{msg: "not yet implemented".to_string()})
     }
+}
+
+fn eval_match(expr: &semantics::MatchNode, ctx: &semantics::Context, root: &mut RootObject, vars: &mut Variables) -> Result<RTData, RuntimeErr> {
+    let data = eval_expr(&expr.expr, ctx, root, vars)?;
+
+    for c in &expr.cases {
+        vars.push();
+        if eval_pat(&c.pattern, data.clone(), vars) {
+            let retval = eval_expr(&c.expr, ctx, root, vars)?;
+            vars.pop();
+            return Ok(retval);
+        }
+        vars.pop();
+    }
+
+    let pos = expr.ast.get_pos();
+    let msg = format!("{:?}:{:?}: pattern-matching is not exhaustive", pos.line, pos.column);
+    Err(RuntimeErr{msg: msg})
 }
 
 fn eval_id(expr: &semantics::IDNode, vars: &mut Variables) -> Result<RTData, RuntimeErr> {
@@ -289,7 +308,7 @@ fn eval_pat(pat: &Pattern, data: RTData, vars: &mut Variables) -> bool {
         Pattern::PatData(p) => {
             match data {
                 RTData::LData(ptr) => {
-                    if unsafe { (*ptr).label == p.label.id} {
+                    if unsafe { (*ptr).label != p.label.id} {
                         return false;
                     }
 
