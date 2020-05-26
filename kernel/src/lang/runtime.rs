@@ -152,16 +152,64 @@ pub fn eval(code: &str, ctx: &semantics::Context) -> Result<LinkedList<String>, 
 
 fn eval_expr(expr: &Expr, ctx: &semantics::Context, root: &mut RootObject, vars: &mut Variables) -> Result<RTData, RuntimeErr> {
     match expr {
-        Expr::LitNum(e)   => Ok(RTData::Int(e.num)),
-        Expr::LitBool(e)  => Ok(RTData::Bool(e.val)),
-        Expr::IfExpr(e)   => eval_if(&e, ctx, root, vars),
-        Expr::DataExpr(e) => eval_data(&e, ctx, root, vars),
-        Expr::ListExpr(e) => eval_list(&e, ctx, root, vars),
-        Expr::LetExpr(e)  => eval_let(&e, ctx, root, vars),
+        Expr::LitNum(e)    => Ok(RTData::Int(e.num)),
+        Expr::LitBool(e)   => Ok(RTData::Bool(e.val)),
+        Expr::IfExpr(e)    => eval_if(&e, ctx, root, vars),
+        Expr::DataExpr(e)  => eval_data(&e, ctx, root, vars),
+        Expr::ListExpr(e)  => eval_list(&e, ctx, root, vars),
+        Expr::LetExpr(e)   => eval_let(&e, ctx, root, vars),
         Expr::MatchExpr(e) => eval_match(&e, ctx, root, vars),
-        Expr::IDExpr(e)   => eval_id(&e, vars),
+        Expr::IDExpr(e)    => eval_id(&e, vars),
+        Expr::ApplyExpr(e) => eval_apply(&e, ctx, root, vars),
         _ => Err(RuntimeErr{msg: "not yet implemented".to_string()})
     }
+}
+
+fn eval_apply(expr: &semantics::Exprs, ctx: &semantics::Context, root: &mut RootObject, vars: &mut Variables) -> Result<RTData, RuntimeErr> {
+    let mut iter = expr.exprs.iter();
+    let fun_expr;
+    match iter.next() {
+        Some(e) => {
+            fun_expr = e;
+        }
+        None => {
+            let pos = expr.ast.get_pos();
+            let msg = format!("{:?}:{:?}: empty application", pos.line, pos.column);
+            return Err(RuntimeErr{msg: msg})
+        }
+    }
+
+    let fun_name;
+    match eval_expr(&fun_expr, ctx, root, vars)? {
+        RTData::Defun(f) => {
+            fun_name = f;
+        }
+        _ => {
+            let pos = fun_expr.get_ast().get_pos();
+            let msg = format!("{:?}:{:?}: not function", pos.line, pos.column);
+            return Err(RuntimeErr{msg: msg})
+        }
+    }
+
+    let fun;
+    match ctx.funs.get(&fun_name) {
+        Some(f) => {
+            fun = f;
+        }
+        None => {
+            let pos = fun_expr.get_ast().get_pos();
+            let msg = format!("{:?}:{:?}: {:?} is not defined", fun_name, pos.line, pos.column);
+            return Err(RuntimeErr{msg: msg})
+        }
+    }
+
+    let mut vars_fun = Variables::new();
+    for (e, arg) in iter.zip(fun.args.iter()) {
+        let data = eval_expr(&e, ctx, root, vars)?;
+        vars_fun.insert(arg.id.to_string(), data);
+    }
+
+    eval_expr(&fun.expr, ctx, root, &mut vars_fun)
 }
 
 fn eval_match(expr: &semantics::MatchNode, ctx: &semantics::Context, root: &mut RootObject, vars: &mut Variables) -> Result<RTData, RuntimeErr> {

@@ -167,7 +167,7 @@ impl TypingErr {
 }
 
 #[derive(Debug, Clone)]
-pub enum LangExpr<'t> {
+pub(crate) enum LangExpr<'t> {
     IfExpr(Box::<IfNode<'t>>),
     LetExpr(Box::<LetNode<'t>>),
     LitNum(NumNode<'t>),
@@ -181,7 +181,7 @@ pub enum LangExpr<'t> {
 }
 
 impl<'t> LangExpr<'t> {
-    pub fn get_ast(&self) -> &'t parser::Expr {
+    pub(crate) fn get_ast(&self) -> &'t parser::Expr {
         match self {
             LangExpr::IfExpr(e)    => e.ast,
             LangExpr::LetExpr(e)   => e.ast,
@@ -264,67 +264,67 @@ impl<'t> LangExpr<'t> {
 }
 
 #[derive(Debug, Clone)]
-pub struct NumNode<'t> {
-    pub num: i64,
+pub(crate) struct NumNode<'t> {
+    pub(crate) num: i64,
     ast: &'t parser::Expr
 }
 
 #[derive(Debug, Clone)]
-pub struct BoolNode<'t> {
-    pub val: bool,
+pub(crate) struct BoolNode<'t> {
+    pub(crate) val: bool,
     ast: &'t parser::Expr
 }
 
 #[derive(Debug, Clone)]
-pub struct IDNode<'t> {
-    pub id: &'t str,
+pub(crate) struct IDNode<'t> {
+    pub(crate) id: &'t str,
     ast: &'t parser::Expr,
     ty: Option<Type>,
 }
 
 #[derive(Debug, Clone)]
-pub struct IfNode<'t> {
-    pub cond_expr: LangExpr<'t>,
-    pub then_expr: LangExpr<'t>,
-    pub else_expr: LangExpr<'t>,
+pub(crate) struct IfNode<'t> {
+    pub(crate) cond_expr: LangExpr<'t>,
+    pub(crate) then_expr: LangExpr<'t>,
+    pub(crate) else_expr: LangExpr<'t>,
     ast: &'t parser::Expr,
     ty: Option<Type>
 }
 
 #[derive(Debug, Clone)]
-pub struct LetNode<'t> {
-    pub def_vars: Vec<DefVar<'t>>,
-    pub expr: LangExpr<'t>,
+pub(crate) struct LetNode<'t> {
+    pub(crate) def_vars: Vec<DefVar<'t>>,
+    pub(crate) expr: LangExpr<'t>,
     ast: &'t parser::Expr,
     ty: Option<Type>
 }
 
 #[derive(Debug, Clone)]
-pub struct DefVar<'t> {
-    pub pattern: Pattern<'t>,
-    pub expr: LangExpr<'t>,
+pub(crate) struct DefVar<'t> {
+    pub(crate) pattern: Pattern<'t>,
+    pub(crate) expr: LangExpr<'t>,
     ast: &'t parser::Expr,
     ty: Option<Type>
 }
 
 #[derive(Debug, Clone)]
-pub struct MatchNode<'t> {
-    pub expr: LangExpr<'t>,
-    pub cases: Vec<MatchCase<'t>>,
-    pub ast: &'t parser::Expr,
+pub(crate) struct MatchNode<'t> {
+    pub(crate) expr: LangExpr<'t>,
+    pub(crate) cases: Vec<MatchCase<'t>>,
+    pub(crate) ast: &'t parser::Expr,
     ty: Option<Type>
 }
 
 #[derive(Debug, Clone)]
-pub struct DataNode<'t> {
-    pub label: TIDNode<'t>,
-    pub exprs: Vec<LangExpr<'t>>,
+pub(crate) struct DataNode<'t> {
+    pub(crate) label: TIDNode<'t>,
+    pub(crate) exprs: Vec<LangExpr<'t>>,
     ast: &'t parser::Expr,
     ty: Option<Type>
 }
 
 #[derive(Debug, Clone)]
-pub enum Pattern<'t> {
+pub(crate) enum Pattern<'t> {
     PatNum(NumNode<'t>),
     PatBool(BoolNode<'t>),
     PatID(IDNode<'t>),
@@ -334,7 +334,7 @@ pub enum Pattern<'t> {
 }
 
 impl<'t> Pattern<'t> {
-    pub fn get_ast(&self) -> &'t parser::Expr {
+    pub(crate) fn get_ast(&self) -> &'t parser::Expr {
         match self {
             Pattern::PatNum(e)   => e.ast,
             Pattern::PatBool(e)  => e.ast,
@@ -380,44 +380,44 @@ impl<'t> Pattern<'t> {
 }
 
 #[derive(Debug, Clone)]
-pub struct PatTupleNode<'t> {
-    pub pattern: Vec<Pattern<'t>>,
+pub(crate) struct PatTupleNode<'t> {
+    pub(crate) pattern: Vec<Pattern<'t>>,
     ast: &'t parser::Expr,
     ty: Option<Type>
 }
 
 #[derive(Debug, Clone)]
-pub struct PatDataNode<'t> {
-    pub label: TIDNode<'t>,
-    pub pattern: Vec<Pattern<'t>>,
+pub(crate) struct PatDataNode<'t> {
+    pub(crate) label: TIDNode<'t>,
+    pub(crate) pattern: Vec<Pattern<'t>>,
     ast: &'t parser::Expr,
     ty: Option<Type>
 }
 
 #[derive(Debug, Clone)]
-pub struct PatNilNode<'t> {
+pub(crate) struct PatNilNode<'t> {
     ast: &'t parser::Expr,
     ty: Option<Type>
 }
 
 #[derive(Debug, Clone)]
-pub struct MatchCase<'t> {
-    pub pattern: Pattern<'t>,
-    pub expr: LangExpr<'t>,
+pub(crate) struct MatchCase<'t> {
+    pub(crate) pattern: Pattern<'t>,
+    pub(crate) expr: LangExpr<'t>,
     ast: &'t parser::Expr,
     ty: Option<Type>
 }
 
 #[derive(Debug, Clone)]
-pub struct Exprs<'t> {
-    pub exprs: Vec<LangExpr<'t>>,
-    ast: &'t parser::Expr,
+pub(crate) struct Exprs<'t> {
+    pub(crate) exprs: Vec<LangExpr<'t>>,
+    pub(crate) ast: &'t parser::Expr,
     ty: Option<Type>
 }
 
 #[derive(Debug, Clone)]
-pub struct TIDNode<'t> {
-    pub id: &'t str,
+pub(crate) struct TIDNode<'t> {
+    pub(crate) id: &'t str,
     ast: &'t parser::Expr,
     ty: Option<Type>
 }
@@ -498,13 +498,13 @@ struct TEDataNode<'t> {
 }
 
 #[derive(Debug, Clone)]
-struct Defun<'t> {
+pub(crate) struct Defun<'t> {
     exported: bool,
     id: IDNode<'t>,
-    args: Vec<IDNode<'t>>,
+    pub(crate) args: Vec<IDNode<'t>>,
     fun_type: TypeExpr<'t>,
     effect: Effect,
-    expr: LangExpr<'t>,
+    pub(crate) expr: LangExpr<'t>,
     ast: &'t parser::Expr,
     ty: Option<Type>,
 }
@@ -628,13 +628,13 @@ impl<'t> TApp<'t> for TEDataNode<'t> {
 
 #[derive(Debug)]
 pub struct Context<'t> {
-    funs: BTreeMap<&'t str, Defun<'t>>,
+    pub(crate) funs: BTreeMap<String, Defun<'t>>,
     data: BTreeMap<&'t str, DataType<'t>>,
     label2data: BTreeMap<&'t str, &'t str>
 }
 
 impl<'t> Context<'t> {
-    fn new(funs: BTreeMap<&'t str, Defun<'t>>, data: BTreeMap<&'t str, DataType<'t>>) -> Context<'t> {
+    fn new(funs: BTreeMap<String, Defun<'t>>, data: BTreeMap<&'t str, DataType<'t>>) -> Context<'t> {
         Context{funs: funs,
                 data: data,
                 label2data: BTreeMap::new()}
@@ -671,7 +671,7 @@ impl<'t> Context<'t> {
         for (_, defun) in self.funs.iter() {
             let defun = defun.clone();
             let defun = self.typing_defun(defun)?;
-            funs.insert(defun.id.id, defun);
+            funs.insert(defun.id.id.to_string(), defun);
         }
 
         self.funs = funs;
@@ -971,7 +971,7 @@ impl<'t> Context<'t> {
             }
             None => {
                 // look up function
-                match self.funs.get(&expr.id) {
+                match self.funs.get(&expr.id.to_string()) {
                     Some(defun) => {
                         ty = self.to_type(&defun.fun_type, num_tv).unwrap();
                     }
@@ -1676,7 +1676,7 @@ impl<'t> Context<'t> {
         match vars.get(&expr.id.to_string()) {
             Some(_) => (),
             None => {
-                match self.funs.get(&expr.id) {
+                match self.funs.get(&expr.id.to_string()) {
                     Some(defun) => {
                         if !chk_rec && !defun.exported {
                             let msg = format!("error: {:?} is not defined", expr.id);
@@ -1879,7 +1879,7 @@ fn has_tvar(ty: &Type) -> bool {
     }
 }
 
-pub fn typing_expr<'a, 'b>(expr: &'a parser::Expr, ctx: &Context<'b>) -> Result<LangExpr<'a>, TypingErr> {
+pub(crate) fn typing_expr<'a, 'b>(expr: &'a parser::Expr, ctx: &Context<'b>) -> Result<LangExpr<'a>, TypingErr> {
     let mut expr = expr2typed_expr(expr)?;
     let mut num_tv = 0;
     let (_, sbst) = ctx.typing_expr(&mut expr, Sbst::new(), &mut VarType::new(), &mut num_tv)?;
@@ -1910,12 +1910,12 @@ pub fn exprs2context(exprs: &LinkedList<parser::Expr>) -> Result<Context, Typing
                         if id == "defun" || id == "export" {
                             let f = expr2defun(e)?;
 
-                            if funs.contains_key(f.id.id) {
+                            if funs.contains_key(&f.id.id.to_string()) {
                                 let msg = format!("error: function {:?} is multiply defined", f.id.id);
                                 return Err(TypingErr{msg: msg, pos: f.id.ast.get_pos()});
                             }
 
-                            funs.insert(f.id.id, f);
+                            funs.insert(f.id.id.to_string(), f);
                         } else if id == "data" {
                             let d = expr2data(e)?;
                             if data.contains_key(d.name.id.id) {

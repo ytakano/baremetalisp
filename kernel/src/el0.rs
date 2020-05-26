@@ -85,7 +85,7 @@ pub fn el0_entry() -> ! {
 '(30 20 10)
 (let ((x 10) (y 20) (z 30))
     '(z y x))
-test-label
+(test-label)
 (match (Cons 50 Nil)
     ((Cons x _) x))
 ";
