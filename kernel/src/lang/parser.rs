@@ -12,11 +12,7 @@
 use alloc::string::{String, ToString};
 use alloc::collections::linked_list::LinkedList;
 
-#[derive(Debug, Clone, Copy)]
-pub struct Pos {
-    pub line: usize,
-    pub column: usize,
-}
+use super::Pos;
 
 #[derive(Debug)]
 pub struct SyntaxErr {

@@ -1,5 +1,6 @@
 use super::parser;
 use super::semantics;
+use super::{LispErr, Pos};
 
 // use crate::driver;
 
@@ -12,7 +13,8 @@ type Expr<'a> = semantics::LangExpr<'a>;
 type Pattern<'a> = semantics::Pattern<'a>;
 
 struct RuntimeErr {
-    msg: String
+    msg: String,
+    pos: Pos
 }
 
 struct Variables {
@@ -46,7 +48,7 @@ impl Variables {
 }
 
 #[derive(Debug, Clone)]
-pub enum RTData {
+enum RTData {
     Int(i64),
     Bool(bool),
     Defun(String),
@@ -78,7 +80,7 @@ impl RTData {
 }
 
 #[derive(Debug)]
-pub struct LabeledData {
+struct LabeledData {
     label: String,
     data: Option<Vec<RTData>>
 }
@@ -88,7 +90,7 @@ struct RootObject {
 }
 
 impl RootObject {
-    pub fn new() -> RootObject {
+    fn new() -> RootObject {
         RootObject{objects: LinkedList::new()}
     }
 
@@ -99,12 +101,7 @@ impl RootObject {
     }
 }
 
-#[derive(Debug)]
-pub struct EvalErr {
-    pub msg: String
-}
-
-pub fn eval(code: &str, ctx: &semantics::Context) -> Result<LinkedList<String>, EvalErr> {
+pub(crate) fn eval(code: &str, ctx: &semantics::Context) -> Result<LinkedList<String>, LispErr> {
     let mut ps = parser::Parser::new(code);
     let exprs;
     match ps.parse() {
@@ -112,8 +109,8 @@ pub fn eval(code: &str, ctx: &semantics::Context) -> Result<LinkedList<String>, 
             exprs = e;
         }
         Err(e) => {
-            let msg = format!("{:?}:{:?}: {}", e.pos.line, e.pos.column, e.msg);
-            return Err(EvalErr{msg: msg});
+            let msg = format!("Syntax Error: {}", e.msg);
+            return Err(LispErr{msg: msg, pos: e.pos});
         }
     }
 
@@ -124,8 +121,8 @@ pub fn eval(code: &str, ctx: &semantics::Context) -> Result<LinkedList<String>, 
                 typed_exprs.push_back(e);
             }
             Err(e) => {
-                let msg = format!("{:?}:{:?}: {}", e.pos.line, e.pos.column, e.msg);
-                return Err(EvalErr{msg: msg});
+                let msg = format!("Typing Error: {}", e.msg);
+                return Err(LispErr{msg: msg, pos: e.pos});
             }
         }
     }
@@ -139,7 +136,7 @@ pub fn eval(code: &str, ctx: &semantics::Context) -> Result<LinkedList<String>, 
                 result.push_back(val.get_by_lisp());
             }
             Err(e) => {
-                let msg = format!("(RuntimeErr {:?})", e.msg);
+                let msg = format!("(RuntimeErr [{:?} (Pos {:?} {:?})])", e.msg, e.pos.line, e.pos.column);
                 result.push_back(msg);
                 return Ok(result);
             }
@@ -161,7 +158,7 @@ fn eval_expr(expr: &Expr, ctx: &semantics::Context, root: &mut RootObject, vars:
         Expr::MatchExpr(e) => eval_match(&e, ctx, root, vars),
         Expr::IDExpr(e)    => eval_id(&e, vars),
         Expr::ApplyExpr(e) => eval_apply(&e, ctx, root, vars),
-        _ => Err(RuntimeErr{msg: "not yet implemented".to_string()})
+        _ => Err(RuntimeErr{msg: "not yet implemented".to_string(), pos: Pos{line: 0, column: 0}})
     }
 }
 
@@ -174,8 +171,7 @@ fn eval_apply(expr: &semantics::Exprs, ctx: &semantics::Context, root: &mut Root
         }
         None => {
             let pos = expr.ast.get_pos();
-            let msg = format!("{:?}:{:?}: empty application", pos.line, pos.column);
-            return Err(RuntimeErr{msg: msg})
+            return Err(RuntimeErr{msg: "empty application".to_string(), pos: pos})
         }
     }
 
@@ -186,8 +182,7 @@ fn eval_apply(expr: &semantics::Exprs, ctx: &semantics::Context, root: &mut Root
         }
         _ => {
             let pos = fun_expr.get_ast().get_pos();
-            let msg = format!("{:?}:{:?}: not function", pos.line, pos.column);
-            return Err(RuntimeErr{msg: msg})
+            return Err(RuntimeErr{msg: "not function".to_string(), pos: pos})
         }
     }
 
@@ -198,8 +193,8 @@ fn eval_apply(expr: &semantics::Exprs, ctx: &semantics::Context, root: &mut Root
         }
         None => {
             let pos = fun_expr.get_ast().get_pos();
-            let msg = format!("{:?}:{:?}: {:?} is not defined", fun_name, pos.line, pos.column);
-            return Err(RuntimeErr{msg: msg})
+            let msg = format!("{:?} is not defined", fun_name);
+            return Err(RuntimeErr{msg: msg, pos: pos})
         }
     }
 
@@ -226,8 +221,7 @@ fn eval_match(expr: &semantics::MatchNode, ctx: &semantics::Context, root: &mut 
     }
 
     let pos = expr.ast.get_pos();
-    let msg = format!("{:?}:{:?}: pattern-matching is not exhaustive", pos.line, pos.column);
-    Err(RuntimeErr{msg: msg})
+    Err(RuntimeErr{msg: "pattern-matching is not exhaustive".to_string(), pos: pos})
 }
 
 fn eval_id(expr: &semantics::IDNode, vars: &mut Variables) -> Result<RTData, RuntimeErr> {
@@ -257,8 +251,7 @@ fn eval_if(expr: &semantics::IfNode, ctx: &semantics::Context, root: &mut RootOb
         }
         _ => {
             let pos = expr.cond_expr.get_ast().get_pos();
-            let msg = format!("{:?}:{:?}: type mismatched", pos.line, pos.column);
-            return Err(RuntimeErr{msg: msg});
+            return Err(RuntimeErr{msg: "type mismatched".to_string(), pos: pos});
         }
     }
 
@@ -292,8 +285,7 @@ fn eval_let(expr: &semantics::LetNode, ctx: &semantics::Context, root: &mut Root
         let data = eval_expr(&def.expr, ctx, root, vars)?;
         if !eval_pat(&def.pattern, data, vars) {
             let pos = def.pattern.get_ast().get_pos();
-            let msg = format!("{:?}:{:?}: failed pattern matching", pos.line, pos.column);
-            return Err(RuntimeErr{msg: msg});
+            return Err(RuntimeErr{msg: "failed pattern matching".to_string(), pos: pos});
         }
     }
 

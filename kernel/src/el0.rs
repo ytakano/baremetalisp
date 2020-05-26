@@ -1,15 +1,8 @@
 use crate::slab;
-use crate::lang::parser;
-use crate::lang::semantics;
-use crate::lang::runtime;
+use crate::lang;
 use crate::driver;
 
-#[no_mangle]
-pub fn el0_entry() -> ! {
-    // initialize memory allocator
-    slab::init();
-
-    let code =
+const GLOBAL_CODE: &str =
 "
 (data Dim2 (Dim2 Int Int))
 
@@ -20,9 +13,67 @@ pub fn el0_entry() -> ! {
 (defun id (x) (Pure (-> (t) t))
     x)
 
-(export test-label () (Pure (-> () Dim2))
-    (id (Dim2 10 20)))
+(export test-label (x y) (Pure (-> (Int Int) (Maybe Dim2)))
+    (Just (id (Dim2 x y))))
 ";
+
+const EVAL_CODE: &str =
+"
+(Cons 30 (Cons 20 (Cons 10 Nil)))
+'(30 20 10)
+(let ((x 10) (y 20) (z 30))
+    '(z y x))
+(test-label 700 50)
+(match (Cons 50 Nil)
+    ((Cons x _) x))
+";
+
+fn run_lisp() {
+    // initialize
+    match lang::init(GLOBAL_CODE) {
+        Ok(exprs) => {
+            // typing
+            match lang::typing(&exprs) {
+                Ok(ctx) => {
+                    // eval
+                    let result = lang::eval(EVAL_CODE, &ctx);
+                    let msg = format!("{:#?}\n", result);
+                    driver::uart::puts(&msg);
+                }
+                Err(e) => {
+                    let msg = format!("{:#?}\n", e);
+                    driver::uart::puts(&msg);
+                }
+            }
+        }
+        Err(e) => {
+            let msg = format!("{:#?}\n", e);
+            driver::uart::puts(&msg);
+        }
+    }
+}
+
+#[no_mangle]
+pub fn el0_entry() -> ! {
+    // initialize memory allocator
+    slab::init();
+
+    driver::uart::puts("global code:\n");
+    driver::uart::puts(GLOBAL_CODE);
+    driver::uart::puts("\n");
+
+    driver::uart::puts("eval code:\n");
+    driver::uart::puts(EVAL_CODE);
+    driver::uart::puts("\n");
+
+    run_lisp();
+
+    let p = 0x400000000 as *mut u64;
+    unsafe { *p = 10 };
+
+    loop{}
+}
+
 
 /*
 (defun test-match (a) (Pure (-> ((Maybe Dim2)) Int))
@@ -70,47 +121,3 @@ pub fn el0_entry() -> ! {
         v1))
 ";
 */
-    driver::uart::puts("Input:\n");
-    driver::uart::puts(code);
-    driver::uart::puts("\n");
-
-    let mut ps = parser::Parser::new(code);
-    match ps.parse() {
-        Ok(e) => {
-            match semantics::exprs2context(&e) {
-                Ok(ctx) => {
-                    let expr =
-"
-(Cons 30 (Cons 20 (Cons 10 Nil)))
-'(30 20 10)
-(let ((x 10) (y 20) (z 30))
-    '(z y x))
-(test-label)
-(match (Cons 50 Nil)
-    ((Cons x _) x))
-";
-                    driver::uart::puts("Eval:\n");
-                    driver::uart::puts(expr);
-                    driver::uart::puts("\n");
-
-                    let result = runtime::eval(expr, &ctx);
-                    let msg = format!("{:#?}\n", result);
-                    driver::uart::puts(&msg);
-                }
-                Err(err) => {
-                    let msg = format!("{:#?}\n", err);
-                    driver::uart::puts(&msg);
-                }
-            }
-        }
-        Err(err) => {
-            let msg = format!("Syntax Error:\n  {:?}\n", err);
-            driver::uart::puts(&msg);
-        }
-    }
-
-    let p = 0x400000000 as *mut u64;
-    unsafe { *p = 10 };
-
-    loop{}
-}
