@@ -19,6 +19,7 @@ const GLOBAL_CODE: &str =
 
 const EVAL_CODE: &str =
 "
+(* (+ 143 200) 10)
 (Cons 30 (Cons 20 (Cons 10 Nil)))
 '(30 20 10)
 (let ((x 10) (y 20) (z 30))

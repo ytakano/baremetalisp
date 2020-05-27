@@ -631,13 +631,31 @@ impl<'t> TApp<'t> for TEDataNode<'t> {
 pub struct Context<'t> {
     pub(crate) funs: BTreeMap<String, Defun<'t>>,
     data: BTreeMap<&'t str, DataType<'t>>,
+    pub(crate) built_in: BTreeSet<String>,
     label2data: BTreeMap<&'t str, &'t str>
 }
 
 impl<'t> Context<'t> {
     fn new(funs: BTreeMap<String, Defun<'t>>, data: BTreeMap<&'t str, DataType<'t>>) -> Context<'t> {
+        let mut built_in = BTreeSet::new();
+
+        built_in.insert("+".to_string());
+        built_in.insert("-".to_string());
+        built_in.insert("*".to_string());
+        built_in.insert("/".to_string());
+        built_in.insert("<".to_string());
+        built_in.insert(">".to_string());
+        built_in.insert("=".to_string());
+        built_in.insert("<=".to_string());
+        built_in.insert(">=".to_string());
+        built_in.insert("and".to_string());
+        built_in.insert("or".to_string());
+        built_in.insert("xor".to_string());
+        built_in.insert("not".to_string());
+
         Context{funs: funs,
                 data: data,
+                built_in: built_in,
                 label2data: BTreeMap::new()}
     }
 
@@ -977,8 +995,25 @@ impl<'t> Context<'t> {
                         ty = self.to_type(&defun.fun_type, num_tv).unwrap();
                     }
                     None => {
-                        let msg = format!("{:?} is not defined", expr.id);
-                        return Err(TypingErr{msg: msg, pos: expr.ast.get_pos()});
+                        match expr.id {
+                            // built-in functions
+                            "+" | "-" | "*" | "/" => {
+                                ty = ty_fun(&Effect::Pure, vec!(ty_int(), ty_int()), ty_int());
+                            }
+                            "<" | ">" | "=" | "<=" | ">=" => {
+                                ty = ty_fun(&Effect::Pure, vec!(ty_int(), ty_int()), ty_bool());
+                            }
+                            "and" | "or" | "xor" => {
+                                ty = ty_fun(&Effect::Pure, vec!(ty_bool(), ty_bool()), ty_bool());
+                            }
+                            "not" => {
+                                ty = ty_fun(&Effect::Pure, vec!(ty_bool()), ty_bool());
+                            }
+                            _ => {
+                                let msg = format!("{:?} is not defined", expr.id);
+                                return Err(TypingErr{msg: msg, pos: expr.ast.get_pos()});
+                            }
+                        }
                     }
                 }
             }
@@ -1687,8 +1722,10 @@ impl<'t> Context<'t> {
                         self.check_defun_type_recur(&expr.ty.as_ref().unwrap(), defun, fun_types, chk_rec)?;
                     }
                     None => {
-                        let msg = format!("{:?} is not defined", expr.id);
-                        return Err(TypingErr{msg: msg, pos: expr.ast.get_pos()});
+                        if !self.built_in.contains(expr.id) {
+                            let msg = format!("{:?} is not defined", expr.id);
+                            return Err(TypingErr{msg: msg, pos: expr.ast.get_pos()});
+                        }
                     }
                 }
                 ()

@@ -186,6 +186,15 @@ fn eval_apply(expr: &semantics::Exprs, ctx: &semantics::Context, root: &mut Root
         }
     }
 
+    if ctx.built_in.contains(&fun_name) {
+        let mut v = Vec::new();
+        for e in iter {
+            let data = eval_expr(&e, ctx, root, vars)?;
+            v.push(data);
+        }
+        return eval_built_in(fun_name, v, expr.ast.get_pos());
+    }
+
     let fun;
     match ctx.funs.get(&fun_name) {
         Some(f) => {
@@ -194,7 +203,7 @@ fn eval_apply(expr: &semantics::Exprs, ctx: &semantics::Context, root: &mut Root
         None => {
             let pos = fun_expr.get_ast().get_pos();
             let msg = format!("{:?} is not defined", fun_name);
-            return Err(RuntimeErr{msg: msg, pos: pos})
+            return Err(RuntimeErr{msg: msg, pos: pos});
         }
     }
 
@@ -205,6 +214,99 @@ fn eval_apply(expr: &semantics::Exprs, ctx: &semantics::Context, root: &mut Root
     }
 
     eval_expr(&fun.expr, ctx, root, &mut vars_fun)
+}
+
+fn get_int_int(args: Vec<RTData>, pos: Pos) -> Result<(i64, i64), RuntimeErr> {
+    match (args[0].clone(), args[1].clone()) {
+        (RTData::Int(n1), RTData::Int(n2)) => {
+            Ok((n1, n2))
+        }
+        _ => {
+            Err(RuntimeErr{msg: "there must be exactly 2 integers".to_string(), pos: pos})
+        }
+    }
+}
+
+fn get_bool_bool(args: Vec<RTData>, pos: Pos) -> Result<(bool, bool), RuntimeErr> {
+    match (args[0].clone(), args[1].clone()) {
+        (RTData::Bool(n1), RTData::Bool(n2)) => {
+            Ok((n1, n2))
+        }
+        _ => {
+            Err(RuntimeErr{msg: "there must be exactly 2 boolean values".to_string(), pos: pos})
+        }
+    }
+}
+
+fn get_bool(args: Vec<RTData>, pos: Pos) -> Result<bool, RuntimeErr> {
+    match args[0].clone() {
+        RTData::Bool(n) => {
+            Ok(n)
+        }
+        _ => {
+            Err(RuntimeErr{msg: "there must be exactly 2 boolean values".to_string(), pos: pos})
+        }
+    }
+}
+
+fn eval_built_in(fun_name: String, args: Vec<RTData>, pos: Pos) -> Result<RTData, RuntimeErr> {
+    match fun_name.as_str() {
+        "+" => {
+            let (n1, n2) = get_int_int(args, pos)?;
+            Ok(RTData::Int(n1 + n2))
+        }
+        "-" => {
+            let (n1, n2) = get_int_int(args, pos)?;
+            Ok(RTData::Int(n1 - n2))
+        }
+        "*" => {
+            let (n1, n2) = get_int_int(args, pos)?;
+            Ok(RTData::Int(n1 * n2))
+        }
+        "/" => {
+            let (n1, n2) = get_int_int(args, pos)?;
+            Ok(RTData::Int(n1 / n2))
+        }
+        "<" => {
+            let (n1, n2) = get_int_int(args, pos)?;
+            Ok(RTData::Bool(n1 < n2))
+        }
+        ">" => {
+            let (n1, n2) = get_int_int(args, pos)?;
+            Ok(RTData::Bool(n1 > n2))
+        }
+        "=" => {
+            let (n1, n2) = get_int_int(args, pos)?;
+            Ok(RTData::Bool(n1 == n2))
+        }
+        "<=" => {
+            let (n1, n2) = get_int_int(args, pos)?;
+            Ok(RTData::Bool(n1 <= n2))
+        }
+        ">=" => {
+            let (n1, n2) = get_int_int(args, pos)?;
+            Ok(RTData::Bool(n1 >= n2))
+        }
+        "and" => {
+            let (n1, n2) = get_bool_bool(args, pos)?;
+            Ok(RTData::Bool(n1 && n2))
+        }
+        "or" => {
+            let (n1, n2) = get_bool_bool(args, pos)?;
+            Ok(RTData::Bool(n1 || n2))
+        }
+        "xor" => {
+            let (n1, n2) = get_bool_bool(args, pos)?;
+            Ok(RTData::Bool(n1 ^ n2))
+        }
+        "not" => {
+            let n = get_bool(args, pos)?;
+            Ok(RTData::Bool(!n))
+        }
+        _ => {
+            Err(RuntimeErr{msg: "not yet implemented".to_string(), pos: Pos{line: 0, column: 0}})
+        }
+    }
 }
 
 fn eval_match(expr: &semantics::MatchNode, ctx: &semantics::Context, root: &mut RootObject, vars: &mut Variables) -> Result<RTData, RuntimeErr> {
