@@ -19,6 +19,8 @@ const GLOBAL_CODE: &str =
 
 const EVAL_CODE: &str =
 "
+[10 20 30]
+(xor (and true false) true)
 (* (+ 143 200) 10)
 (Cons 30 (Cons 20 (Cons 10 Nil)))
 '(30 20 10)

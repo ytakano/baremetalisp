@@ -158,8 +158,19 @@ fn eval_expr(expr: &Expr, ctx: &semantics::Context, root: &mut RootObject, vars:
         Expr::MatchExpr(e) => eval_match(&e, ctx, root, vars),
         Expr::IDExpr(e)    => eval_id(&e, vars),
         Expr::ApplyExpr(e) => eval_apply(&e, ctx, root, vars),
-        _ => Err(RuntimeErr{msg: "not yet implemented".to_string(), pos: Pos{line: 0, column: 0}})
+        Expr::TupleExpr(e) => eval_tuple(&e, ctx, root, vars),
     }
+}
+
+fn eval_tuple(expr: &semantics::Exprs, ctx: &semantics::Context, root: &mut RootObject, vars: &mut Variables) -> Result<RTData, RuntimeErr> {
+    let mut v = Vec::new();
+    for e in expr.exprs.iter() {
+        v.push(eval_expr(e, ctx, root, vars)?);
+    }
+
+    let elm = root.make_obj("Tuple".to_string(), Some(v));
+
+    Ok(RTData::LData(elm))
 }
 
 fn eval_apply(expr: &semantics::Exprs, ctx: &semantics::Context, root: &mut RootObject, vars: &mut Variables) -> Result<RTData, RuntimeErr> {
@@ -304,7 +315,7 @@ fn eval_built_in(fun_name: String, args: Vec<RTData>, pos: Pos) -> Result<RTData
             Ok(RTData::Bool(!n))
         }
         _ => {
-            Err(RuntimeErr{msg: "not yet implemented".to_string(), pos: Pos{line: 0, column: 0}})
+            Err(RuntimeErr{msg: "unknown built-in function".to_string(), pos: pos})
         }
     }
 }
