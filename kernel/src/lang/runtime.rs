@@ -203,7 +203,7 @@ fn eval_apply(expr: &semantics::Exprs, ctx: &semantics::Context, root: &mut Root
             let data = eval_expr(&e, ctx, root, vars)?;
             v.push(data);
         }
-        return eval_built_in(fun_name, v, expr.ast.get_pos());
+        return eval_built_in(fun_name, v, expr.ast.get_pos(), ctx);
     }
 
     let fun;
@@ -238,6 +238,17 @@ fn get_int_int(args: Vec<RTData>, pos: Pos) -> Result<(i64, i64), RuntimeErr> {
     }
 }
 
+fn get_int_int_int(args: Vec<RTData>, pos: Pos) -> Result<(i64, i64, i64), RuntimeErr> {
+    match (args[0].clone(), args[1].clone(), args[2].clone()) {
+        (RTData::Int(n1), RTData::Int(n2), RTData::Int(n3)) => {
+            Ok((n1, n2, n3))
+        }
+        _ => {
+            Err(RuntimeErr{msg: "there must be exactly 2 integers".to_string(), pos: pos})
+        }
+    }
+}
+
 fn get_bool_bool(args: Vec<RTData>, pos: Pos) -> Result<(bool, bool), RuntimeErr> {
     match (args[0].clone(), args[1].clone()) {
         (RTData::Bool(n1), RTData::Bool(n2)) => {
@@ -260,7 +271,7 @@ fn get_bool(args: Vec<RTData>, pos: Pos) -> Result<bool, RuntimeErr> {
     }
 }
 
-fn eval_built_in(fun_name: String, args: Vec<RTData>, pos: Pos) -> Result<RTData, RuntimeErr> {
+fn eval_built_in(fun_name: String, args: Vec<RTData>, pos: Pos, ctx: &semantics::Context) -> Result<RTData, RuntimeErr> {
     match fun_name.as_str() {
         "+" => {
             let (n1, n2) = get_int_int(args, pos)?;
@@ -313,6 +324,10 @@ fn eval_built_in(fun_name: String, args: Vec<RTData>, pos: Pos) -> Result<RTData
         "not" => {
             let n = get_bool(args, pos)?;
             Ok(RTData::Bool(!n))
+        }
+        "call-rust" => {
+            let (n1, n2, n3) = get_int_int_int(args, pos)?;
+            Ok(RTData::Int((ctx.callback)(n1, n2, n3)))
         }
         _ => {
             Err(RuntimeErr{msg: "unknown built-in function".to_string(), pos: pos})

@@ -2,6 +2,8 @@ use crate::slab;
 use crate::lang;
 use crate::driver;
 
+use alloc::boxed::Box;
+
 const GLOBAL_CODE: &str =
 "
 (data Dim2 (Dim2 Int Int))
@@ -15,10 +17,14 @@ const GLOBAL_CODE: &str =
 
 (export test-label (x y) (Pure (-> (Int Int) (Maybe Dim2)))
     (Just (id (Dim2 x y))))
+
+(export test-callback (x y z) (IO (-> (Int Int Int) Int))
+    (call-rust x y z))
 ";
 
 const EVAL_CODE: &str =
 "
+(test-callback 30 40 50)
 [10 20 30]
 (xor (and true false) true)
 (* (+ 143 200) 10)
@@ -31,13 +37,22 @@ const EVAL_CODE: &str =
     ((Cons x _) x))
 ";
 
+fn callback(x: i64, y: i64, z: i64) -> i64 {
+    let msg = format!("callback: x = {}, y = {}, z = {}\n", x, y, z);
+    driver::uart::puts(&msg);
+    x * y * z
+}
+
 fn run_lisp() {
     // initialize
     match lang::init(GLOBAL_CODE) {
         Ok(exprs) => {
             // typing
             match lang::typing(&exprs) {
-                Ok(ctx) => {
+                Ok(mut ctx) => {
+                    // register callback function
+                    ctx.set_callback(Box::new(callback));
+
                     // eval
                     let result = lang::eval(EVAL_CODE, &ctx);
                     let msg = format!("{:#?}\n", result);

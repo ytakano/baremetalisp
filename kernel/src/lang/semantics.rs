@@ -627,12 +627,12 @@ impl<'t> TApp<'t> for TEDataNode<'t> {
     }
 }
 
-#[derive(Debug)]
 pub struct Context<'t> {
     pub(crate) funs: BTreeMap<String, Defun<'t>>,
     data: BTreeMap<&'t str, DataType<'t>>,
     pub(crate) built_in: BTreeSet<String>,
-    label2data: BTreeMap<&'t str, &'t str>
+    label2data: BTreeMap<&'t str, &'t str>,
+    pub callback: Box<dyn Fn(i64, i64, i64) -> i64>,
 }
 
 impl<'t> Context<'t> {
@@ -652,11 +652,17 @@ impl<'t> Context<'t> {
         built_in.insert("or".to_string());
         built_in.insert("xor".to_string());
         built_in.insert("not".to_string());
+        built_in.insert("call-rust".to_string());
 
         Context{funs: funs,
                 data: data,
                 built_in: built_in,
-                label2data: BTreeMap::new()}
+                label2data: BTreeMap::new(),
+                callback: Box::new(|_, _, _| 0)}
+    }
+
+    pub fn set_callback(&mut self, func: Box<dyn Fn(i64, i64, i64) -> i64>) {
+        self.callback = func;
     }
 
     fn typing(&mut self) -> Result<(), TypingErr> {
@@ -1008,6 +1014,9 @@ impl<'t> Context<'t> {
                             }
                             "not" => {
                                 ty = ty_fun(&Effect::Pure, vec!(ty_bool()), ty_bool());
+                            }
+                            "call-rust" => {
+                                ty = ty_fun(&Effect::IO, vec!(ty_int(), ty_int(), ty_int()), ty_int());
                             }
                             _ => {
                                 let msg = format!("{:?} is not defined", expr.id);
@@ -1722,7 +1731,12 @@ impl<'t> Context<'t> {
                         self.check_defun_type_recur(&expr.ty.as_ref().unwrap(), defun, fun_types, chk_rec)?;
                     }
                     None => {
-                        if !self.built_in.contains(expr.id) {
+                        if self.built_in.contains(expr.id) {
+                            if !chk_rec && expr.id == "call-rust" {
+                                let msg = format!("{:?} is not defined", expr.id);
+                                return Err(TypingErr{msg: msg, pos: expr.ast.get_pos()});
+                            }
+                        } else {
                             let msg = format!("{:?} is not defined", expr.id);
                             return Err(TypingErr{msg: msg, pos: expr.ast.get_pos()});
                         }
@@ -1865,7 +1879,7 @@ fn check_type_has_io<'t>(ty: &Option<Type>, ast: &'t parser::Expr, sbst: &Sbst, 
     match ty {
         Some(t) => {
             match effect {
-                Effect::IO => {
+                Effect::Pure => {
                     if has_io(&t.apply_sbst(sbst)) {
                         let msg = format!("Pure function contains an IO function\n type: {:?}", t);
                         return Err(TypingErr{msg: msg, pos: ast.get_pos()});
