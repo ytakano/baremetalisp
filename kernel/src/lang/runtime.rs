@@ -149,16 +149,20 @@ pub(crate) fn eval(code: &str, ctx: &semantics::Context) -> Result<LinkedList<St
 
 fn eval_expr(expr: &Expr, ctx: &semantics::Context, root: &mut RootObject, vars: &mut Variables) -> Result<RTData, RuntimeErr> {
     match expr {
-        Expr::LitNum(e)    => Ok(RTData::Int(e.num)),
-        Expr::LitBool(e)   => Ok(RTData::Bool(e.val)),
-        Expr::IfExpr(e)    => eval_if(&e, ctx, root, vars),
-        Expr::DataExpr(e)  => eval_data(&e, ctx, root, vars),
-        Expr::ListExpr(e)  => eval_list(&e, ctx, root, vars),
-        Expr::LetExpr(e)   => eval_let(&e, ctx, root, vars),
-        Expr::MatchExpr(e) => eval_match(&e, ctx, root, vars),
-        Expr::IDExpr(e)    => eval_id(&e, vars),
-        Expr::ApplyExpr(e) => eval_apply(&e, ctx, root, vars),
-        Expr::TupleExpr(e) => eval_tuple(&e, ctx, root, vars),
+        Expr::LitNum(e)     => Ok(RTData::Int(e.num)),
+        Expr::LitBool(e)    => Ok(RTData::Bool(e.val)),
+        Expr::IfExpr(e)     => eval_if(&e, ctx, root, vars),
+        Expr::DataExpr(e)   => eval_data(&e, ctx, root, vars),
+        Expr::ListExpr(e)   => eval_list(&e, ctx, root, vars),
+        Expr::LetExpr(e)    => eval_let(&e, ctx, root, vars),
+        Expr::MatchExpr(e)  => eval_match(&e, ctx, root, vars),
+        Expr::IDExpr(e)     => eval_id(&e, vars),
+        Expr::ApplyExpr(e)  => eval_apply(&e, ctx, root, vars),
+        Expr::TupleExpr(e)  => eval_tuple(&e, ctx, root, vars),
+        Expr::LambdaExpr(e) => {
+            let pos = e.ast.get_pos();
+            return Err(RuntimeErr{msg: "not yet implemented".to_string(), pos: pos})
+        }
     }
 }
 

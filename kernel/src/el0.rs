@@ -20,6 +20,9 @@ const GLOBAL_CODE: &str =
 
 (export test-callback (x y z) (IO (-> (Int Int Int) Int))
     (call-rust x y z))
+
+(export lambda-test () (Pure (-> () (Pure (-> (Int Int) Int))))
+    (lambda (x y) (+ x y)))
 ";
 
 const EVAL_CODE: &str =
