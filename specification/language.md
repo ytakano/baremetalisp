@@ -71,7 +71,7 @@ example:
 
 ## Expression
 
-- $EXPR := $LITERAL | $ID | $TID | $LET | $IF | $MATCH | $LIST | $TUPLE | $GENDATA | $APPLY
+- $EXPR := $LITERAL | $ID | $TID | $LET | $IF | $LAMBDA | $MATCH | $LIST | $TUPLE | $GENDATA | $APPLY
 
 ### Let Expression
 
@@ -104,6 +104,10 @@ example:
 ### Data Creataion
 
 - $GENDATA := ( $TID $EXPR* )
+
+### Lambda
+
+- $LAMBDA := (lambda ($ID*) $EXPR)
 
 ## Built-in Functions
 

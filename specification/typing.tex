@@ -187,8 +187,8 @@ $(\rightarrow\ (t_1\ t_2)\ t) \cdot \mathcal{S} = (\rightarrow\ ([\mathtt{Bool}\
             0)))
 \end{lstlisting}
 $\mathcal{P}$ and $\mathcal{P}_{let}$ are pattern in match and let expressions.
-For example, in listings~\ref{src:match}, {\it (Just val)} and {\it Nothing} at line 9 and 12 are from $\mathcal{P}$
-and {\it (Dim2 x y)} at line 10 is from $\mathcal{P}_{let}$.
+For example, in listings~\ref{src:match}, $(\mathrm{Just}\ val)$ and Nothing at line 9 and 12 are from $\mathcal{P}$
+and $(\mathrm{Dim2}\ x\ y)$ at line 10 is from $\mathcal{P}_{let}$.
 $Size$ is a function which takes a label and return the number of labels the label's type has.
 For example, $Size(\mathrm{Just}) = Size(\mathrm{Nothing}) = 2$ because Maybe type has 2 labels
 and $Size(\mathrm{Dim2}) = 1$ because Dim2 type has 1 label in listings~\ref{src:match}.
@@ -259,6 +259,7 @@ and $Size(\mathrm{Dim2}) = 1$ because Dim2 type has 1 label in listings~\ref{src
         }$} & (T-Match)
     \end{tabular}
     \caption{Typing rule (1/2)}
+    \label{fig:typing1}
 \end{figure}
 
 \begin{figure}[tb]
@@ -307,9 +308,22 @@ and $Size(\mathrm{Dim2}) = 1$ because Dim2 type has 1 label in listings~\ref{src
         \multicolumn{3}{r}{
             $\dfrac{
                 \begin{aligned}
+                    &\Gamma \vdash x_1 : t_1\ |_\varnothing\ \varnothing \land \cdots \land \Gamma \vdash x_n : t_n\ |_\varnothing\ \varnothing \\
+                    &\Gamma \vdash e : \mathcal{T}_0\ |_{\mathcal{X}}\ C_0 \\
+                    &C = \{\mathcal{T} = (\mathtt{Pure}\ (\rightarrow\ (t_1\ \cdots\ t_n)\ \mathcal{T}_0))\} \cup C_0
+                \end{aligned}
+            }
+            {
+                \Gamma \vdash (\mathtt{lambda}\ (x_1\ \cdots\ x_n)\ e) : \mathcal{T}\ |_\mathcal{X}\ C
+            }$
+        } & (T-Lambda) \vspace{5mm} \\
+
+        \multicolumn{3}{r}{
+            $\dfrac{
+                \begin{aligned}
                     &\Gamma \vdash x_1 : \mathcal{T}_1\ |_\varnothing\ \varnothing \land \cdots \land \Gamma \vdash x_n : \mathcal{T}_n\ |_\varnothing\ \varnothing \\
-                    &\Gamma \vdash e : \mathcal{T}_0\ |_{\mathcal{X}}\ C_0 \hspace{5mm} FV_\mathcal{T}(\mathcal{T}) = FV_\mathcal{T}(\mathcal{T}_1) = \cdots = FV_\mathcal{T}(\mathcal{T}_n) = \varnothing \\
-                    &E = E_\mathcal{T}(\mathcal{T}) \hspace{5mm} C = C_0 \cup \{\mathcal{T} = (E\ (\rightarrow (\mathcal{T}_1\ \cdots\ \mathcal{T}_n)\ \mathcal{T}_0)) \}
+                    &\Gamma \vdash e : \mathcal{T}_0\ |_{\mathcal{X}}\ C_0 \hspace{5mm} E = E_\mathcal{T}(\mathcal{T}) \\
+                    &C = C_0 \cup \{\mathcal{T} = (E\ (\rightarrow (\mathcal{T}_1\ \cdots\ \mathcal{T}_n)\ \mathcal{T}_0)) \}
                 \end{aligned}
             }{
                 \Gamma \vdash (\mathtt{defun}\ \mathrm{name}\ (x_1\ \cdots\ x_n)\ \mathcal{T}\ e) : \mathcal{T}\ |_\mathcal{X}\ C
@@ -317,6 +331,7 @@ and $Size(\mathrm{Dim2}) = 1$ because Dim2 type has 1 label in listings~\ref{src
         } & (T-Defun)
     \end{tabular}
     \caption{Typing rule (2/2)}
+    \label{fig:typing2}
 \end{figure}
 
 
@@ -365,6 +380,16 @@ and $Size(\mathrm{Dim2}) = 1$ because Dim2 type has 1 label in listings~\ref{src
 \end{figure}
 
 \section{Typing Rule}
+
+In this section, I will introduce the typing rule of Baremetalisp.
+Before describing the rule, I introduce an assumption
+that there is no variable shadowing to make it simple.
+This means that every variable should be properly $\alpha$-converted
+by using the De Bruijn index technique or variable shadowing should be handled
+when implementing the type inference algorithm.
+
+Fig.~\ref{fig:typing1} and \ref{fig:typing2} are the typing rule of
+expressions and function definitions.
 
 \section{Effect}
 \label{sec:effect}
