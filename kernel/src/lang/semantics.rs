@@ -1765,16 +1765,31 @@ impl<'t> Context<'t> {
 
     fn check_expr_type<'a>(&self, expr: &LangExpr<'a>, fun_types: &mut FunTypes, vars: &mut VarType, sbst: &Sbst, effect: &Effect, chk_rec: bool) -> Result<(), TypingErr> {
         match expr {
-            LangExpr::IDExpr(e)    => self.check_id_type(&e, fun_types, vars, sbst, effect, chk_rec),
-            LangExpr::IfExpr(e)    => self.check_if_type(&e, fun_types, vars, sbst, effect, chk_rec),
-            LangExpr::LetExpr(e)   => self.check_let_type(&e, fun_types, vars, sbst, effect, chk_rec),
-            LangExpr::MatchExpr(e) => self.check_match_type(&e, fun_types, vars, sbst, effect, chk_rec),
-            LangExpr::ApplyExpr(e) => self.check_exprs_type(&e, fun_types, vars, sbst, effect, chk_rec),
-            LangExpr::ListExpr(e)  => self.check_exprs_type(&e, fun_types, vars, sbst, effect, chk_rec),
-            LangExpr::TupleExpr(e) => self.check_exprs_type(&e, fun_types, vars, sbst, effect, chk_rec),
-            LangExpr::DataExpr(e)  => self.check_data_type(&e, fun_types, vars, sbst, effect, chk_rec),
-            _ => Ok(())
+            LangExpr::IDExpr(e)     => self.check_id_type(&e, fun_types, vars, sbst, effect, chk_rec),
+            LangExpr::IfExpr(e)     => self.check_if_type(&e, fun_types, vars, sbst, effect, chk_rec),
+            LangExpr::LetExpr(e)    => self.check_let_type(&e, fun_types, vars, sbst, effect, chk_rec),
+            LangExpr::MatchExpr(e)  => self.check_match_type(&e, fun_types, vars, sbst, effect, chk_rec),
+            LangExpr::ApplyExpr(e)  => self.check_exprs_type(&e, fun_types, vars, sbst, effect, chk_rec),
+            LangExpr::ListExpr(e)   => self.check_exprs_type(&e, fun_types, vars, sbst, effect, chk_rec),
+            LangExpr::TupleExpr(e)  => self.check_exprs_type(&e, fun_types, vars, sbst, effect, chk_rec),
+            LangExpr::DataExpr(e)   => self.check_data_type(&e, fun_types, vars, sbst, effect, chk_rec),
+            LangExpr::LambdaExpr(e) => self.check_lambda_type(&e, fun_types, vars, sbst, chk_rec),
+            LangExpr::LitNum(_) | LangExpr::LitBool(_) => Ok(())
         }
+    }
+
+    fn check_lambda_type<'a>(&self, expr: &Lambda<'a>, fun_types: &mut FunTypes, vars: &mut VarType, sbst: &Sbst, chk_rec: bool) -> Result<(), TypingErr> {
+        check_type_has_no_tvars(&expr.ty, expr.ast, sbst)?;
+        check_type_has_io(&expr.ty, expr.ast, sbst, &Effect::Pure)?;
+
+        vars.push();
+        for arg in &expr.args {
+            vars.insert(arg.id.to_string(), arg.ty.as_ref().unwrap().clone());
+        }
+        self.check_expr_type(&expr.expr, fun_types, vars, sbst, &Effect::Pure, chk_rec)?;
+        vars.pop();
+
+        Ok(())
     }
 
     fn check_data_type<'a>(&self, expr: &DataNode<'a>, fun_types: &mut FunTypes, vars: &mut VarType, sbst: &Sbst, effect: &Effect, chk_rec: bool) -> Result<(), TypingErr> {
