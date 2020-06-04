@@ -319,6 +319,7 @@ pub(crate) struct Lambda<'t> {
     pub(crate) args: Vec<IDNode<'t>>,
     pub(crate) expr: LangExpr<'t>,
     pub(crate) ast: &'t parser::Expr,
+    pub(crate) vars: Vec<String>,
     ty: Option<Type>
 }
 
@@ -730,6 +731,7 @@ impl<'t> Context<'t> {
         self.check_defun_type()?;
         self.typing_functions()?;
         self.check_defun_type_after_infer()?;
+        self.get_free_var();
 
         Ok(())
     }
@@ -1971,6 +1973,139 @@ impl<'t> Context<'t> {
             _ => Ok(())
         }
     }
+
+    fn get_free_var(&mut self) {
+        let mut funs = BTreeSet::new();
+        for (name, _) in &self.funs {
+            funs.insert(name.to_string());
+        }
+
+        for (_, fun) in &mut self.funs {
+            let mut local_vars = VarType::new();
+            for arg in &fun.args {
+                local_vars.insert(arg.id.to_string(), arg.ty.clone().unwrap());
+            }
+            get_free_var_expr(&mut fun.expr, &funs, &mut local_vars, &mut Vec::new());
+        }
+    }
+}
+
+fn get_free_var_expr(expr: &mut LangExpr, funs: &BTreeSet<String>, local_vars: &mut VarType, ext_vars: &mut Vec<String>) {
+    match expr {
+        LangExpr::IfExpr(e)     => get_free_var_if(e, funs, local_vars, ext_vars),
+        LangExpr::LetExpr(e)    => get_free_var_let(e, funs, local_vars, ext_vars),
+        LangExpr::IDExpr(e)     => get_free_var_id(e, funs, local_vars, ext_vars),
+        LangExpr::DataExpr(e)   => get_free_var_data(e, funs, local_vars, ext_vars),
+        LangExpr::MatchExpr(e)  => get_free_var_match(e, funs, local_vars, ext_vars),
+        LangExpr::ApplyExpr(e)  => get_free_var_exprs(e, funs, local_vars, ext_vars),
+        LangExpr::ListExpr(e)   => get_free_var_exprs(e, funs, local_vars, ext_vars),
+        LangExpr::TupleExpr(e)  => get_free_var_exprs(e, funs, local_vars, ext_vars),
+        LangExpr::LambdaExpr(e) => get_free_var_lambda(e, funs, local_vars, ext_vars),
+        LangExpr::LitNum(_) | LangExpr::LitBool(_) => ()
+    }
+}
+
+fn get_free_var_exprs(exprs: &mut Exprs, funs: &BTreeSet<String>, local_vars: &mut VarType, ext_vars: &mut Vec<String>) {
+    for e in &mut exprs.exprs {
+        get_free_var_expr(e, funs, local_vars, ext_vars);
+    }
+}
+
+fn get_free_var_match(expr: &mut MatchNode, funs: &BTreeSet<String>, local_vars: &mut VarType, ext_vars: &mut Vec<String>) {
+    get_free_var_expr(&mut expr.expr, funs, local_vars,ext_vars);
+
+    for c in &mut expr.cases {
+        local_vars.push();
+        get_free_var_pattern(&c.pattern, local_vars);
+        get_free_var_expr(&mut c.expr, funs, local_vars, ext_vars);
+        local_vars.pop();
+    }
+}
+
+fn get_free_var_data(expr: &mut DataNode, funs: &BTreeSet<String>, local_vars: &mut VarType, ext_vars: &mut Vec<String>) {
+    for e in &mut expr.exprs {
+        get_free_var_expr(e, funs, local_vars, ext_vars);
+    }
+}
+
+fn get_free_var_id(expr: &mut IDNode, funs: &BTreeSet<String>, local_vars: &mut VarType, ext_vars: &mut Vec<String>) {
+    let key = expr.id.to_string();
+    match local_vars.get(&key) {
+        Some(_) => (),
+        None => {
+            if !funs.contains(&key) {
+                ext_vars.push(expr.id.to_string());
+            }
+        }
+    }
+}
+
+fn get_free_var_let(expr: &mut LetNode, funs: &BTreeSet<String>, local_vars: &mut VarType, ext_vars: &mut Vec<String>) {
+    local_vars.push();
+    for dv in &mut expr.def_vars {
+        get_free_var_expr(&mut dv.expr, funs, local_vars, ext_vars);
+        get_free_var_pattern(&dv.pattern, local_vars);
+    }
+
+    get_free_var_expr(&mut expr.expr, funs, local_vars, ext_vars);
+    local_vars.pop();
+}
+
+fn get_free_var_if(expr: &mut IfNode, funs: &BTreeSet<String>, local_vars: &mut VarType, ext_vars: &mut Vec<String>) {
+    get_free_var_expr(&mut expr.cond_expr, funs, local_vars, ext_vars);
+    get_free_var_expr(&mut expr.then_expr, funs, local_vars, ext_vars);
+    get_free_var_expr(&mut expr.else_expr, funs, local_vars, ext_vars);
+}
+
+fn get_free_var_lambda(expr: &mut Lambda, funs: &BTreeSet<String>, local_vars: &mut VarType, ext_vars: &mut Vec<String>) {
+    {
+        let mut local_vars = VarType::new();
+        for arg in &expr.args {
+            local_vars.insert(arg.id.to_string(), arg.ty.clone().unwrap());
+        }
+
+        let mut ext_vars = Vec::new();
+
+        get_free_var_expr(&mut expr.expr, funs, &mut local_vars, &mut ext_vars);
+
+        expr.vars = ext_vars;
+    }
+
+    // if
+    // (lambda (x) (lambda (y) z))
+    // then
+    // (lambda (x) ...) contains a free variable "z"
+    for var in &expr.vars {
+        match local_vars.get(var) {
+            Some(_) => (),
+            None => {
+                ext_vars.push(var.to_string());
+            }
+        }
+    }
+}
+
+fn get_free_var_pattern(pat: &Pattern, local_vars: &mut VarType) {
+    match pat {
+        Pattern::PatID(id) => {
+            if id.id != "_" {
+                local_vars.insert(id.id.to_string(), id.ty.clone().unwrap());
+            }
+        }
+        Pattern::PatTuple(tuple) => {
+            for it in &tuple.pattern {
+                get_free_var_pattern(it, local_vars);
+            }
+        }
+        Pattern::PatData(data) => {
+            for it in &data.pattern {
+                get_free_var_pattern(it, local_vars);
+            }
+        }
+        Pattern::PatNum(_)  |
+        Pattern::PatBool(_) |
+        Pattern::PatNil(_) => ()
+    }
 }
 
 fn check_type_has_no_tvars<'t>(ty: &Option<Type>, ast: &'t parser::Expr, sbst: &Sbst) -> Result<(), TypingErr> {
@@ -2921,7 +3056,7 @@ fn expr2lambda(expr: &parser::Expr) -> Result<LangExpr, TypingErr> {
     }
 
     Ok(LangExpr::LambdaExpr(
-        Box::new(Lambda{args: v, expr: body, ast: expr, ty: None})
+        Box::new(Lambda{args: v, expr: body, ast: expr, vars: Vec::new(), ty: None})
     ))
 }
 
