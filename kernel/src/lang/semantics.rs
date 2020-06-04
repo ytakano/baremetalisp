@@ -2186,11 +2186,15 @@ pub(crate) fn typing_expr<'a, 'b>(expr: &'a parser::Expr, ctx: &Context<'b>) -> 
 
     expr.apply_sbst(&sbst);
 
-//    let msg = format!("sbst = {:#?}\nexpr = {:#?}\n", sbst, expr);
-//    driver::uart::puts(&msg);
-
     // check call only exported functions
     ctx.check_expr_type(&expr, &mut FunTypes::new(), &mut VarType::new(), &Sbst::new(), &Effect::IO, false)?;
+
+    // capture free variables
+    let mut funs = BTreeSet::new();
+    for (name, _) in &ctx.funs {
+        funs.insert(name.to_string());
+    }
+    get_free_var_expr(&mut expr, &funs, &mut VarType::new(), &mut Vec::new());
 
     Ok(expr)
 }
