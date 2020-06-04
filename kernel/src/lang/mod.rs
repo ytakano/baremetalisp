@@ -36,7 +36,7 @@ pub fn init(code: &str) -> Result<LinkedList<parser::Expr>, LispErr> {
     }
 }
 
-pub fn typing<'t>(exprs: &'t LinkedList<parser::Expr>) -> Result<semantics::Context<'t>, LispErr> {
+pub fn typing(exprs: &LinkedList<parser::Expr>) -> Result<semantics::Context, LispErr> {
     match semantics::exprs2context(exprs) {
         Ok(c) => {
             Ok(c)

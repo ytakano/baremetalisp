@@ -9,8 +9,8 @@ use alloc::collections::btree_map::BTreeMap;
 use alloc::vec::Vec;
 use alloc::string::{ToString, String};
 
-type Expr<'a> = semantics::LangExpr<'a>;
-type Pattern<'a> = semantics::Pattern<'a>;
+type Expr = semantics::LangExpr;
+type Pattern = semantics::Pattern;
 
 struct RuntimeErr {
     msg: String,
@@ -129,9 +129,9 @@ pub(crate) fn eval(code: &str, ctx: &semantics::Context) -> Result<LinkedList<St
 
     let mut root = RootObject::new();
     let mut result = LinkedList::new();
-    for expr in &typed_exprs {
+    for (expr, lambda) in &typed_exprs {
         let mut vars = Variables::new();
-        match eval_expr(expr, ctx, &mut root, &mut vars) {
+        match eval_expr(expr, lambda, ctx, &mut root, &mut vars) {
             Ok(val) => {
                 result.push_back(val.get_by_lisp());
             }
@@ -147,29 +147,29 @@ pub(crate) fn eval(code: &str, ctx: &semantics::Context) -> Result<LinkedList<St
     Ok(result)
 }
 
-fn eval_expr(expr: &Expr, ctx: &semantics::Context, root: &mut RootObject, vars: &mut Variables) -> Result<RTData, RuntimeErr> {
+fn eval_expr(expr: &Expr, lambda: &BTreeMap<u64, semantics::Lambda>, ctx: &semantics::Context, root: &mut RootObject, vars: &mut Variables) -> Result<RTData, RuntimeErr> {
     match expr {
         Expr::LitNum(e)     => Ok(RTData::Int(e.num)),
         Expr::LitBool(e)    => Ok(RTData::Bool(e.val)),
-        Expr::IfExpr(e)     => eval_if(&e, ctx, root, vars),
-        Expr::DataExpr(e)   => eval_data(&e, ctx, root, vars),
-        Expr::ListExpr(e)   => eval_list(&e, ctx, root, vars),
-        Expr::LetExpr(e)    => eval_let(&e, ctx, root, vars),
-        Expr::MatchExpr(e)  => eval_match(&e, ctx, root, vars),
+        Expr::IfExpr(e)     => eval_if(&e, lambda, ctx, root, vars),
+        Expr::DataExpr(e)   => eval_data(&e, lambda, ctx, root, vars),
+        Expr::ListExpr(e)   => eval_list(&e, lambda, ctx, root, vars),
+        Expr::LetExpr(e)    => eval_let(&e, lambda, ctx, root, vars),
+        Expr::MatchExpr(e)  => eval_match(&e, lambda, ctx, root, vars),
         Expr::IDExpr(e)     => eval_id(&e, vars),
-        Expr::ApplyExpr(e)  => eval_apply(&e, ctx, root, vars),
-        Expr::TupleExpr(e)  => eval_tuple(&e, ctx, root, vars),
+        Expr::ApplyExpr(e)  => eval_apply(&e, lambda, ctx, root, vars),
+        Expr::TupleExpr(e)  => eval_tuple(&e, lambda, ctx, root, vars),
         Expr::LambdaExpr(e) => {
-            let pos = e.ast.get_pos();
+            let pos = e.pos;
             return Err(RuntimeErr{msg: "not yet implemented".to_string(), pos: pos})
         }
     }
 }
 
-fn eval_tuple(expr: &semantics::Exprs, ctx: &semantics::Context, root: &mut RootObject, vars: &mut Variables) -> Result<RTData, RuntimeErr> {
+fn eval_tuple(expr: &semantics::Exprs, lambda: &BTreeMap<u64, semantics::Lambda>, ctx: &semantics::Context, root: &mut RootObject, vars: &mut Variables) -> Result<RTData, RuntimeErr> {
     let mut v = Vec::new();
     for e in expr.exprs.iter() {
-        v.push(eval_expr(e, ctx, root, vars)?);
+        v.push(eval_expr(e, lambda, ctx, root, vars)?);
     }
 
     let elm = root.make_obj("Tuple".to_string(), Some(v));
@@ -177,7 +177,7 @@ fn eval_tuple(expr: &semantics::Exprs, ctx: &semantics::Context, root: &mut Root
     Ok(RTData::LData(elm))
 }
 
-fn eval_apply(expr: &semantics::Exprs, ctx: &semantics::Context, root: &mut RootObject, vars: &mut Variables) -> Result<RTData, RuntimeErr> {
+fn eval_apply(expr: &semantics::Exprs, lambda: &BTreeMap<u64, semantics::Lambda>, ctx: &semantics::Context, root: &mut RootObject, vars: &mut Variables) -> Result<RTData, RuntimeErr> {
     let mut iter = expr.exprs.iter();
     let fun_expr;
     match iter.next() {
@@ -185,18 +185,18 @@ fn eval_apply(expr: &semantics::Exprs, ctx: &semantics::Context, root: &mut Root
             fun_expr = e;
         }
         None => {
-            let pos = expr.ast.get_pos();
+            let pos = expr.pos;
             return Err(RuntimeErr{msg: "empty application".to_string(), pos: pos})
         }
     }
 
     let fun_name;
-    match eval_expr(&fun_expr, ctx, root, vars)? {
+    match eval_expr(&fun_expr, lambda, ctx, root, vars)? {
         RTData::Defun(f) => {
             fun_name = f;
         }
         _ => {
-            let pos = fun_expr.get_ast().get_pos();
+            let pos = fun_expr.get_pos();
             return Err(RuntimeErr{msg: "not function".to_string(), pos: pos})
         }
     }
@@ -204,10 +204,10 @@ fn eval_apply(expr: &semantics::Exprs, ctx: &semantics::Context, root: &mut Root
     if ctx.built_in.contains(&fun_name) {
         let mut v = Vec::new();
         for e in iter {
-            let data = eval_expr(&e, ctx, root, vars)?;
+            let data = eval_expr(&e, lambda, ctx, root, vars)?;
             v.push(data);
         }
-        return eval_built_in(fun_name, v, expr.ast.get_pos(), ctx);
+        return eval_built_in(fun_name, v, expr.pos, ctx);
     }
 
     let fun;
@@ -216,7 +216,7 @@ fn eval_apply(expr: &semantics::Exprs, ctx: &semantics::Context, root: &mut Root
             fun = f;
         }
         None => {
-            let pos = fun_expr.get_ast().get_pos();
+            let pos = fun_expr.get_pos();
             let msg = format!("{:?} is not defined", fun_name);
             return Err(RuntimeErr{msg: msg, pos: pos});
         }
@@ -224,11 +224,11 @@ fn eval_apply(expr: &semantics::Exprs, ctx: &semantics::Context, root: &mut Root
 
     let mut vars_fun = Variables::new();
     for (e, arg) in iter.zip(fun.args.iter()) {
-        let data = eval_expr(&e, ctx, root, vars)?;
+        let data = eval_expr(&e, lambda, ctx, root, vars)?;
         vars_fun.insert(arg.id.to_string(), data);
     }
 
-    eval_expr(&fun.expr, ctx, root, &mut vars_fun)
+    eval_expr(&fun.expr, lambda, ctx, root, &mut vars_fun)
 }
 
 fn get_int_int(args: Vec<RTData>, pos: Pos) -> Result<(i64, i64), RuntimeErr> {
@@ -339,20 +339,20 @@ fn eval_built_in(fun_name: String, args: Vec<RTData>, pos: Pos, ctx: &semantics:
     }
 }
 
-fn eval_match(expr: &semantics::MatchNode, ctx: &semantics::Context, root: &mut RootObject, vars: &mut Variables) -> Result<RTData, RuntimeErr> {
-    let data = eval_expr(&expr.expr, ctx, root, vars)?;
+fn eval_match(expr: &semantics::MatchNode, lambda: &BTreeMap<u64, semantics::Lambda>, ctx: &semantics::Context, root: &mut RootObject, vars: &mut Variables) -> Result<RTData, RuntimeErr> {
+    let data = eval_expr(&expr.expr, lambda, ctx, root, vars)?;
 
     for c in &expr.cases {
         vars.push();
         if eval_pat(&c.pattern, data.clone(), vars) {
-            let retval = eval_expr(&c.expr, ctx, root, vars)?;
+            let retval = eval_expr(&c.expr, lambda, ctx, root, vars)?;
             vars.pop();
             return Ok(retval);
         }
         vars.pop();
     }
 
-    let pos = expr.ast.get_pos();
+    let pos = expr.pos;
     Err(RuntimeErr{msg: "pattern-matching is not exhaustive".to_string(), pos: pos})
 }
 
@@ -364,43 +364,43 @@ fn eval_id(expr: &semantics::IDNode, vars: &mut Variables) -> Result<RTData, Run
     }
 }
 
-fn eval_list(expr: &semantics::Exprs, ctx: &semantics::Context, root: &mut RootObject, vars: &mut Variables) -> Result<RTData, RuntimeErr> {
+fn eval_list(expr: &semantics::Exprs, lambda: &BTreeMap<u64, semantics::Lambda>, ctx: &semantics::Context, root: &mut RootObject, vars: &mut Variables) -> Result<RTData, RuntimeErr> {
     let mut elm = root.make_obj("Nil".to_string(), None);
     for e in expr.exprs.iter().rev() {
-        let val = eval_expr(e, ctx, root, vars)?;
+        let val = eval_expr(e, lambda, ctx, root, vars)?;
         elm = root.make_obj("Cons".to_string(), Some(vec!(val, RTData::LData(elm))));
     }
 
     Ok(RTData::LData(elm))
 }
 
-fn eval_if(expr: &semantics::IfNode, ctx: &semantics::Context, root: &mut RootObject, vars: &mut Variables) -> Result<RTData, RuntimeErr> {
-    let cond = eval_expr(&expr.cond_expr, ctx ,root, vars)?;
+fn eval_if(expr: &semantics::IfNode, lambda: &BTreeMap<u64, semantics::Lambda>, ctx: &semantics::Context, root: &mut RootObject, vars: &mut Variables) -> Result<RTData, RuntimeErr> {
+    let cond = eval_expr(&expr.cond_expr, lambda, ctx ,root, vars)?;
     let flag;
     match cond {
         RTData::Bool(e) => {
             flag = e;
         }
         _ => {
-            let pos = expr.cond_expr.get_ast().get_pos();
+            let pos = expr.cond_expr.get_pos();
             return Err(RuntimeErr{msg: "type mismatched".to_string(), pos: pos});
         }
     }
 
     if flag {
-        eval_expr(&expr.then_expr, ctx, root, vars)
+        eval_expr(&expr.then_expr, lambda, ctx, root, vars)
     } else {
-        eval_expr(&expr.else_expr, ctx, root, vars)
+        eval_expr(&expr.else_expr, lambda, ctx, root, vars)
     }
 }
 
-fn eval_data(expr: &semantics::DataNode, ctx: &semantics::Context, root: &mut RootObject, vars: &mut Variables) -> Result<RTData, RuntimeErr> {
+fn eval_data(expr: &semantics::DataNode, lambda: &BTreeMap<u64, semantics::Lambda>, ctx: &semantics::Context, root: &mut RootObject, vars: &mut Variables) -> Result<RTData, RuntimeErr> {
     let data = if expr.exprs.len() == 0 {
         None
     } else {
         let mut v = Vec::new();
         for e in &expr.exprs {
-            v.push(eval_expr(e, ctx, root, vars)?);
+            v.push(eval_expr(e, lambda, ctx, root, vars)?);
         }
         Some(v)
     };
@@ -410,18 +410,18 @@ fn eval_data(expr: &semantics::DataNode, ctx: &semantics::Context, root: &mut Ro
     Ok(RTData::LData(ptr))
 }
 
-fn eval_let(expr: &semantics::LetNode, ctx: &semantics::Context, root: &mut RootObject, vars: &mut Variables) -> Result<RTData, RuntimeErr> {
+fn eval_let(expr: &semantics::LetNode, lambda: &BTreeMap<u64, semantics::Lambda>, ctx: &semantics::Context, root: &mut RootObject, vars: &mut Variables) -> Result<RTData, RuntimeErr> {
     vars.push();
 
     for def in &expr.def_vars {
-        let data = eval_expr(&def.expr, ctx, root, vars)?;
+        let data = eval_expr(&def.expr, lambda, ctx, root, vars)?;
         if !eval_pat(&def.pattern, data, vars) {
-            let pos = def.pattern.get_ast().get_pos();
+            let pos = def.pattern.get_pos();
             return Err(RuntimeErr{msg: "failed pattern matching".to_string(), pos: pos});
         }
     }
 
-    let result = eval_expr(&expr.expr, ctx, root, vars)?;
+    let result = eval_expr(&expr.expr, lambda, ctx, root, vars)?;
     vars.pop();
 
     Ok(result)
