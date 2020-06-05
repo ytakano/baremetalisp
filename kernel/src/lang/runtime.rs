@@ -52,21 +52,25 @@ enum RTData {
     Int(i64),
     Bool(bool),
     Defun(String),
+    Lambda(*const Clojure),
     LData(*const LabeledData),
 }
 
 impl RTData {
-    fn get_by_lisp(&self) -> String {
+    fn get_in_lisp(&self) -> String {
         match self {
-            RTData::Int(n)   => format!("{:?}", n),
-            RTData::Bool(n)  => format!("{:?}", n),
-            RTData::Defun(n) => format!("{}", n),
-            RTData::LData(n) => {
+            RTData::Int(n)    => format!("{:?}", n),
+            RTData::Bool(n)   => format!("{:?}", n),
+            RTData::Defun(n)  => format!("{}", n),
+            RTData::Lambda(n) => {
+                format!("(Lambda {})", unsafe { &(*(*n)).ident })
+            }
+            RTData::LData(n)  => {
                 let mut msg = format!("({}", unsafe { &(*(*n)).label });
                 match unsafe { (*(*n)).data.as_ref() } {
                     Some(ld) => {
                         for d in ld.iter() {
-                            msg = format!("{} {}", msg, d.get_by_lisp());
+                            msg = format!("{} {}", msg, d.get_in_lisp());
                         }
                         format!("{})", msg)
                     }
@@ -85,19 +89,32 @@ struct LabeledData {
     data: Option<Vec<RTData>>
 }
 
+#[derive(Debug)]
+struct Clojure {
+    ident: u64,
+    data: Option<BTreeMap<String, RTData>>
+}
+
 struct RootObject {
-    objects: LinkedList<LabeledData>
+    objects: LinkedList<LabeledData>,
+    clojure: LinkedList<Clojure>,
 }
 
 impl RootObject {
     fn new() -> RootObject {
-        RootObject{objects: LinkedList::new()}
+        RootObject{objects: LinkedList::new(), clojure: LinkedList::new()}
     }
 
     fn make_obj(&mut self, label: String, data: Option<Vec<RTData>>) -> *const LabeledData {
         let obj = LabeledData{label: label, data: data};
         self.objects.push_back(obj);
         self.objects.back().unwrap() as *const LabeledData
+    }
+
+    fn make_clojure(&mut self, ident: u64, data: Option<BTreeMap<String, RTData>>) -> *const Clojure {
+        let obj = Clojure{ident: ident, data: data};
+        self.clojure.push_back(obj);
+        self.clojure.back().unwrap() as *const Clojure
     }
 }
 
@@ -133,7 +150,7 @@ pub(crate) fn eval(code: &str, ctx: &semantics::Context) -> Result<LinkedList<St
         let mut vars = Variables::new();
         match eval_expr(expr, lambda, ctx, &mut root, &mut vars) {
             Ok(val) => {
-                result.push_back(val.get_by_lisp());
+                result.push_back(val.get_in_lisp());
             }
             Err(e) => {
                 let msg = format!("(RuntimeErr [{:?} (Pos {:?} {:?})])", e.msg, e.pos.line, e.pos.column);
@@ -147,7 +164,15 @@ pub(crate) fn eval(code: &str, ctx: &semantics::Context) -> Result<LinkedList<St
     Ok(result)
 }
 
-fn eval_expr(expr: &Expr, lambda: &BTreeMap<u64, semantics::Lambda>, ctx: &semantics::Context, root: &mut RootObject, vars: &mut Variables) -> Result<RTData, RuntimeErr> {
+fn get_data_of_id(id: &String, vars: &mut Variables) -> RTData {
+    match vars.get(id) {
+        Some(data) => data.clone(),
+        None => RTData::Defun(id.to_string())
+    }
+}
+
+fn eval_expr(expr: &Expr, lambda: &BTreeMap<u64, semantics::Lambda>, ctx: &semantics::Context,
+             root: &mut RootObject, vars: &mut Variables) -> Result<RTData, RuntimeErr> {
     match expr {
         Expr::LitNum(e)     => Ok(RTData::Int(e.num)),
         Expr::LitBool(e)    => Ok(RTData::Bool(e.val)),
@@ -159,14 +184,28 @@ fn eval_expr(expr: &Expr, lambda: &BTreeMap<u64, semantics::Lambda>, ctx: &seman
         Expr::IDExpr(e)     => eval_id(&e, vars),
         Expr::ApplyExpr(e)  => eval_apply(&e, lambda, ctx, root, vars),
         Expr::TupleExpr(e)  => eval_tuple(&e, lambda, ctx, root, vars),
-        Expr::LambdaExpr(e) => {
-            let pos = e.pos;
-            return Err(RuntimeErr{msg: "not yet implemented".to_string(), pos: pos})
-        }
+        Expr::LambdaExpr(e) => eval_lambda(&e, root, vars),
     }
 }
 
-fn eval_tuple(expr: &semantics::Exprs, lambda: &BTreeMap<u64, semantics::Lambda>, ctx: &semantics::Context, root: &mut RootObject, vars: &mut Variables) -> Result<RTData, RuntimeErr> {
+fn eval_lambda(expr: &semantics::Lambda, root: &mut RootObject,
+               vars: &mut Variables) -> Result<RTData, RuntimeErr> {
+    let data = if expr.vars.len() > 0 {
+        let mut m = BTreeMap::new();
+        for v in &expr.vars {
+            m.insert(v.to_string(), get_data_of_id(v, vars));
+        }
+        Some(m)
+    } else {
+        None
+    };
+
+    Ok(RTData::Lambda(root.make_clojure(expr.ident, data)))
+}
+
+fn eval_tuple(expr: &semantics::Exprs, lambda: &BTreeMap<u64, semantics::Lambda>,
+             ctx: &semantics::Context, root: &mut RootObject,
+             vars: &mut Variables) -> Result<RTData, RuntimeErr> {
     let mut v = Vec::new();
     for e in expr.exprs.iter() {
         v.push(eval_expr(e, lambda, ctx, root, vars)?);
@@ -177,7 +216,9 @@ fn eval_tuple(expr: &semantics::Exprs, lambda: &BTreeMap<u64, semantics::Lambda>
     Ok(RTData::LData(elm))
 }
 
-fn eval_apply(expr: &semantics::Exprs, lambda: &BTreeMap<u64, semantics::Lambda>, ctx: &semantics::Context, root: &mut RootObject, vars: &mut Variables) -> Result<RTData, RuntimeErr> {
+fn eval_apply(expr: &semantics::Exprs, lambda: &BTreeMap<u64, semantics::Lambda>,
+              ctx: &semantics::Context, root: &mut RootObject,
+              vars: &mut Variables) -> Result<RTData, RuntimeErr> {
     let mut iter = expr.exprs.iter();
     let fun_expr;
     match iter.next() {
@@ -190,45 +231,86 @@ fn eval_apply(expr: &semantics::Exprs, lambda: &BTreeMap<u64, semantics::Lambda>
         }
     }
 
-    let fun_name;
     match eval_expr(&fun_expr, lambda, ctx, root, vars)? {
-        RTData::Defun(f) => {
-            fun_name = f;
+        RTData::Defun(fun_name) => {
+            // call built-in function
+            if ctx.built_in.contains(&fun_name) {
+                let mut v = Vec::new();
+                for e in iter {
+                    let data = eval_expr(&e, lambda, ctx, root, vars)?;
+                    v.push(data);
+                }
+                return eval_built_in(fun_name, v, expr.pos, ctx);
+            }
+
+            // look up defun
+            let fun;
+            match ctx.funs.get(&fun_name) {
+                Some(f) => {
+                    fun = f;
+                }
+                None => {
+                    let pos = fun_expr.get_pos();
+                    let msg = format!("{:?} is not defined", fun_name);
+                    return Err(RuntimeErr{msg: msg, pos: pos});
+                }
+            }
+
+            // set up arguments
+            let mut vars_fun = Variables::new();
+            for (e, arg) in iter.zip(fun.args.iter()) {
+                let data = eval_expr(&e, lambda, ctx, root, vars)?;
+                vars_fun.insert(arg.id.to_string(), data);
+            }
+
+            eval_expr(&fun.expr, lambda, ctx, root, &mut vars_fun)
+        }
+        RTData::Lambda(f) => {
+            // look up lambda
+            let fun;
+            let ident = unsafe { (*f).ident };
+            match ctx.lambda.get(&ident) {
+                Some(f) => {
+                    fun = f;
+                }
+                None => {
+                    match lambda.get(&ident) {
+                        Some(f) => {
+                            fun = f;
+                        }
+                        None => {
+                            let pos = fun_expr.get_pos();
+                            let msg = format!("could not find (Lambda {})", ident );
+                            return Err(RuntimeErr{msg: msg, pos: pos});
+                        }
+                    }
+                }
+            }
+
+            // set up arguments
+            let mut vars_fun = Variables::new();
+            for (e, arg) in iter.zip(fun.args.iter()) {
+                let data = eval_expr(&e, lambda, ctx, root, vars)?;
+                vars_fun.insert(arg.id.to_string(), data);
+            }
+
+            // set up free variables
+            match unsafe { &(*f).data } {
+                Some(d) => {
+                    for (key, val) in d {
+                        vars_fun.insert(key.to_string(), val.clone());
+                    }
+                }
+                None => ()
+            }
+
+            eval_expr(&fun.expr, lambda, ctx, root, &mut vars_fun)
         }
         _ => {
             let pos = fun_expr.get_pos();
             return Err(RuntimeErr{msg: "not function".to_string(), pos: pos})
         }
     }
-
-    if ctx.built_in.contains(&fun_name) {
-        let mut v = Vec::new();
-        for e in iter {
-            let data = eval_expr(&e, lambda, ctx, root, vars)?;
-            v.push(data);
-        }
-        return eval_built_in(fun_name, v, expr.pos, ctx);
-    }
-
-    let fun;
-    match ctx.funs.get(&fun_name) {
-        Some(f) => {
-            fun = f;
-        }
-        None => {
-            let pos = fun_expr.get_pos();
-            let msg = format!("{:?} is not defined", fun_name);
-            return Err(RuntimeErr{msg: msg, pos: pos});
-        }
-    }
-
-    let mut vars_fun = Variables::new();
-    for (e, arg) in iter.zip(fun.args.iter()) {
-        let data = eval_expr(&e, lambda, ctx, root, vars)?;
-        vars_fun.insert(arg.id.to_string(), data);
-    }
-
-    eval_expr(&fun.expr, lambda, ctx, root, &mut vars_fun)
 }
 
 fn get_int_int(args: Vec<RTData>, pos: Pos) -> Result<(i64, i64), RuntimeErr> {
@@ -339,7 +421,9 @@ fn eval_built_in(fun_name: String, args: Vec<RTData>, pos: Pos, ctx: &semantics:
     }
 }
 
-fn eval_match(expr: &semantics::MatchNode, lambda: &BTreeMap<u64, semantics::Lambda>, ctx: &semantics::Context, root: &mut RootObject, vars: &mut Variables) -> Result<RTData, RuntimeErr> {
+fn eval_match(expr: &semantics::MatchNode, lambda: &BTreeMap<u64, semantics::Lambda>,
+              ctx: &semantics::Context, root: &mut RootObject,
+              vars: &mut Variables) -> Result<RTData, RuntimeErr> {
     let data = eval_expr(&expr.expr, lambda, ctx, root, vars)?;
 
     for c in &expr.cases {
@@ -358,13 +442,12 @@ fn eval_match(expr: &semantics::MatchNode, lambda: &BTreeMap<u64, semantics::Lam
 
 fn eval_id(expr: &semantics::IDNode, vars: &mut Variables) -> Result<RTData, RuntimeErr> {
     let id = expr.id.to_string();
-    match vars.get(&id) {
-        Some(data) => Ok(data.clone()),
-        None => Ok(RTData::Defun(id))
-    }
+    Ok(get_data_of_id(&id, vars))
 }
 
-fn eval_list(expr: &semantics::Exprs, lambda: &BTreeMap<u64, semantics::Lambda>, ctx: &semantics::Context, root: &mut RootObject, vars: &mut Variables) -> Result<RTData, RuntimeErr> {
+fn eval_list(expr: &semantics::Exprs, lambda: &BTreeMap<u64, semantics::Lambda>,
+             ctx: &semantics::Context, root: &mut RootObject,
+             vars: &mut Variables) -> Result<RTData, RuntimeErr> {
     let mut elm = root.make_obj("Nil".to_string(), None);
     for e in expr.exprs.iter().rev() {
         let val = eval_expr(e, lambda, ctx, root, vars)?;
@@ -374,7 +457,9 @@ fn eval_list(expr: &semantics::Exprs, lambda: &BTreeMap<u64, semantics::Lambda>,
     Ok(RTData::LData(elm))
 }
 
-fn eval_if(expr: &semantics::IfNode, lambda: &BTreeMap<u64, semantics::Lambda>, ctx: &semantics::Context, root: &mut RootObject, vars: &mut Variables) -> Result<RTData, RuntimeErr> {
+fn eval_if(expr: &semantics::IfNode, lambda: &BTreeMap<u64, semantics::Lambda>,
+           ctx: &semantics::Context, root: &mut RootObject,
+           vars: &mut Variables) -> Result<RTData, RuntimeErr> {
     let cond = eval_expr(&expr.cond_expr, lambda, ctx ,root, vars)?;
     let flag;
     match cond {
@@ -394,7 +479,9 @@ fn eval_if(expr: &semantics::IfNode, lambda: &BTreeMap<u64, semantics::Lambda>, 
     }
 }
 
-fn eval_data(expr: &semantics::DataNode, lambda: &BTreeMap<u64, semantics::Lambda>, ctx: &semantics::Context, root: &mut RootObject, vars: &mut Variables) -> Result<RTData, RuntimeErr> {
+fn eval_data(expr: &semantics::DataNode, lambda: &BTreeMap<u64, semantics::Lambda>,
+             ctx: &semantics::Context, root: &mut RootObject,
+             vars: &mut Variables) -> Result<RTData, RuntimeErr> {
     let data = if expr.exprs.len() == 0 {
         None
     } else {
@@ -410,7 +497,9 @@ fn eval_data(expr: &semantics::DataNode, lambda: &BTreeMap<u64, semantics::Lambd
     Ok(RTData::LData(ptr))
 }
 
-fn eval_let(expr: &semantics::LetNode, lambda: &BTreeMap<u64, semantics::Lambda>, ctx: &semantics::Context, root: &mut RootObject, vars: &mut Variables) -> Result<RTData, RuntimeErr> {
+fn eval_let(expr: &semantics::LetNode, lambda: &BTreeMap<u64, semantics::Lambda>,
+            ctx: &semantics::Context, root: &mut RootObject,
+            vars: &mut Variables) -> Result<RTData, RuntimeErr> {
     vars.push();
 
     for def in &expr.def_vars {

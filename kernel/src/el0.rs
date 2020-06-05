@@ -38,6 +38,9 @@ const EVAL_CODE: &str =
 (test-label 700 50)
 (match (Cons 50 Nil)
     ((Cons x _) x))
+((lambda-test 30) 40)
+(let ((x (lambda (x) (* x 2))))
+    (x 50))
 ";
 
 fn callback(x: i64, y: i64, z: i64) -> i64 {
