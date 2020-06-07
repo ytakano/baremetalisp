@@ -42,6 +42,7 @@ which is a well typed Lisp for trusted execution environment.
     \caption{Notation}
     \label{tab:notation}
     \begin{tabular}{rl}
+        $A \Rightarrow B$ & logical implication (if A then B)\\
         $e$ & expression \\
         $z$ & integer literal such as 10, -34, 112 \\
         $x$ & variable \\
@@ -52,6 +53,7 @@ which is a well typed Lisp for trusted execution environment.
         $E_\mathcal{T}: T \rightarrow E$ & effect of type \\
         $\mathcal{T}$ & type \\
         $C$ & type constraint \\
+        $io(C): C \rightarrow \mathtt{Bool}$ & does $C$ contain $\mathtt{IO}$ functions? \\
         $\Gamma$ & context \\
         $\mathcal{P}$ & pattern \\
         $\mathcal{P}_{let}$ & pattern of let expression \\
@@ -309,7 +311,7 @@ and $Size(\mathrm{Dim2}) = 1$ because Dim2 type has 1 label in listings~\ref{src
             $\dfrac{
                 \begin{aligned}
                     &\Gamma \vdash x_1 : t_1\ |_\varnothing\ \varnothing \land \cdots \land \Gamma \vdash x_n : t_n\ |_\varnothing\ \varnothing \\
-                    &\Gamma \vdash e : \mathcal{T}_0\ |_{\mathcal{X}}\ C_0 \\
+                    &\Gamma \vdash e : \mathcal{T}_0\ |_{\mathcal{X}}\ C_0 \hspace{5mm} \neg io(C)\\
                     &C = \{\mathcal{T} = (\mathtt{Pure}\ (\rightarrow\ (t_1\ \cdots\ t_n)\ \mathcal{T}_0))\} \cup C_0
                 \end{aligned}
             }
@@ -322,7 +324,7 @@ and $Size(\mathrm{Dim2}) = 1$ because Dim2 type has 1 label in listings~\ref{src
             $\dfrac{
                 \begin{aligned}
                     &\Gamma \vdash x_1 : \mathcal{T}_1\ |_\varnothing\ \varnothing \land \cdots \land \Gamma \vdash x_n : \mathcal{T}_n\ |_\varnothing\ \varnothing \\
-                    &\Gamma \vdash e : \mathcal{T}_0\ |_{\mathcal{X}}\ C_0 \hspace{5mm} E = E_\mathcal{T}(\mathcal{T}) \\
+                    &\Gamma \vdash e : \mathcal{T}_0\ |_{\mathcal{X}}\ C_0 \hspace{5mm} E = E_\mathcal{T}(\mathcal{T}) \hspace{5mm} (E = \mathtt{Pure}) \Rightarrow \neg io(C)\\
                     &C = C_0 \cup \{\mathcal{T} = (E\ (\rightarrow (\mathcal{T}_1\ \cdots\ \mathcal{T}_n)\ \mathcal{T}_0)) \}
                 \end{aligned}
             }{
