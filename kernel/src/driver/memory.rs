@@ -1,9 +1,9 @@
 // https://wiki.osdev.org/Raspberry_Pi_4
 
-#[cfg(any(feature = "raspi3", feature = "raspi2"))]
+#[cfg(any(feature = "raspi3"))]
 pub const MMIO_BASE: u32 = 0x3F000000;
 
-#[cfg(any(feature = "raspi3", feature = "raspi2"))]
+#[cfg(any(feature = "raspi3"))]
 pub const MMIO_SIZE: usize = 0x42000000 - 0x3F000000;
 
 #[cfg(feature = "raspi4")]

@@ -22,6 +22,6 @@ panic = "abort"
 crate-type = ["staticlib"]
 
 [features]
-raspi2 = []
 raspi3 = []
 raspi4 = []
+pine64 = []

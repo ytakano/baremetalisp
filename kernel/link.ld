@@ -1,7 +1,7 @@
 SECTIONS
 {
-    . = 0x80000;
-/*    . = 0;*/
+    . = #INITADDR#; /* replaced by sed */
+    __ram_start = .;
     .init : { KEEP(*(.init)) }
     .text : { *(.text .text.* .gnu.linkonce.t*) }
     .rodata : { *(.rodata .rodata.* .gnu.linkonce.r*) }
@@ -18,6 +18,7 @@ SECTIONS
         __bss_end = .;
     }
     . = ALIGN(1024 * 64);
+    __free_mem_start = .;
     __no_cache = .;
 
     __stack_start = __no_cache + 1024 * 64;

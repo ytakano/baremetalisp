@@ -6,8 +6,13 @@ endif
 # BSP-specific arguments
 ifeq ($(BSP),raspi3)
 	RUSTC_MISC_ARGS = -C target-cpu=cortex-a53
+	INITADDR = 0x80000
 else ifeq ($(BSP),raspi4)
 	RUSTC_MISC_ARGS = -C target-cpu=cortex-a72
+	INITADDR = 0
+else ifeq ($(BSP),pine64)
+	RUSTC_MISC_ARGS = -C target-cpu=cortex-a53
+	INITADDR = 0x40080000
 endif
 
 ASM_FILE=asm/aarch64.S
@@ -38,7 +43,8 @@ doc:
 	cargo xdoc --target=$(TARGET) --features $(BSP) --document-private-items
 
 baremetalisp: $(RUSTLIB) $(MMU_OBJ) $(ASM_OBJ)
-	$(LD) -m aarch64elf -nostdlib -T link.ld -o baremetalisp $(ASM_OBJ) $(RUSTLIB)
+	sed "s/#INITADDR#/$(INITADDR)/" link.ld > link.ld.$(BSP)
+	$(LD) -m aarch64elf -nostdlib -T link.ld.$(BSP) -o baremetalisp $(ASM_OBJ) $(RUSTLIB)
 
 kernel8.img: baremetalisp
 	rust-objcopy -O binary baremetalisp kernel8.img

@@ -3,9 +3,48 @@ use core::slice;
 use super::el;
 use crate::driver;
 
+//-----------------------------------------------------------------------------
+// Raspberry Pi 3
+#[cfg(any(feature = "raspi3"))]
+pub const DEVICE_MEM_START: usize =  0x3C000000;
+
+#[cfg(any(feature = "raspi3"))]
+pub const DEVICE_MEM_END:   usize =  0x40000000;
+
+#[cfg(feature = "raspi3")]
+pub const NUM_CPU:          usize = 4;
+//-----------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
+// Raspberry Pi 4
+#[cfg(feature = "raspi4")]
+pub const DEVICE_MEM_START: usize = 0x0fd000000; // maybe...
+
+#[cfg(feature = "raspi4")]
+pub const DEVICE_MEM_END:   usize = 0x100000000; // maybe...
+
+#[cfg(feature = "raspi4")]
+pub const NUM_CPU:          usize = 4;
+//-----------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
+// PINE64
+#[cfg(feature = "pine64")]
+pub const DEVICE_MEM_START: usize =  0x01C00000;
+
+#[cfg(feature = "pine64")]
+pub const DEVICE_MEM_END:   usize =  0x01F10000;
+
+#[cfg(feature = "pine64")]
+pub const NUM_CPU:          usize = 4;
+//-----------------------------------------------------------------------------
+
+
 pub const EL1_ADDR_OFFSET: usize = 0x3FFFFF << 42;
 
 extern "C" {
+    static __ram_start: usize;
+    static __free_mem_start: usize;
     static mut __data_start: u64;
     static mut __data_end: u64;
     static mut __bss_start: u64;
@@ -38,6 +77,104 @@ extern "C" {
 pub struct VMTables {
     el1: &'static mut [u64],
     firm: &'static mut [u64],
+}
+
+// logical address information
+struct Addr {
+    // must be same as physical
+    no_cache_start: usize,
+    no_cache_end: usize,
+    tt_firm_start: usize,
+    tt_firm_end: usize,
+    tt_el1_ttbr0_start: usize,
+    tt_el1_ttbr0_end: usize,
+    tt_el1_ttbr1_start: usize,
+    tt_el1_ttbr1_end: usize,
+
+    // device
+    device_start: usize,
+    device_end: usize,
+
+    // independent from physical
+    stack_size: usize,
+    stack_firm_start: usize,
+    stack_firm_end: usize,
+    stack_el1_start: usize,
+    stack_el1_end: usize,
+    stack_el0_start: usize,
+    stack_el0_end: usize,
+    el0_heap_start: usize,
+    el0_heap_end: usize
+}
+
+impl Addr {
+    fn new() -> Addr {
+        let no_cache_start = unsafe { __free_mem_start };
+        let no_cache_end   = no_cache_start + 64 * 1024;
+
+        // MMU's transition table for firmware
+        // level 2 table x 1 (for 4TiB space)
+        // level 3 table x 8 (for 512MiB x 8 = 4GiB space)
+        let tt_firm_start = no_cache_end;
+        let tt_firm_end   = tt_firm_start + 1024 * 64 * 9;
+
+        // MMU's transition table #0 for EL1
+        // level 2 table x 1 (for 4TiB space)
+        // level 3 table x 8 (for 512MiB x 8 = 4GiB space)
+        let tt_el1_ttbr0_start = tt_firm_end;
+        let tt_el1_ttbr0_end   = tt_el1_ttbr0_start + 1024 * 64 * 9;
+
+        // MMU's transition table #1 for EL1
+        // level 2 table x 1 (for 4TiB space)
+        // level 3 table x 1 (for 512MiB space)
+        let tt_el1_ttbr1_start = tt_el1_ttbr0_end;
+        let tt_el1_ttbr1_end   = tt_el1_ttbr1_start + 1024 * 64 * 2;
+
+        // device
+        let device_start = tt_el1_ttbr1_end;
+        let device_end   = device_start + (DEVICE_MEM_END - DEVICE_MEM_START);
+
+        // 2MiB stack x NUM_CPU
+        let stack_size = 2 * 1024 * 1014 * NUM_CPU;
+
+        // firmware's stack
+        let stack_firm_start = device_end;
+        let stack_firm_end   = stack_firm_start + stack_size;
+
+        // EL1's stack
+        let stack_el1_start = stack_firm_end;
+        let stack_el1_end   = stack_el1_start + stack_size;
+
+        // EL0's stack
+        let stack_el0_start = stack_el1_end;
+        let stack_el0_end   = stack_el0_start + stack_size;
+
+        // heap memory for EL0
+        let el0_heap_start = stack_el0_end;
+        let el0_heap_end   = el0_heap_start + 64 * 1024 * 1024; // 64MiB
+
+        Addr{
+            no_cache_start: no_cache_start,
+            no_cache_end: no_cache_end,
+            tt_firm_start: tt_firm_start,
+            tt_firm_end: tt_firm_end,
+            tt_el1_ttbr0_start: tt_el1_ttbr0_start,
+            tt_el1_ttbr0_end: tt_el1_ttbr0_end,
+            tt_el1_ttbr1_start: tt_el1_ttbr1_start,
+            tt_el1_ttbr1_end: tt_el1_ttbr1_end,
+            device_start: device_start,
+            device_end: device_end,
+            stack_size: stack_size,
+            stack_firm_start: stack_firm_start,
+            stack_firm_end: stack_firm_end,
+            stack_el1_start: stack_el1_start,
+            stack_el1_end: stack_el1_end,
+            stack_el0_start: stack_el0_start,
+            stack_el0_end: stack_el0_end,
+            el0_heap_start: el0_heap_start,
+            el0_heap_end: el0_heap_end
+        }
+    }
 }
 
 pub fn enabled() -> Option<bool> {
@@ -156,18 +293,6 @@ const FLAG_L3_ATTR_DEV: u64 = 1 << 2; // device MMIO
 const FLAG_L3_ATTR_NC:  u64 = 2 << 2; // non-cachable
 
 
-#[cfg(any(feature = "raspi3", feature = "raspi2"))]
-pub const DRIVER_MEM_START: usize =  0x3C000000;
-
-#[cfg(any(feature = "raspi3", feature = "raspi2"))]
-pub const DRIVER_MEM_END:   usize =  0x40000000;
-
-#[cfg(feature = "raspi4")]
-pub const DRIVER_MEM_START: usize =  0xfd000000; // maybe...
-
-#[cfg(feature = "raspi4")]
-pub const DRIVER_MEM_END:   usize = 0x100000000; // maybe...
-
 pub fn print_addr() {
     let addr = unsafe { &mut __data_start as *mut u64 as u64 };
     driver::uart::puts("__data_start         = 0x");
@@ -256,6 +381,8 @@ pub fn print_addr() {
 }
 
 pub fn init() -> Option<VMTables> {
+    let addr = Addr::new();
+
     print_addr();
 
     // check for 64KiB granule and at least 36 bits physical address bus
@@ -272,16 +399,16 @@ pub fn init() -> Option<VMTables> {
         return None;
     }
 
-#[cfg(any(feature = "raspi3", feature = "raspi2"))]
-    let ret = Some(VMTables{el1: init_el1(), firm: init_el2()} );
+#[cfg(feature = "raspi3")]
+    let ret = Some(VMTables{el1: init_el1(&addr), firm: init_el2(&addr)} );
 
-#[cfg(feature = "raspi4")]
-    let ret = Some(VMTables{el1: init_el1(), firm: init_el3()} );
+#[cfg(any(feature = "raspi4", feature = "pine64"))]
+    let ret = Some(VMTables{el1: init_el1(&addr), firm: init_el3(&addr)} );
 
     ret
 }
 
-fn init_table_flat(tt: &'static mut [u64], addr: u64) -> &'static mut [u64] {
+fn init_table_flat(tt: &'static mut [u64], tt_addr: u64, addr: &Addr) -> &'static mut [u64] {
     let data_start = unsafe { &mut __data_start as *mut u64 as usize } >> 16;
     let stack_start = unsafe { &mut __stack_start as *mut u64 as usize } >> 16;
     let stack_end = unsafe { &mut __stack_end as *mut u64 as usize } >> 16;
@@ -291,9 +418,11 @@ fn init_table_flat(tt: &'static mut [u64], addr: u64) -> &'static mut [u64] {
         *t = 0;
     }
 
-    // L2 table, 4GiB space
-    for i in 0..8 {
-        tt[i] = addr + (i as u64 + 1) * 8192 * 8 | 0b11;
+    // L2 table
+    tt[0] = tt_addr + 8192 * 8 | 0b11;
+
+    // L3 table, instructions and read only data
+    for ent in &mut tt[8192..(8192 + data_start)] {
     }
 
     // L3 table, instructions and read only data
@@ -323,8 +452,8 @@ fn init_table_flat(tt: &'static mut [u64], addr: u64) -> &'static mut [u64] {
             FLAG_L3_NS | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_RW | FLAG_L3_ATTR_NC;
     }
 
-    let start = DRIVER_MEM_START >> 16; // div by 64 * 1024
-    let end   = start + ((DRIVER_MEM_END - DRIVER_MEM_START) >> 16); // div by 64 * 1024
+    let start = DEVICE_MEM_START >> 16; // div by 64 * 1024
+    let end   = start + ((DEVICE_MEM_END - DEVICE_MEM_START) >> 16); // div by 64 * 1024
 
     // L3 table, device
     for i in start..end {
@@ -405,11 +534,11 @@ fn mask_el1(tt: &'static mut [u64]) -> &'static mut [u64] {
 
 /// set up EL3's page table, 64KB page, level 2 and 3 translation tables,
 /// assume 2MiB stack space per CPU
-fn init_el3() -> &'static mut [u64] {
-    let addr = unsafe { &mut __tt_firm_start as *mut u64 as u64 };
-    let ptr  = addr as *mut u64;
-    let tt   = unsafe { slice::from_raw_parts_mut(ptr, 8192 * 10) };
-    let tt   = init_table_flat(tt, addr);
+fn init_el3(addr: &Addr) -> &'static mut [u64] {
+    let ttbr = addr.tt_firm_end as u64;
+    let ptr  = ttbr as *mut u64;
+    let tt   = unsafe { slice::from_raw_parts_mut(ptr, 8192 * 2) };
+    let tt   = init_table_flat(tt, ttbr, addr);
 
     // detect stack over flow
     let end = unsafe { &mut __stack_firm_end as *mut u64 as usize };
@@ -430,7 +559,7 @@ fn init_el3() -> &'static mut [u64] {
     unsafe { llvm_asm!("msr tcr_el3, $0" : : "r" (get_tcr())) };
 
     // tell the MMU where our translation tables are.
-    unsafe { llvm_asm!("msr ttbr0_el3, $0" : : "r" (addr + 1)) };
+    unsafe { llvm_asm!("msr ttbr0_el3, $0" : : "r" (ttbr + 1)) };
 
     // finally, toggle some bits in system control register to enable page translation
     let mut sctlr: u64;
@@ -443,11 +572,11 @@ fn init_el3() -> &'static mut [u64] {
 
 /// set up EL2's page table, 64KB page, level 2 and 3 translation tables,
 /// assume 2MiB stack space per CPU
-fn init_el2() -> &'static mut [u64] {
-    let addr = unsafe { &mut __tt_firm_start as *mut u64 as u64 };
-    let ptr  = addr as *mut u64;
+fn init_el2(addr: &Addr) -> &'static mut [u64] {
+    let ttbr = addr.tt_firm_end as u64;
+    let ptr  = ttbr as *mut u64;
     let tt   = unsafe { slice::from_raw_parts_mut(ptr, 8192 * 10) };
-    let tt   = init_table_flat(tt, addr);
+    let tt   = init_table_flat(tt, ttbr, addr);
 
     // detect stack over flow
     let end = unsafe { &mut __stack_firm_end as *mut u64 as usize };
@@ -468,7 +597,7 @@ fn init_el2() -> &'static mut [u64] {
     unsafe { llvm_asm!("msr tcr_el2, $0" : : "r" (get_tcr())) };
 
     // tell the MMU where our translation tables are.
-    unsafe { llvm_asm!("msr ttbr0_el2, $0" : : "r" (addr + 1)) };
+    unsafe { llvm_asm!("msr ttbr0_el2, $0" : : "r" (ttbr + 1)) };
 
     // finally, toggle some bits in system control register to enable page translation
     let mut sctlr: u64;
@@ -481,12 +610,12 @@ fn init_el2() -> &'static mut [u64] {
 
 /// set up EL1's page table, 64KB page, level 2 and 3 translation tables,
 /// assume 2MiB stack space per CPU
-fn init_el1() -> &'static mut [u64] {
+fn init_el1(addr: &Addr) -> &'static mut [u64] {
     // TTBR0: user space
-    let ttbr0 = unsafe { &mut __tt_el1_ttbr0_start as *mut u64 as u64 };
+    let ttbr0 = addr.tt_el1_ttbr0_start as u64;
     let ptr  = ttbr0 as *mut u64;
-    let tt   = unsafe { slice::from_raw_parts_mut(ptr, 8192 * 10) };
-    let tt   = init_table_flat(tt, ttbr0);
+    let tt   = unsafe { slice::from_raw_parts_mut(ptr, 8192 * 2) };
+    let tt   = init_table_flat(tt, ttbr0, addr);
 
     // detect stack over flow
     let end = unsafe { &mut __stack_el0_end as *mut u64 as usize };
