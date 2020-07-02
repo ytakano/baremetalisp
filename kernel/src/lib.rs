@@ -30,22 +30,28 @@ fn func() {
 #[no_mangle]
 pub fn entry() -> ! {
     driver::init();
-    aarch64::mmu::init();
+    let addr =
+    match aarch64::mmu::init_firm() {
+        Some((a, _)) => a,
+        None => {
+            driver::uart::puts("Error: failed to initialize MMU\n");
+            loop{}
+        }
+    };
 
     boot::run();
 
-/*
     match aarch64::el::get_current_el() {
         3 => { el3::el3_to_el1(); }
         2 => {
             driver::uart::puts("Warning: execution level is not EL3\n");
-            el2::el2_to_el1();
+            el2::el2_to_el1(&addr);
         }
         _ => {
             driver::uart::puts("Error: execution level is not EL3\n");
         }
     }
-    */
+
 //    driver::uart::puts("halting...\n");
 //    driver::power::shutdown();
 

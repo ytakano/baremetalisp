@@ -1,4 +1,5 @@
 use crate::aarch64;
+use crate::driver::uart;
 
 extern "C" {
     static mut __stack_el0_end: u64;
@@ -7,6 +8,9 @@ extern "C" {
 
 #[no_mangle]
 pub fn el1_entry() -> ! {
+    uart::puts("Entered EL1\n");
+    loop{};
+
     let end = unsafe { &mut __stack_el0_end as *mut u64 as usize };
     let start = unsafe { &mut __stack_el0_start as *mut u64 as usize };
 
