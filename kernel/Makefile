@@ -54,6 +54,6 @@ rmobj: FORCE
 
 clean:
 	cargo clean
-	rm -f baremetalisp kernel8.img *.o
+	rm -f baremetalisp kernel8.img *.o link.ld.*
 
 FORCE:

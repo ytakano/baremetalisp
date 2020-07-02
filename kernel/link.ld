@@ -18,8 +18,13 @@ SECTIONS
         __bss_end = .;
     }
     . = ALIGN(1024 * 64);
-    __free_mem_start = .;
-    __no_cache = .;
+
+    /* 8MiB space for EL3 or El2 */
+    __stack_firm_end   = .;
+    __stack_firm_start = __stack_firm_end + 1024 * 1024 * 8;
+
+    __free_mem_start = __stack_firm_start;
+    __no_cache = __free_mem_start;
 
     __stack_start = __no_cache + 1024 * 64;
     /* 8MiB space for EL3 or El2 */

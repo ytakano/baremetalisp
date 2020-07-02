@@ -1,16 +1,10 @@
 // https://wiki.osdev.org/Raspberry_Pi_4
 
-#[cfg(any(feature = "raspi3"))]
+#[cfg(any(feature = "raspi3", feature = "raspi2"))]
 pub const MMIO_BASE: u32 = 0x3F000000;
-
-#[cfg(any(feature = "raspi3"))]
-pub const MMIO_SIZE: usize = 0x42000000 - 0x3F000000;
 
 #[cfg(feature = "raspi4")]
 pub const MMIO_BASE: u32 = 0xFE000000;
-
-#[cfg(feature = "raspi4")]
-pub const MMIO_SIZE: usize = 0x100000000 - 0xFE000000;
 
 pub const GPFSEL0:   *mut u32 = (MMIO_BASE + 0x00200000) as *mut u32;
 pub const GPFSEL1:   *mut u32 = (MMIO_BASE + 0x00200004) as *mut u32;

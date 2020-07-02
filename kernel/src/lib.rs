@@ -29,24 +29,12 @@ fn func() {
 
 #[no_mangle]
 pub fn entry() -> ! {
-    let ctx = driver::init();
+    driver::init();
     aarch64::mmu::init();
 
     boot::run();
 
-    match ctx.graphics0 {
-        Some(mut gr) => {
-            driver::uart::puts("drawing mandelbrot set...\n");
-            let mut cnt = driver::delays::get_system_timer();
-            gr.plot_mandelbrot_set();
-            cnt = driver::delays::get_system_timer() - cnt;
-            driver::uart::puts("elapsed time to draw: ");
-            driver::uart::decimal(cnt);
-            driver::uart::puts(" CPU clocks\n");
-        }
-        None => { driver::uart::puts("failed to initialize graphics\n") }
-    }
-
+/*
     match aarch64::el::get_current_el() {
         3 => { el3::el3_to_el1(); }
         2 => {
@@ -57,6 +45,7 @@ pub fn entry() -> ! {
             driver::uart::puts("Error: execution level is not EL3\n");
         }
     }
+    */
 //    driver::uart::puts("halting...\n");
 //    driver::power::shutdown();
 

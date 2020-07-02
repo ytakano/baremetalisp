@@ -6,49 +6,67 @@ use crate::driver;
 //-----------------------------------------------------------------------------
 // Raspberry Pi 3
 #[cfg(any(feature = "raspi3"))]
-pub const DEVICE_MEM_START: usize =  0x3C000000;
+pub const DEVICE_MEM_START: u64 =  0x3C000000;
 
 #[cfg(any(feature = "raspi3"))]
-pub const DEVICE_MEM_END:   usize =  0x40000000;
+pub const DEVICE_MEM_END:   u64 =  0x40000000;
 
 #[cfg(feature = "raspi3")]
-pub const NUM_CPU:          usize = 4;
+pub const NUM_CPU:          u64 = 4;
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
 // Raspberry Pi 4
 #[cfg(feature = "raspi4")]
-pub const DEVICE_MEM_START: usize = 0x0fd000000; // maybe...
+pub const DEVICE_MEM_START: u64 = 0x0fd000000; // maybe...
 
 #[cfg(feature = "raspi4")]
-pub const DEVICE_MEM_END:   usize = 0x100000000; // maybe...
+pub const DEVICE_MEM_END:   u64 = 0x100000000; // maybe...
 
 #[cfg(feature = "raspi4")]
-pub const NUM_CPU:          usize = 4;
+pub const NUM_CPU:          u64 = 4;
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
 // PINE64
 #[cfg(feature = "pine64")]
-pub const DEVICE_MEM_START: usize =  0x01C00000;
+pub const DEVICE_MEM_START: u64 =  0x01C00000;
 
 #[cfg(feature = "pine64")]
-pub const DEVICE_MEM_END:   usize =  0x01F10000;
+pub const DEVICE_MEM_END:   u64 =  0x01F10000;
 
 #[cfg(feature = "pine64")]
-pub const NUM_CPU:          usize = 4;
+pub const NUM_CPU:          u64 = 4;
 //-----------------------------------------------------------------------------
 
 
-pub const EL1_ADDR_OFFSET: usize = 0x3FFFFF << 42;
+pub const EL1_ADDR_OFFSET: u64 = 0x3FFFFF << 42;
+
+// level 2 table x 1 (for 4TiB space)
+// level 3 table x 8 (for 512MiB x 8 = 4GiB space)
+pub const FIRM_LV2_TABLE_NUM: usize = 1;
+pub const FIRM_LV3_TABLE_NUM: usize = 8;
+pub const FIRM_TABLE_NUM: usize = FIRM_LV2_TABLE_NUM + FIRM_LV3_TABLE_NUM;
+
+// level 2 table x 1 (for 4TiB space)
+// level 3 table x 8 (for 512MiB x 8 = 4GiB space)
+pub const KERN_TTBR0_LV2_TABLE_NUM: usize = 1;
+pub const KERN_TTBR0_LV3_TABLE_NUM: usize = 8;
+pub const KERN_TTBR0_TABLE_NUM: usize = KERN_TTBR0_LV2_TABLE_NUM + KERN_TTBR0_LV3_TABLE_NUM;
+
+// level 2 table x 1 (for 4TiB space)
+// level 3 table x 1 (for 512MiB space)
+pub const KERN_TTBR1_LV2_TABLE_NUM: usize = 1;
+pub const KERN_TTBR1_LV3_TABLE_NUM: usize = 1;
+pub const KERN_TTBR1_TABLE_NUM: usize = KERN_TTBR1_LV2_TABLE_NUM + KERN_TTBR1_LV3_TABLE_NUM;
 
 extern "C" {
-    static __ram_start: usize;
-    static __free_mem_start: usize;
-    static mut __data_start: u64;
-    static mut __data_end: u64;
-    static mut __bss_start: u64;
-    static mut __bss_end: u64;
+    static __ram_start: u64;
+    static __free_mem_start: u64;
+    static __data_start: u64;
+    static __data_end: u64;
+    static __bss_start: u64;
+    static __bss_end: u64;
 
     static mut __no_cache: u64;
 
@@ -74,6 +92,14 @@ extern "C" {
     static mut _end: u64;
 }
 
+// transition table
+pub struct TTable {
+    tt_lv2: &'static mut [u64],
+    tt_lv3: &'static mut [u64],
+    num_lv2: usize,
+    num_lv3: usize
+}
+
 pub struct VMTables {
     el1: &'static mut [u64],
     firm: &'static mut [u64],
@@ -82,47 +108,37 @@ pub struct VMTables {
 // logical address information
 struct Addr {
     // must be same as physical
-    no_cache_start: usize,
-    no_cache_end: usize,
-    tt_firm_start: usize,
-    tt_firm_end: usize,
-    tt_el1_ttbr0_start: usize,
-    tt_el1_ttbr0_end: usize,
-    tt_el1_ttbr1_start: usize,
-    tt_el1_ttbr1_end: usize,
-
-    // device
-    device_start: usize,
-    device_end: usize,
+    no_cache_start: u64,
+    no_cache_end: u64,
+    tt_firm_start: u64,
+    tt_firm_end: u64,
+    tt_el1_ttbr0_start: u64,
+    tt_el1_ttbr0_end: u64,
+    tt_el1_ttbr1_start: u64,
+    tt_el1_ttbr1_end: u64,
 
     // independent from physical
-    stack_size: usize,
-    stack_firm_start: usize,
-    stack_firm_end: usize,
-    stack_el1_start: usize,
-    stack_el1_end: usize,
-    stack_el0_start: usize,
-    stack_el0_end: usize,
-    el0_heap_start: usize,
-    el0_heap_end: usize
+    stack_size: u64,
+    stack_el1_start: u64,
+    stack_el1_end: u64,
+    stack_el0_start: u64,
+    stack_el0_end: u64,
+    el0_heap_start: u64,
+    el0_heap_end: u64
 }
 
 impl Addr {
     fn new() -> Addr {
-        let no_cache_start = unsafe { __free_mem_start };
+        let no_cache_start = unsafe { &__free_mem_start as *const u64 as u64 };
         let no_cache_end   = no_cache_start + 64 * 1024;
 
         // MMU's transition table for firmware
-        // level 2 table x 1 (for 4TiB space)
-        // level 3 table x 8 (for 512MiB x 8 = 4GiB space)
         let tt_firm_start = no_cache_end;
-        let tt_firm_end   = tt_firm_start + 1024 * 64 * 9;
+        let tt_firm_end   = tt_firm_start + 1024 * 64 * FIRM_TABLE_NUM as u64;
 
         // MMU's transition table #0 for EL1
-        // level 2 table x 1 (for 4TiB space)
-        // level 3 table x 8 (for 512MiB x 8 = 4GiB space)
         let tt_el1_ttbr0_start = tt_firm_end;
-        let tt_el1_ttbr0_end   = tt_el1_ttbr0_start + 1024 * 64 * 9;
+        let tt_el1_ttbr0_end   = tt_el1_ttbr0_start + 1024 * 64 * KERN_TTBR0_TABLE_NUM as u64;
 
         // MMU's transition table #1 for EL1
         // level 2 table x 1 (for 4TiB space)
@@ -130,19 +146,11 @@ impl Addr {
         let tt_el1_ttbr1_start = tt_el1_ttbr0_end;
         let tt_el1_ttbr1_end   = tt_el1_ttbr1_start + 1024 * 64 * 2;
 
-        // device
-        let device_start = tt_el1_ttbr1_end;
-        let device_end   = device_start + (DEVICE_MEM_END - DEVICE_MEM_START);
-
         // 2MiB stack x NUM_CPU
         let stack_size = 2 * 1024 * 1014 * NUM_CPU;
 
-        // firmware's stack
-        let stack_firm_start = device_end;
-        let stack_firm_end   = stack_firm_start + stack_size;
-
         // EL1's stack
-        let stack_el1_start = stack_firm_end;
+        let stack_el1_start = tt_el1_ttbr1_end;
         let stack_el1_end   = stack_el1_start + stack_size;
 
         // EL0's stack
@@ -162,11 +170,7 @@ impl Addr {
             tt_el1_ttbr0_end: tt_el1_ttbr0_end,
             tt_el1_ttbr1_start: tt_el1_ttbr1_start,
             tt_el1_ttbr1_end: tt_el1_ttbr1_end,
-            device_start: device_start,
-            device_end: device_end,
             stack_size: stack_size,
-            stack_firm_start: stack_firm_start,
-            stack_firm_end: stack_firm_end,
             stack_el1_start: stack_el1_start,
             stack_el1_end: stack_el1_end,
             stack_el0_start: stack_el0_start,
@@ -174,6 +178,120 @@ impl Addr {
             el0_heap_start: el0_heap_start,
             el0_heap_end: el0_heap_end
         }
+    }
+
+    fn print(&self) {
+        driver::uart::puts("no_cache_start     = 0x");
+        driver::uart::hex(self.no_cache_start as u64);
+        driver::uart::puts("\n");
+
+        driver::uart::puts("no_cache_end       = 0x");
+        driver::uart::hex(self.no_cache_end as u64);
+        driver::uart::puts("\n");
+
+        driver::uart::puts("tt_firm_start      = 0x");
+        driver::uart::hex(self.tt_firm_start as u64);
+        driver::uart::puts("\n");
+
+        driver::uart::puts("tt_firm_end        = 0x");
+        driver::uart::hex(self.tt_firm_end as u64);
+        driver::uart::puts("\n");
+
+        driver::uart::puts("tt_el1_ttbr0_start = 0x");
+        driver::uart::hex(self.tt_el1_ttbr0_start as u64);
+        driver::uart::puts("\n");
+
+        driver::uart::puts("tt_el1_ttbr0_end   = 0x");
+        driver::uart::hex(self.tt_el1_ttbr0_end as u64);
+        driver::uart::puts("\n");
+
+        driver::uart::puts("tt_el1_ttbr1_start = 0x");
+        driver::uart::hex(self.tt_el1_ttbr1_start as u64);
+        driver::uart::puts("\n");
+
+        driver::uart::puts("tt_el1_ttbr1_end   = 0x");
+        driver::uart::hex(self.tt_el1_ttbr1_end as u64);
+        driver::uart::puts("\n");
+
+        driver::uart::puts("stack_el1_start    = 0x");
+        driver::uart::hex(self.stack_el1_start as u64);
+        driver::uart::puts("\n");
+
+        driver::uart::puts("stack_el1_end      = 0x");
+        driver::uart::hex(self.stack_el1_end as u64);
+        driver::uart::puts("\n");
+
+        driver::uart::puts("stack_el0_start    = 0x");
+        driver::uart::hex(self.stack_el0_start as u64);
+        driver::uart::puts("\n");
+
+        driver::uart::puts("stack_el0_end      = 0x");
+        driver::uart::hex(self.stack_el0_end as u64);
+        driver::uart::puts("\n");
+
+        driver::uart::puts("el0_heap_start     = 0x");
+        driver::uart::hex(self.el0_heap_start as u64);
+        driver::uart::puts("\n");
+
+        driver::uart::puts("el0_heap_end       = 0x");
+        driver::uart::hex(self.el0_heap_end as u64);
+        driver::uart::puts("\n");
+    }
+}
+
+impl TTable {
+    fn new(tt_addr: u64, num_lv2 : usize, num_lv3 : usize) -> TTable {
+        let ptr = tt_addr as *mut u64;
+        let tt_lv2 = unsafe { slice::from_raw_parts_mut(ptr, 8192 * num_lv2) };
+
+        let ptr = ((PAGESIZE * num_lv2 as u64) + tt_addr) as *mut u64;
+        let tt_lv3 = unsafe { slice::from_raw_parts_mut(ptr, 8192 * num_lv3) };
+
+        // initialize
+        for e in tt_lv2.iter_mut() {
+            *e = 0;
+        }
+
+        for e in tt_lv3.iter_mut() {
+            *e = 0;
+        }
+
+        // set up level 2 tables
+        for i in 0..(8192 * num_lv2) {
+            if i >= num_lv3 {
+                break;
+            }
+            tt_lv2[i] = (&tt_lv3[i * 8192] as *const u64) as u64 | 0b11;
+        }
+
+        TTable{tt_lv2: tt_lv2, tt_lv3: tt_lv3, num_lv2: num_lv2, num_lv3: num_lv3}
+    }
+
+    fn map(&mut self, vm_addr: u64, phy_addr: u64, flag: u64) {
+        let lv2idx = ((vm_addr >> 29) & 8191) as usize;
+        let lv3idx = ((vm_addr >> 16) & 8191) as usize;
+
+        if lv2idx >= self.num_lv3 {
+            // memory access error
+            return;
+        }
+
+        let e = phy_addr & !((1 << 16) - 1) | flag;
+        let idx = lv2idx * 8192 + lv3idx;
+        self.tt_lv3[idx] = e as u64;
+    }
+
+    fn unmap(&mut self, vm_addr: u64) {
+        let lv2idx = ((vm_addr >> 29) & 8191) as usize;
+        let lv3idx = ((vm_addr >> 16) & 8191) as usize;
+
+        if lv2idx >= self.num_lv3 {
+            // memory access error
+            return;
+        }
+
+        let idx = lv2idx * 8192 + lv3idx;
+        self.tt_lv3[idx] = 0;
     }
 }
 
@@ -227,26 +345,6 @@ fn set_sctlr(sctlr: u32) {
     }
 }
 
-/// disable data cache, then enable it when dropping
-pub struct DisableCache;
-
-impl DisableCache {
-    pub fn new() -> DisableCache {
-        let mut sctlr = get_sctlr();
-        sctlr &= !(1 << 2);
-        set_sctlr(sctlr);
-        DisableCache{}
-    }
-}
-
-impl Drop for DisableCache {
-    fn drop(&mut self) {
-        let mut sctlr = get_sctlr();
-        sctlr |= 1 << 2;
-        set_sctlr(sctlr);
-    }
-}
-
 // 64KB page
 // level 2 and 3 translation tables
 
@@ -254,7 +352,6 @@ const PAGESIZE: u64 = 64 * 1024;
 
 // NSTable (63bit)
 const FLAG_L2_NS: u64 = 1 << 63; // non secure table
-
 
 const FLAG_L3_XN:   u64 = 1 << 54; // execute never
 const FLAG_L3_PXN:  u64 = 1 << 53; // priviledged execute
@@ -288,28 +385,29 @@ const FLAG_L3_SH_R_R:   u64 = 0b11 << 6;
 
 // [4:2]: AttrIndx
 // defined in MAIR register
+// see get_mair()
 const FLAG_L3_ATTR_MEM: u64 = 0     ; // normal memory
 const FLAG_L3_ATTR_DEV: u64 = 1 << 2; // device MMIO
 const FLAG_L3_ATTR_NC:  u64 = 2 << 2; // non-cachable
 
 
 pub fn print_addr() {
-    let addr = unsafe { &mut __data_start as *mut u64 as u64 };
+    let addr = unsafe { &__data_start as *const u64 as u64 };
     driver::uart::puts("__data_start         = 0x");
     driver::uart::hex(addr as u64);
     driver::uart::puts("\n");
 
-    let addr = unsafe { &mut __data_end as *mut u64 as u64 };
+    let addr = unsafe { &__data_end as *const u64 as u64 };
     driver::uart::puts("__data_end           = 0x");
     driver::uart::hex(addr as u64);
     driver::uart::puts("\n");
 
-    let addr = unsafe { &mut __bss_start as *mut u64 as u64 };
+    let addr = unsafe { &__bss_start as *const u64 as u64 };
     driver::uart::puts("__bss_start          = 0x");
     driver::uart::hex(addr as u64);
     driver::uart::puts("\n");
 
-    let addr = unsafe { &mut __bss_end as *mut u64 as u64 };
+    let addr = unsafe { &__bss_end as *const u64 as u64 };
     driver::uart::puts("__bss_end            = 0x");
     driver::uart::hex(addr as u64);
     driver::uart::puts("\n");
@@ -380,9 +478,14 @@ pub fn print_addr() {
     driver::uart::puts("\n");
 }
 
-pub fn init() -> Option<VMTables> {
+pub fn init() {
     let addr = Addr::new();
+    print_addr();
+    addr.print();
 
+#[cfg(any(feature = "raspi3"))]
+    init_el2_new(&addr);
+/*
     print_addr();
 
     // check for 64KiB granule and at least 36 bits physical address bus
@@ -406,10 +509,11 @@ pub fn init() -> Option<VMTables> {
     let ret = Some(VMTables{el1: init_el1(&addr), firm: init_el3(&addr)} );
 
     ret
+    */
 }
 
 fn init_table_flat(tt: &'static mut [u64], tt_addr: u64, addr: &Addr) -> &'static mut [u64] {
-    let data_start = unsafe { &mut __data_start as *mut u64 as usize } >> 16;
+    let data_start = unsafe { &__data_start as *const u64 as usize } >> 16;
     let stack_start = unsafe { &mut __stack_start as *mut u64 as usize } >> 16;
     let stack_end = unsafe { &mut __stack_end as *mut u64 as usize } >> 16;
     let no_cache = unsafe { &mut __no_cache as *mut u64 as usize } >> 16;
@@ -457,7 +561,7 @@ fn init_table_flat(tt: &'static mut [u64], tt_addr: u64, addr: &Addr) -> &'stati
 
     // L3 table, device
     for i in start..end {
-        tt[i + 8192] = (i * 64 * 1024) as u64 | 0b11 |
+        tt[i as usize + 8192] = (i * 64 * 1024) as u64 | 0b11 |
             FLAG_L3_NS | FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_OSH | FLAG_L3_SH_RW_RW | FLAG_L3_ATTR_DEV;
     }
 
@@ -607,6 +711,95 @@ fn init_el2(addr: &Addr) -> &'static mut [u64] {
 
     tt
 }
+
+fn init_el2_new(addr: &Addr) -> TTable {
+    let mut table = TTable::new(addr.tt_firm_start, FIRM_LV2_TABLE_NUM, FIRM_LV3_TABLE_NUM);
+
+    // map .init and .text section
+    let mut ram_start = unsafe { &__ram_start as *const u64 as u64 };
+    let data_start = unsafe { &__data_start as *const u64 as u64 };
+
+    let flag = FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_R_R | FLAG_L3_ATTR_MEM | 0b11;
+    while ram_start < data_start {
+        table.map(ram_start, ram_start, flag);
+        ram_start += PAGESIZE;
+    }
+
+    // map .data section
+    let mut data_start = unsafe { &__data_start as *const u64 as u64 };
+    let data_end = unsafe { &__data_end as *const u64 as u64 };
+
+    let flag = FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_R_R | FLAG_L3_ATTR_MEM | 0b11;
+    while data_start < data_end {
+        table.map(data_start, data_start, flag);
+        data_start += PAGESIZE;
+    }
+
+    // map .bss section
+    let mut bss_start = unsafe { &__bss_start as *const u64 as u64 };
+    let bss_end = unsafe { &__bss_end as *const u64 as u64 };
+
+    let flag = FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_MEM | 0b11;
+    while bss_start < bss_end {
+        table.map(bss_start, bss_start, flag);
+        bss_start += PAGESIZE;
+    }
+
+    // map firmware stack
+    let mut stack_end = unsafe { &__stack_firm_end as *const u64 as u64 };
+    let stack_start = unsafe { &__stack_firm_start as *const u64 as u64 };
+
+    let flag = FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_MEM | 0b11;
+    while stack_end < stack_start {
+        table.map(stack_end, stack_end, flag);
+        stack_end += PAGESIZE;
+    }
+
+    // map non cached memory
+    let mut no_cache_start = addr.no_cache_start;
+
+    let flag = FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_MEM | 0b11;
+    while no_cache_start < addr.no_cache_end {
+        table.map(no_cache_start, no_cache_start, flag);
+        no_cache_start += PAGESIZE;
+    }
+
+    // map transition table for EL2
+    let mut tt_firm_start = addr.tt_firm_start;
+
+    let flag = FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_MEM | FLAG_L3_ATTR_NC | 0b11;
+    while tt_firm_start < addr.tt_firm_end {
+        table.map(tt_firm_start, tt_firm_start, flag);
+        tt_firm_start += PAGESIZE;
+    }
+
+    // map device memory
+    let mut device_addr = DEVICE_MEM_START;
+
+    let flag = FLAG_L3_NS | FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_OSH | FLAG_L3_SH_RW_RW | FLAG_L3_ATTR_DEV | 0b11;
+    while device_addr < DEVICE_MEM_END {
+        table.map(device_addr, device_addr, flag);
+        device_addr += PAGESIZE;
+    }
+
+    // first, set Memory Attributes array, indexed by PT_MEM, PT_DEV, PT_NC in our example
+    unsafe { llvm_asm!("msr mair_el2, $0" : : "r" (get_mair())) };
+
+    // next, specify mapping characteristics in translate control register
+    unsafe { llvm_asm!("msr tcr_el2, $0" : : "r" (get_tcr())) };
+
+    // tell the MMU where our translation tables are.
+    unsafe { llvm_asm!("msr ttbr0_el2, $0" : : "r" (addr.tt_firm_start | 1)) };
+
+    // finally, toggle some bits in system control register to enable page translation
+    let mut sctlr: u64;
+    unsafe { llvm_asm!("dsb ish; isb; mrs $0, sctlr_el2" : "=r" (sctlr)) };
+    sctlr = update_sctlr(sctlr);
+    unsafe { llvm_asm!("msr sctlr_el2, $0; dsb sy; isb" : : "r" (sctlr)) };
+
+    table
+}
+
 
 /// set up EL1's page table, 64KB page, level 2 and 3 translation tables,
 /// assume 2MiB stack space per CPU

@@ -32,6 +32,7 @@ fn print_el() {
 }
 
 fn print_firmware_version() {
+    /*
     match driver::mbox::get_firmware_version() {
         Some(ver) => {
             driver::uart::puts("[Firmware Ver] ");
@@ -42,9 +43,11 @@ fn print_firmware_version() {
             driver::uart::puts("[Firmware Ver] failed to get\n")
         }
     }
+    */
 }
 
 fn print_board_info() {
+    /*
     match driver::mbox::get_board_rev() {
         Some(rev) => {
             driver::uart::puts("[Board Rev   ] ");
@@ -66,9 +69,11 @@ fn print_board_info() {
             driver::uart::puts("[Serial#     ] failed to get\n")
         }
     }
+    */
 }
 
 fn print_fortune() {
+    /*
     driver::uart::puts("[Fortune     ] ");
     let cnt = driver::delays::get_system_timer() as usize;
     let fortune = ["大吉", "吉", "吉", "吉", "吉", "中吉", "中吉", "中吉",
@@ -76,6 +81,7 @@ fn print_fortune() {
     driver::uart::puts("⛩  ");
     driver::uart::puts(fortune[cnt & 0xF]);
     driver::uart::puts(" ⛩\n");
+    */
 }
 
 /// print splash message
