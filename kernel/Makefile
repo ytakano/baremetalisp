@@ -51,13 +51,12 @@ baremetalisp: $(RUSTLIB) $(MMU_OBJ) $(ASM_OBJ) link.ld.$(BSP)
 kernel8.img: baremetalisp
 	rust-objcopy -O binary baremetalisp kernel8.img
 
-AARCH64_START_ADDRESS=0x40080000
+# for USB boot of Pine64
 SUNXI_FEL=sunxi-fel
-
 boot64:
 	sudo ${SUNXI_FEL} spl sunxi-a64-spl32-ddr3.bin
-	sudo ${SUNXI_FEL} write ${AARCH64_START_ADDRESS} kernel8.img
-	sudo ${SUNXI_FEL} reset64 ${AARCH64_START_ADDRESS}
+	sudo ${SUNXI_FEL} write ${INITADDR} kernel8.img
+	sudo ${SUNXI_FEL} reset64 ${INITADDR}
 
 rmobj: FORCE
 	rm -f baremetalisp kernel8.img *.o
