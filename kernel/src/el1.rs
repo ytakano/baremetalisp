@@ -1,24 +1,13 @@
 use crate::aarch64;
 use crate::driver::uart;
 
-extern "C" {
-    static mut __stack_el0_end: u64;
-    static mut __stack_el0_start: u64;
-}
-
 #[no_mangle]
 pub fn el1_entry() -> ! {
     uart::puts("Entered EL1\n");
-    loop{};
 
-    let end = unsafe { &mut __stack_el0_end as *mut u64 as usize };
-    let start = unsafe { &mut __stack_el0_start as *mut u64 as usize };
-
-    let nc = (start - end) >> 21; // div by 2MiB (32 pages), #CPU
-    let size = (start - end) / nc;
-
-    let aff = aarch64::cpu::get_affinity_lv0();
-    let addr = start - size * aff as usize;
+    let addr  = aarch64::mmu::Addr::new();
+    let aff   = aarch64::cpu::get_affinity_lv0();
+    let stack = addr.stack_el0_start - addr.stack_size * aff;
 
     unsafe {
         llvm_asm!("
@@ -31,7 +20,7 @@ pub fn el1_entry() -> ! {
              msr elr_el1, x0
              eret"
             :
-            : "r"(addr)
+            : "r"(stack)
             : "x0"
         );
     }

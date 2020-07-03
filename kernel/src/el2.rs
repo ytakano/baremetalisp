@@ -1,11 +1,9 @@
 use crate::aarch64;
 
 pub fn el2_to_el1(addr: &aarch64::mmu::Addr) {
-    let aff = aarch64::cpu::get_affinity_lv0();
-    let addr = addr.stack_el1_start - addr.stack_size * aff;
-
-//    let addr = addr.stack_el1_start - addr.stack_size * aff +
-//               aarch64::mmu::EL1_ADDR_OFFSET - 64 * 1024;
+    let aff   = aarch64::cpu::get_affinity_lv0();
+    let stack = addr.stack_el1_start - addr.stack_size * aff +
+                aarch64::mmu::EL1_ADDR_OFFSET;
 
     unsafe {
         llvm_asm!(
@@ -29,7 +27,7 @@ pub fn el2_to_el1(addr: &aarch64::mmu::Addr) {
              msr elr_el2, x0
              eret"
             :
-            : "r"(addr)
+            : "r"(stack)
             : "x0"
         );
     }

@@ -174,7 +174,7 @@ pub struct Addr {
 }
 
 impl Addr {
-    fn new() -> Addr {
+    pub fn new() -> Addr {
         let no_cache_start = unsafe { &__free_mem_start as *const u64 as u64 };
         let no_cache_end   = no_cache_start + PAGESIZE;
 
@@ -193,7 +193,7 @@ impl Addr {
         let tt_el1_ttbr1_end   = tt_el1_ttbr1_start + PAGESIZE * KERN_TTBR1_TABLE_NUM as u64;
 
         // 2MiB stack x NUM_CPU
-        let stack_size = 2 * 1024 * 1014 * NUM_CPU;
+        let stack_size = 32 * PAGESIZE * NUM_CPU;
 
         // EL1's stack
         let stack_el1_end   = tt_el1_ttbr1_end;
@@ -205,7 +205,7 @@ impl Addr {
 
         // heap memory for EL0
         let el0_heap_start = stack_el0_start;
-        let el0_heap_end   = el0_heap_start + 64 * 1024 * 1024; // 64MiB
+        let el0_heap_end   = el0_heap_start + PAGESIZE * 1024; // 64MiB
 
         Addr{
             no_cache_start: no_cache_start,
@@ -233,7 +233,7 @@ impl Addr {
         driver::uart::puts("\n");
 
         let addr = unsafe { &__data_start as *const u64 as u64 };
-        driver::uart::puts("__data_star        = 0x");
+        driver::uart::puts("__data_start       = 0x");
         driver::uart::hex(addr);
         driver::uart::puts("\n");
 
@@ -508,7 +508,7 @@ pub fn print_addr() {
     driver::uart::puts("\n");
 }
 
-pub fn init_firm() -> Option<(Addr, TTable)> {
+pub fn init() -> Option<(Addr, TTable, (TTable, TTable))> {
     let addr = Addr::new();
 
     addr.print();
@@ -528,45 +528,11 @@ pub fn init_firm() -> Option<(Addr, TTable)> {
     }
 
 #[cfg(feature = "raspi3")]
-    let table = init_el2_new(&addr);
+    let table_firm = init_el2_new(&addr);
 
-    Some((addr, table))
-}
+    let table_el1  = init_el1_new(&addr);
 
-pub fn init() {
-    let addr = Addr::new();
-    print_addr();
-    addr.print();
-
-#[cfg(any(feature = "raspi3"))]
-    init_el2_new(&addr);
-
-    init_el1_new(&addr);
-/*
-    print_addr();
-
-    // check for 64KiB granule and at least 36 bits physical address bus
-    let mut mmfr: u64;
-    unsafe { llvm_asm!("mrs $0, id_aa64mmfr0_el1" : "=r" (mmfr)) };
-    let b = mmfr & 0xF;
-    if b < 1 /* 36 bits */ {
-        driver::uart::puts("ERROR: 36 bit address space not supported\n");
-        return None;
-    }
-
-    if mmfr & (0xF << 24) != 0 /* 64KiB */ {
-        driver::uart::puts("ERROR: 64KiB granule not supported\n");
-        return None;
-    }
-
-#[cfg(feature = "raspi3")]
-    let ret = Some(VMTables{el1: init_el1(&addr), firm: init_el2(&addr)} );
-
-#[cfg(any(feature = "raspi4", feature = "pine64"))]
-    let ret = Some(VMTables{el1: init_el1(&addr), firm: init_el3(&addr)} );
-
-    ret
-    */
+    Some((addr, table_firm, table_el1))
 }
 
 fn init_table_flat(tt: &'static mut [u64], tt_addr: u64, addr: &Addr) -> &'static mut [u64] {
@@ -781,13 +747,13 @@ fn init_el2_new(addr: &Addr) -> TTable {
         ram_start += PAGESIZE;
     }
 
-    // map .data and .bss section
-    let mut data_start = unsafe { &__data_start as *const u64 as u64 };
+    // map .bss section
+    let mut bss_start = unsafe { &__bss_start as *const u64 as u64 };
     let end = unsafe { &__stack_firm_end as *const u64 as u64 };
-    let flag = FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_R_R | FLAG_L3_ATTR_MEM | 0b11;
-    while data_start < end {
-        table.map(data_start, data_start, flag);
-        data_start += PAGESIZE;
+    let flag = FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_RW | FLAG_L3_ATTR_MEM | 0b11;
+    while bss_start < end {
+        table.map(bss_start, bss_start, flag);
+        bss_start += PAGESIZE;
     }
 
     // map firmware stack
@@ -813,6 +779,22 @@ fn init_el2_new(addr: &Addr) -> TTable {
     while tt_firm_start < addr.tt_firm_end {
         table.map(tt_firm_start, tt_firm_start, flag);
         tt_firm_start += PAGESIZE;
+    }
+
+    // map transition table for EL1 TTBR0
+    let mut tt_start = addr.tt_el1_ttbr0_start;
+    let flag = FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_MEM | FLAG_L3_ATTR_NC | 0b11;
+    while tt_start < addr.tt_el1_ttbr0_end {
+        table.map(tt_start, tt_start, flag);
+        tt_start += PAGESIZE;
+    }
+
+    // map transition table for EL1 TTBR1
+    let mut tt_start = addr.tt_el1_ttbr1_start;
+    let flag = FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_MEM | FLAG_L3_ATTR_NC | 0b11;
+    while tt_start < addr.tt_el1_ttbr1_end {
+        table.map(tt_start, tt_start, flag);
+        tt_start += PAGESIZE;
     }
 
     // map device memory
@@ -857,21 +839,29 @@ fn init_el1_new(addr: &Addr) -> (TTable, TTable) {
         ram_start += PAGESIZE;
     }
 
-    // map .data and .bss section
-    let mut data_start = unsafe { &__data_start as *const u64 as u64 };
+    // map .bss section
+    let mut bss_start = unsafe { &__bss_start as *const u64 as u64 };
     let end = unsafe { &__stack_firm_end as *const u64 as u64 };
-    let flag = FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_R_R | FLAG_L3_ATTR_MEM | 0b11;
-    while data_start < end {
-        table0.map(data_start, data_start, flag);
-        data_start += PAGESIZE;
+    let flag = FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_RW | FLAG_L3_ATTR_MEM | 0b11;
+    while bss_start < end {
+        table0.map(bss_start, bss_start, flag);
+        bss_start += PAGESIZE;
     }
 
-    // map transition table for TTBR1
-    let mut tt_start = addr.tt_el1_ttbr1_start;
-    let flag = FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_MEM | FLAG_L3_ATTR_NC | 0b11;
-    while tt_start < addr.tt_el1_ttbr1_end {
-        table0.map(tt_start, tt_start, flag);
-        tt_start += PAGESIZE;
+    // map userland stack
+    let mut stack_end = addr.stack_el0_end;
+    let flag = FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_RW | FLAG_L3_ATTR_MEM | 0b11;
+    while stack_end < addr.stack_el0_start {
+        table0.map(stack_end, stack_end, flag);
+        stack_end += PAGESIZE;
+    }
+
+    // map userland heap
+    let mut heap_start = addr.el0_heap_start;
+    let flag = FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_RW | FLAG_L3_ATTR_MEM | 0b11;
+    while heap_start < addr.el0_heap_end {
+        table0.map(heap_start, heap_start, flag);
+        heap_start += PAGESIZE;
     }
 
     // map device memory
@@ -880,14 +870,6 @@ fn init_el1_new(addr: &Addr) -> (TTable, TTable) {
     while device_addr < DEVICE_MEM_END {
         table0.map(device_addr, device_addr, flag);
         device_addr += PAGESIZE;
-    }
-
-    // kernel stack
-    let mut stack_end = addr.stack_el1_end;
-    let flag = FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_MEM | 0b11;
-    while stack_end < addr.stack_el1_start {
-        table0.map(stack_end, stack_end, flag);
-        stack_end += PAGESIZE;
     }
 
     //-------------------------------------------------------------------------
@@ -900,6 +882,22 @@ fn init_el1_new(addr: &Addr) -> (TTable, TTable) {
     while stack_end < addr.stack_el1_start {
         table1.map(stack_end, stack_end, flag);
         stack_end += PAGESIZE;
+    }
+
+    // map transition table for TTBR0
+    let mut tt_start = addr.tt_el1_ttbr0_start;
+    let flag = FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_MEM | FLAG_L3_ATTR_NC | 0b11;
+    while tt_start < addr.tt_el1_ttbr0_end {
+        table1.map(tt_start, tt_start, flag);
+        tt_start += PAGESIZE;
+    }
+
+    // map transition table for TTBR1
+    let mut tt_start = addr.tt_el1_ttbr1_start;
+    let flag = FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_MEM | FLAG_L3_ATTR_NC | 0b11;
+    while tt_start < addr.tt_el1_ttbr1_end {
+        table1.map(tt_start, tt_start, flag);
+        tt_start += PAGESIZE;
     }
 
     //-------------------------------------------------------------------------
@@ -979,6 +977,7 @@ fn init_el1(addr: &Addr) -> &'static mut [u64] {
         tt[i + 8192] = 0;
     }
 
+/*
     // EL0, heap
     let start = unsafe { &mut __el0_heap_start as *mut u64 as usize } >> 16;
     let end = unsafe { &mut __el0_heap_end as *mut u64 as usize } >> 16;
@@ -986,7 +985,7 @@ fn init_el1(addr: &Addr) -> &'static mut [u64] {
         tt[i + 8192] = (i * 64 * 1024) as u64 | 0b11 |
             FLAG_L3_AF | FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_ISH | FLAG_L3_SH_RW_RW | FLAG_L3_ATTR_MEM;
     }
-
+*/
     //-------------------------------------------------------------------------
     // TTBR1: kernel space
 

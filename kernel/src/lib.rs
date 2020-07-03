@@ -23,16 +23,11 @@ extern crate alloc;
 use core::panic::PanicInfo;
 
 #[no_mangle]
-fn func() {
-    ()
-}
-
-#[no_mangle]
 pub fn entry() -> ! {
     driver::init();
     let addr =
-    match aarch64::mmu::init_firm() {
-        Some((a, _)) => a,
+    match aarch64::mmu::init() {
+        Some((a, _, _)) => a,
         None => {
             driver::uart::puts("Error: failed to initialize MMU\n");
             loop{}

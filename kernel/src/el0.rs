@@ -1,6 +1,7 @@
 use crate::slab;
 use crate::lang;
-use crate::driver;
+use crate::driver::uart;
+use crate::aarch64::mmu;
 
 use alloc::boxed::Box;
 
@@ -45,7 +46,7 @@ const EVAL_CODE: &str =
 
 fn callback(x: i64, y: i64, z: i64) -> i64 {
     let msg = format!("callback: x = {}, y = {}, z = {}\n", x, y, z);
-    driver::uart::puts(&msg);
+    uart::puts(&msg);
     x * y * z
 }
 
@@ -62,33 +63,37 @@ fn run_lisp() {
                     // eval
                     let result = lang::eval(EVAL_CODE, &ctx);
                     let msg = format!("{:#?}\n", result);
-                    driver::uart::puts(&msg);
+                    uart::puts(&msg);
                 }
                 Err(e) => {
                     let msg = format!("{:#?}\n", e);
-                    driver::uart::puts(&msg);
+                    uart::puts(&msg);
                 }
             }
         }
         Err(e) => {
             let msg = format!("{:#?}\n", e);
-            driver::uart::puts(&msg);
+            uart::puts(&msg);
         }
     }
 }
 
 #[no_mangle]
 pub fn el0_entry() -> ! {
+    let addr = mmu::Addr::new();
+
+    uart::puts("Entered EL0\n");
+
     // initialize memory allocator
-    slab::init();
+    slab::init(&addr);
 
-    driver::uart::puts("global code:\n");
-    driver::uart::puts(GLOBAL_CODE);
-    driver::uart::puts("\n");
+    uart::puts("global code:\n");
+    uart::puts(GLOBAL_CODE);
+    uart::puts("\n");
 
-    driver::uart::puts("eval code:\n");
-    driver::uart::puts(EVAL_CODE);
-    driver::uart::puts("\n");
+    uart::puts("eval code:\n");
+    uart::puts(EVAL_CODE);
+    uart::puts("\n");
 
     run_lisp();
 

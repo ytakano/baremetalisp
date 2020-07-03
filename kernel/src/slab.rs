@@ -5,12 +5,7 @@ use alloc::alloc::handle_alloc_error;
 use crate::driver;
 use crate::aarch64::bits::clz;
 use crate::pager;
-use crate::aarch64::lock;
-
-extern "C" {
-    static mut __el0_heap_start: u64;
-    static mut __el0_heap_end: u64;
-}
+use crate::aarch64::{lock, mmu};
 
 struct Allocator;
 
@@ -357,11 +352,10 @@ fn on_oom(_layout: Layout) -> ! {
     loop {}
 }
 
-pub fn init() {
+pub fn init(addr: &mmu::Addr) {
     unsafe {
-        let start = &mut __el0_heap_start as *mut u64 as usize;
-        let end = &mut __el0_heap_end as *mut u64 as usize;
-        SLAB_ALLOC.pages.set_range(start, end);
+        SLAB_ALLOC.pages.set_range(addr.el0_heap_start as usize,
+                                   addr.el0_heap_end as usize);
     }
 }
 
