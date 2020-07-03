@@ -24,25 +24,6 @@ SECTIONS
     __stack_firm_start = __stack_firm_end + 1024 * 1024 * 8;
 
     __free_mem_start = __stack_firm_start;
-    __no_cache = __free_mem_start;
-
-    __stack_start = __no_cache + 1024 * 64;
-    /* 8MiB space for EL1 */
-    __stack_el1_end   = __stack_firm_start;
-    __stack_el1_start = __stack_el1_end + 1024 * 1024 * 8;
-    /* 8MiB space for EL0 */
-    __stack_el0_end   = __stack_el1_start;
-    __stack_el0_start = __stack_el0_end + 1024 * 1024 * 8;
-    __stack_end       = __stack_el0_start;
-
-    __tt_firm_start = __stack_end;
-    __tt_firm_end   = __tt_firm_start + 1024 * 64 * 10;
-    __tt_el1_ttbr0_start = __tt_firm_end;
-    __tt_el1_ttbr0_end   = __tt_el1_ttbr0_start + 1024 * 64 * 10;
-    __tt_el1_ttbr1_start = __tt_el1_ttbr0_end;
-    __tt_el1_ttbr1_end   = __tt_el1_ttbr1_start + 1024 * 64 * 2;
-
-    _end = __tt_el1_ttbr1_end;
 
    /DISCARD/ : { *(.comment) *(.gnu*) *(.note*) *(.eh_frame*) }
 }

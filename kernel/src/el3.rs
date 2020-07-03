@@ -1,19 +1,9 @@
 use crate::aarch64;
 
-extern "C" {
-    static mut __stack_el1_end: u64;
-    static mut __stack_el1_start: u64;
-}
-
-pub fn el3_to_el1() {
-    let end = unsafe { &mut __stack_el1_end as *mut u64 as usize };
-    let start = unsafe { &mut __stack_el1_start as *mut u64 as usize };
-
-    let nc = (start - end) >> 21; // div by 2MiB (32 pages), #CPU
-    let size = (start - end) / nc;
-
-    let aff = aarch64::cpu::get_affinity_lv0();
-    let addr = start - size * aff as usize + aarch64::mmu::EL1_ADDR_OFFSET as usize;
+pub fn el3_to_el1(addr: &aarch64::mmu::Addr) {
+    let aff   = aarch64::cpu::get_affinity_lv0();
+    let stack = addr.stack_el1_start - addr.stack_size * aff +
+                aarch64::mmu::EL1_ADDR_OFFSET;
 
     unsafe {
         llvm_asm!(
@@ -36,7 +26,7 @@ pub fn el3_to_el1() {
              msr elr_el3, x0
              eret"
             :
-            : "r"(addr)
+            : "r"(stack)
             : "x0"
         );
     }

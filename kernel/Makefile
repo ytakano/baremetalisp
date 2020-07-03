@@ -42,8 +42,10 @@ $(RUSTLIB): FORCE
 doc:
 	cargo xdoc --target=$(TARGET) --features $(BSP) --document-private-items
 
-baremetalisp: $(RUSTLIB) $(MMU_OBJ) $(ASM_OBJ)
+link.ld.$(BSP): link.ld
 	sed "s/#INITADDR#/$(INITADDR)/" link.ld > link.ld.$(BSP)
+
+baremetalisp: $(RUSTLIB) $(MMU_OBJ) $(ASM_OBJ) link.ld.$(BSP)
 	$(LD) -m aarch64elf -nostdlib -T link.ld.$(BSP) -o baremetalisp $(ASM_OBJ) $(RUSTLIB)
 
 kernel8.img: baremetalisp

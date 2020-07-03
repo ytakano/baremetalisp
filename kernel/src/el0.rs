@@ -82,8 +82,6 @@ fn run_lisp() {
 pub fn el0_entry() -> ! {
     let addr = mmu::Addr::new();
 
-    uart::puts("Entered EL0\n");
-
     // initialize memory allocator
     slab::init(&addr);
 

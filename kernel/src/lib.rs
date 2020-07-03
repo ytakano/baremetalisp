@@ -25,6 +25,7 @@ use core::panic::PanicInfo;
 #[no_mangle]
 pub fn entry() -> ! {
     driver::init();
+
     let addr =
     match aarch64::mmu::init() {
         Some((a, _, _)) => a,
@@ -37,7 +38,7 @@ pub fn entry() -> ! {
     boot::run();
 
     match aarch64::el::get_current_el() {
-        3 => { el3::el3_to_el1(); }
+        3 => { el3::el3_to_el1(&addr); }
         2 => {
             driver::uart::puts("Warning: execution level is not EL3\n");
             el2::el2_to_el1(&addr);

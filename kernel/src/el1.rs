@@ -1,10 +1,7 @@
 use crate::aarch64;
-use crate::driver::uart;
 
 #[no_mangle]
 pub fn el1_entry() -> ! {
-    uart::puts("Entered EL1\n");
-
     let addr  = aarch64::mmu::Addr::new();
     let aff   = aarch64::cpu::get_affinity_lv0();
     let stack = addr.stack_el0_start - addr.stack_size * aff;
