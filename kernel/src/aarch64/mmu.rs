@@ -5,10 +5,10 @@ use crate::driver;
 
 //-----------------------------------------------------------------------------
 // Raspberry Pi 3
-#[cfg(any(feature = "raspi3"))]
+#[cfg(feature = "raspi3")]
 pub const DEVICE_MEM_START: u64 =  0x3C000000;
 
-#[cfg(any(feature = "raspi3"))]
+#[cfg(feature = "raspi3")]
 pub const DEVICE_MEM_END:   u64 =  0x40000000;
 
 #[cfg(feature = "raspi3")]

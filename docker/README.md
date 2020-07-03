@@ -13,7 +13,7 @@ $ docker-compose rm
 
 ## Compile Kernel in the container
 
-Docker CONTAINER!
+In Docker CONTAINER!
 ```
 $ cd /hostdir/kernel
 $ make
@@ -21,21 +21,15 @@ $ make
 
 build for Raspberry Pi 3
 ```
-$ vi link.ld
-SECTIONS
-{
-    . = 0x80000;
-/*    . = 0;*/
-
 $ make clean
 $ make BSP=raspi3
 ```
 
 ## Run in Qemu on Host
 
-HOST! Use Raspberry Pi 3's kernel image.
+On HOST! Use Raspberry Pi 3's kernel image.
 ```
-$ qemu-system-aarch64 -M raspi3 -kernel kernel8.img -serial stdio -d
+$ qemu-system-aarch64 -M raspi3 -kernel kernel8.img -serial stdio -d int
 ```
 
 ## Status of Nightly Rust

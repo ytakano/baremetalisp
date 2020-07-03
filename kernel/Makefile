@@ -15,8 +15,8 @@ else ifeq ($(BSP),pine64)
 	INITADDR = 0x40080000
 endif
 
-ASM_FILE=asm/aarch64.S
-ASM_OBJ=aarch64.o
+ASM_FILE=asm/boot.S
+ASM_OBJ=boot.o
 
 TARGET=aarch64-unknown-none
 
@@ -50,6 +50,14 @@ baremetalisp: $(RUSTLIB) $(MMU_OBJ) $(ASM_OBJ) link.ld.$(BSP)
 
 kernel8.img: baremetalisp
 	rust-objcopy -O binary baremetalisp kernel8.img
+
+AARCH64_START_ADDRESS=0x40080000
+SUNXI_FEL=sunxi-fel
+
+boot64:
+	sudo ${SUNXI_FEL} spl sunxi-a64-spl32-ddr3.bin
+	sudo ${SUNXI_FEL} write ${AARCH64_START_ADDRESS} kernel8.img
+	sudo ${SUNXI_FEL} reset64 ${AARCH64_START_ADDRESS}
 
 rmobj: FORCE
 	rm -f baremetalisp kernel8.img *.o

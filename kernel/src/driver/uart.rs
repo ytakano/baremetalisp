@@ -1,13 +1,26 @@
+#[cfg(any(feature = "raspi3", feature = "raspi4"))]
 use super::device::bcm2711;
 
+#[cfg(feature = "pine64")]
+use super::device::a64;
+
 const UART_CLOCK: u64 = 48000000;
+const UART_BAUD:  u64 = 115200;
 
 fn send(c : u32) {
+#[cfg(any(feature = "raspi3", feature = "raspi4"))]
     bcm2711::uart::send(c);
+
+#[cfg(feature = "pine64")]
+    a64::uart::send(c);
 }
 
-pub fn init(baudrate: u64) {
-    bcm2711::uart::init(UART_CLOCK, baudrate);
+pub fn init() {
+#[cfg(any(feature = "raspi3", feature = "raspi4"))]
+    bcm2711::uart::init(UART_CLOCK, UART_BAUD);
+
+#[cfg(feature = "pine64")]
+    a64::uart::init();
 }
 
 /// print characters to serial console
