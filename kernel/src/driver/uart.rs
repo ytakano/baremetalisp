@@ -15,6 +15,11 @@ fn send(c : u32) {
     a64::uart::send(c);
 }
 
+pub fn recv() -> u32{
+#[cfg(feature = "pine64")]
+    a64::uart::recv()
+}
+
 pub fn init() {
 #[cfg(any(feature = "raspi3", feature = "raspi4"))]
     bcm2711::uart::init(UART_CLOCK, UART_BAUD);
@@ -73,3 +78,4 @@ pub fn decimal(mut h: u64) {
         i -= 1;
     }
 }
+
