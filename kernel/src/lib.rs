@@ -40,6 +40,7 @@ pub fn entry() -> ! {
     driver::uart::hex(c as u64);
     driver::uart::puts("\n");
 
+
     boot::run();
 
     match aarch64::el::get_current_el() {

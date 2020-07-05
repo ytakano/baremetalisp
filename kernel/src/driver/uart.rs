@@ -1,4 +1,6 @@
+use alloc::vec::Vec;
 #[cfg(any(feature = "raspi3", feature = "raspi4"))]
+
 use super::device::bcm2711;
 
 #[cfg(feature = "pine64")]
@@ -16,7 +18,6 @@ fn send(c : u32) {
 }
 
 pub fn recv() -> u32{
-#[cfg(feature = "pine64")]
     a64::uart::recv()
 }
 
@@ -79,3 +80,14 @@ pub fn decimal(mut h: u64) {
     }
 }
 
+
+pub fn read_line() -> Vec<u8> {
+    let mut res = Vec::new();
+
+    let mut c = recv() as u8;
+    while c != 0x0A {
+       res.push(c);
+       c = recv() as u8;
+    }
+    res
+}

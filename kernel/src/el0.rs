@@ -85,6 +85,12 @@ pub fn el0_entry() -> ! {
     // initialize memory allocator
     slab::init(&addr);
 
+    uart::puts("input keys, then hit return");
+    let res = uart::read_line();
+    uart::puts("input = ");
+    uart::puts(alloc::str::from_utf8(&res).unwrap());
+    uart::puts("\n");
+
     uart::puts("global code:\n");
     uart::puts(GLOBAL_CODE);
     uart::puts("\n");
@@ -97,6 +103,7 @@ pub fn el0_entry() -> ! {
 
     let p = 0x400000000 as *mut u64;
     unsafe { *p = 10 };
+
 
     loop{}
 }
