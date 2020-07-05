@@ -18,6 +18,7 @@ fn send(c : u32) {
 }
 
 pub fn recv() -> u32{
+#[cfg(feature = "pine64")]
     a64::uart::recv()
 }
 
@@ -80,14 +81,19 @@ pub fn decimal(mut h: u64) {
     }
 }
 
-
 pub fn read_line() -> Vec<u8> {
     let mut res = Vec::new();
 
-    let mut c = recv() as u8;
-    while c != 0x0A {
-       res.push(c);
-       c = recv() as u8;
+    loop {
+        let c = recv() as u8;
+        if c == '\r' as u8 || c == '\n' as u8 {
+            break;
+        }
+        send(c as u32);
+        res.push(c);
     }
+
+    puts("\n");
+
     res
 }

@@ -26,6 +26,80 @@ const GLOBAL_CODE: &str =
     (lambda (x) (+ x z)))
 ";
 
+fn callback(x: i64, y: i64, z: i64) -> i64 {
+    let msg = format!("callback: x = {}, y = {}, z = {}\n", x, y, z);
+    uart::puts(&msg);
+    x * y * z
+}
+
+fn run_lisp() {
+    // initialize
+    match lang::init(GLOBAL_CODE) {
+        Ok(exprs) => {
+            // typing
+            match lang::typing(&exprs) {
+                Ok(mut ctx) => {
+                    // register callback function
+                    ctx.set_callback(Box::new(callback));
+
+                    repl_uart(&ctx);
+
+                    // eval
+                    //let result = lang::eval(EVAL_CODE, &ctx);
+                    //let msg = format!("{:#?}\n", result);
+                    //uart::puts(&msg);
+                }
+                Err(e) => {
+                    let msg = format!("{:#?}\n", e);
+                    uart::puts(&msg);
+                }
+            }
+        }
+        Err(e) => {
+            let msg = format!("{:#?}\n", e);
+            uart::puts(&msg);
+        }
+    }
+}
+
+fn repl_uart(ctx: &lang::semantics::Context) -> ! {
+    loop {
+        uart::puts("input code:\n");
+        let code_str = uart::read_line();
+        let code = alloc::str::from_utf8(&code_str).unwrap();
+        uart::puts("code = ");
+
+        uart::puts(code);
+        uart::puts("\n");
+        uart::puts("run\n\n");
+
+        let result = lang::eval(code, &ctx);
+        let msg = format!("{:#?}\n", result);
+        uart::puts(&msg);
+    }
+}
+
+#[no_mangle]
+pub fn el0_entry() -> ! {
+    let addr = mmu::Addr::new();
+
+    // initialize memory allocator
+    slab::init(&addr);
+
+    uart::puts("global code:\n");
+    uart::puts(GLOBAL_CODE);
+    uart::puts("\n");
+
+    run_lisp();
+
+    // let p = 0x400000000 as *mut u64;
+    // unsafe { *p = 10 };
+
+    loop{}
+}
+
+
+/*
 const EVAL_CODE: &str =
 "
 (test-callback 30 40 50)
@@ -44,112 +118,6 @@ const EVAL_CODE: &str =
     (x 50))
 ";
 
-fn callback(x: i64, y: i64, z: i64) -> i64 {
-    let msg = format!("callback: x = {}, y = {}, z = {}\n", x, y, z);
-    uart::puts(&msg);
-    x * y * z
-}
-
-fn run_lisp() {
-    // initialize
-    match lang::init(GLOBAL_CODE) {
-        Ok(exprs) => {
-            // typing
-            match lang::typing(&exprs) {
-                Ok(mut ctx) => {
-                    // register callback function
-                    ctx.set_callback(Box::new(callback));
-
-                    // eval
-                    let result = lang::eval(EVAL_CODE, &ctx);
-                    let msg = format!("{:#?}\n", result);
-                    uart::puts(&msg);
-                }
-                Err(e) => {
-                    let msg = format!("{:#?}\n", e);
-                    uart::puts(&msg);
-                }
-            }
-        }
-        Err(e) => {
-            let msg = format!("{:#?}\n", e);
-            uart::puts(&msg);
-        }
-    }
-}
-
-fn run_lisp_from_uart() {
-    // initialize
-    uart::puts("input code, then hit return");
-    let code_str = uart::read_line();
-    let code = alloc::str::from_utf8(&code_str).unwrap();
-    uart::puts("code = ");
-    		     
-    uart::puts(code);
-    uart::puts("\n");
-    uart::puts("run\n\n");
-
-    match lang::init(GLOBAL_CODE) {
-        Ok(exprs) => {
-            // typing
-            match lang::typing(&exprs) {
-                Ok(mut ctx) => {
-                    // register callback function
-                    ctx.set_callback(Box::new(callback));
-
-                    // eval
-                    let result = lang::eval(code, &ctx);
-                    let msg = format!("{:#?}\n", result);
-                    uart::puts(&msg);
-                }
-                Err(e) => {
-                    let msg = format!("{:#?}\n", e);
-                    uart::puts(&msg);
-                }
-            }
-        }
-        Err(e) => {
-            let msg = format!("{:#?}\n", e);
-            uart::puts(&msg);
-        }
-    }
-}
-
-#[no_mangle]
-pub fn el0_entry() -> ! {
-    let addr = mmu::Addr::new();
-
-    // initialize memory allocator
-    slab::init(&addr);
-
-    uart::puts("input keys, then hit return");
-    let res = uart::read_line();
-    uart::puts("input = ");
-    uart::puts(alloc::str::from_utf8(&res).unwrap());
-    uart::puts("\n");
-
-    uart::puts("global code:\n");
-    uart::puts(GLOBAL_CODE);
-    uart::puts("\n");
-
-    uart::puts("eval code:\n");
-    uart::puts(EVAL_CODE);
-    uart::puts("\n");
-
-    run_lisp();
-
-    loop{
-       run_lisp_from_uart();
-    }
-
-    let p = 0x400000000 as *mut u64;
-    unsafe { *p = 10 };
-
-    loop{}
-}
-
-
-/*
 (defun test-match (a) (Pure (-> ((Maybe Dim2)) Int))
     (match a
         ((Just val)

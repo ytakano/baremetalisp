@@ -31,13 +31,13 @@ pub fn send(c : u32) {
 pub fn recv() -> u32{
     // wait until we can send
     unsafe { llvm_asm!("nop;") };
-    while (unsafe { volatile_load(UART0_LSR) } & (1 <<0)) == 0 {
+    while unsafe { volatile_load(UART0_LSR) } & 1 == 0 {
         unsafe { llvm_asm!("nop;") };
     }
 
     let c;
     unsafe {
-        c= volatile_load(UART0_RBR);
+        c = volatile_load(UART0_RBR);
     }
     c as u32
 }

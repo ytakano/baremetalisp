@@ -34,12 +34,6 @@ pub fn entry() -> ! {
             loop{}
         }
     };
-    driver::uart::puts("input key");
-    let c =     driver::uart::recv();
-    driver::uart::puts("input = ");
-    driver::uart::hex(c as u64);
-    driver::uart::puts("\n");
-
 
     boot::run();
 
