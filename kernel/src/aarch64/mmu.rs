@@ -55,9 +55,9 @@ pub const KERN_TTBR0_LV3_TABLE_NUM: usize = 8;
 pub const KERN_TTBR0_TABLE_NUM: usize = KERN_TTBR0_LV2_TABLE_NUM + KERN_TTBR0_LV3_TABLE_NUM;
 
 // level 2 table x 1 (for 4TiB space)
-// level 3 table x 1 (for 512MiB space)
+// level 3 table x 4 (for 2GiB space)
 pub const KERN_TTBR1_LV2_TABLE_NUM: usize = 1;
-pub const KERN_TTBR1_LV3_TABLE_NUM: usize = 1;
+pub const KERN_TTBR1_LV3_TABLE_NUM: usize = 4;
 pub const KERN_TTBR1_TABLE_NUM: usize = KERN_TTBR1_LV2_TABLE_NUM + KERN_TTBR1_LV3_TABLE_NUM;
 
 extern "C" {
@@ -328,7 +328,7 @@ impl TTable {
 
         if lv2idx >= self.num_lv3 {
             // memory access error
-            return;
+            panic!("memory map error");
         }
 
         let e = phy_addr & !((1 << 16) - 1) | flag;
@@ -342,7 +342,7 @@ impl TTable {
 
         if lv2idx >= self.num_lv3 {
             // memory access error
-            return;
+            panic!("memory unmap error");
         }
 
         let idx = lv2idx * 8192 + lv3idx;
