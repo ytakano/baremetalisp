@@ -6,6 +6,7 @@ use super::memory;
 pub const SUNXI_UART0_BASE: u32 = (memory::MMIO_BASE + 0x00028000) as u32;
 
 pub const UART0_THR: *mut u64 = (SUNXI_UART0_BASE + 0x00) as *mut u64; // transmit holding register
+pub const UART0_RBR: *mut u64 = (SUNXI_UART0_BASE + 0x00) as *mut u64; // receive holding register
 pub const UART0_FCR: *mut u64 = (SUNXI_UART0_BASE + 0x08) as *mut u64; // fifo control register
 pub const UART0_LSR: *mut u32 = (SUNXI_UART0_BASE + 0x14) as *mut u32; // line status register
 
@@ -25,4 +26,18 @@ pub fn send(c : u32) {
     unsafe {
         volatile_store(UART0_THR, c as u64);
     }
+}
+
+pub fn recv() -> u32{
+    // wait until we can send
+    unsafe { llvm_asm!("nop;") };
+    while (unsafe { volatile_load(UART0_LSR) } & (1 <<0)) == 0 {
+        unsafe { llvm_asm!("nop;") };
+    }
+
+    let c;
+    unsafe {
+        c= volatile_load(UART0_RBR);
+    }
+    c as u32
 }

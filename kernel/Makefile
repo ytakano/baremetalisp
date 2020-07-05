@@ -1,19 +1,7 @@
 # Default to the RPi4
-ifndef $(BSP)
-	BSP = raspi4
-endif
-
-# BSP-specific arguments
-ifeq ($(BSP),raspi3)
-	RUSTC_MISC_ARGS = -C target-cpu=cortex-a53
-	INITADDR = 0x80000
-else ifeq ($(BSP),raspi4)
-	RUSTC_MISC_ARGS = -C target-cpu=cortex-a72
-	INITADDR = 0
-else ifeq ($(BSP),pine64)
-	RUSTC_MISC_ARGS = -C target-cpu=cortex-a53
-	INITADDR = 0x40080000
-endif
+BSP=pine64
+INITADDR = 0x40080000
+RUSTC_MISC_ARGS = -C target-cpu=cortex-a53
 
 ASM_FILE=asm/boot.S
 ASM_OBJ=boot.o
