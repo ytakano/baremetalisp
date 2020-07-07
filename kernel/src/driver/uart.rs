@@ -17,9 +17,12 @@ fn send(c : u32) {
     a64::uart::send(c);
 }
 
-pub fn recv() -> u32{
+pub fn recv() -> u32 {
 #[cfg(feature = "pine64")]
-    a64::uart::recv()
+    return a64::uart::recv();
+
+#[cfg(any(feature = "raspi3", feature = "raspi4"))]
+    return '\n' as u32;
 }
 
 pub fn init() {

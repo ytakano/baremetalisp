@@ -22,8 +22,8 @@ extern crate alloc;
 
 use core::panic::PanicInfo;
 
-#[no_mangle]
-pub fn entry() -> ! {
+/// initialization for the master CPU
+fn init_master() {
     driver::init();
 
     let addr =
@@ -31,11 +31,14 @@ pub fn entry() -> ! {
         Some((a, _, _)) => a,
         None => {
             driver::uart::puts("Error: failed to initialize MMU\n");
-            loop{}
+            aarch64::delays::infinite_loop();
         }
     };
 
     boot::run();
+
+//    aarch64::cpu::send_event();
+//    aarch64::delays::infinite_loop();
 
     match aarch64::el::get_current_el() {
         3 => { el3::el3_to_el1(&addr); }
@@ -47,14 +50,28 @@ pub fn entry() -> ! {
             driver::uart::puts("Error: execution level is not EL3\n");
         }
     }
+}
 
-//    driver::uart::puts("halting...\n");
-//    driver::power::shutdown();
+/// initialization for slave CPUs
+fn init_slave() -> ! {
+//    aarch64::mmu::set_regs();
+    if aarch64::cpu::get_affinity_lv0() == 2 {
+        driver::uart::puts("initialized CPU #2\n");
+        aarch64::cpu::send_event();
+    }
+    aarch64::delays::infinite_loop()
+}
 
-//    driver::uart::puts("reseting...\n");
-//    driver::power::reset();
+#[no_mangle]
+pub fn entry() -> ! {
+    if aarch64::cpu::get_affinity_lv0() == 0 {
+        init_master();
+    } else {
+        aarch64::delays::infinite_loop();
+        init_slave();
+    }
 
-    loop {}
+    aarch64::delays::infinite_loop()
 }
 
 #[lang = "eh_personality"]
@@ -76,10 +93,10 @@ fn panic(info: &PanicInfo) -> ! {
         driver::uart::puts("\n");
     }
 
-    loop {}
+    aarch64::delays::infinite_loop();
 }
 
 #[no_mangle]
 pub fn abort() -> ! {
-    loop {}
+    aarch64::delays::infinite_loop();
 }

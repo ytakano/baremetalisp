@@ -25,3 +25,9 @@ pub fn wait_microsec(n: u32) {
         unsafe { llvm_asm!("mrs %0, cntpct_el0" : "=r"(r)) };
     }
 }
+
+pub fn infinite_loop() -> ! {
+    loop {
+        unsafe { llvm_asm!("wfe") };
+    }
+}

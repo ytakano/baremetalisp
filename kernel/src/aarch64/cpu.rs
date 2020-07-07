@@ -1,4 +1,3 @@
-
 pub fn get_affinity_lv0() -> u64 {
     let mut ret: u64;
 
@@ -12,4 +11,12 @@ pub fn get_affinity_lv0() -> u64 {
     }
 
     ret
+}
+
+pub fn send_event() {
+    unsafe { llvm_asm!("sev"); }
+}
+
+pub fn wait_event() {
+    unsafe { llvm_asm!("wfe"); }
 }

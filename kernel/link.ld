@@ -21,7 +21,7 @@ SECTIONS
 
     /* 8MiB space for EL3 or El2 */
     __stack_firm_end   = .;
-    __stack_firm_start = __stack_firm_end + 1024 * 1024 * 8;
+    __stack_firm_start = __stack_firm_end + #STACKSIZE# * #NUMCPU#;
 
     __free_mem_start = __stack_firm_start;
 

@@ -112,11 +112,6 @@
 
 _start:
 completed:
-//    bl      mmu_init
-//    bl      entry
-	// set stack before _start
-    ldr     x1, =__stack_firm_start
-    mov     sp, x1
     /* Set up CNTFRQ_EL0 */
     ldr x0, =OSC_FREQ
     msr CNTFRQ_EL0, x0
@@ -147,24 +142,31 @@ completed:
 
     // disable all interrupt (daif at bits 9..6)
     msr     DAIFSet, #0x0f
-    // read cpu id, stop slave cores
-    mrs     x1, mpidr_el1
-    and     x1, x1, #0xFF
-    cbz     x1, .L2
 
+    mrs     x1, scr_el3
+    orr     x1, x1, #0b1110 // EA, FIQ, IRQ
+    msr     scr_el3, x1
+    msr     DAIFClr, #0x0f // enable all interrupt
+
+    // set stack before _start
+    ldr     x1, =__stack_firm_start
+    mrs     x2, mpidr_el1 // read cpu id
+    and     x2, x2, #0xFF
+//    mov     x4, #(STACKSIZE) // set stack
+//    mul     x3, x2, x4
+//    sub     x1, x1, x3
+    mov     sp, x1
+
+    // stop slave cores
+    cbz     x2, .L2
 
     // if cpu id > 0 then stop
 .L1:
     wfe
-    b       .L1
+    b       .L4
 
-    // if cpu id == 0
     // if cpu id == 0
 .L2:
-    // set stack before _start
-    ldr     x1, =__stack_firm_start
-    mov     sp, x1
-
     // clear bss
     ldr     x1, =__bss_start
     ldr     w2, =__bss_size
@@ -178,8 +180,6 @@ completed:
 .L4:
     // set exception vector
     ldr     x1, =exception_vector_el1
-//    mov     x2, #(0xFFFFFC << 40) // 64KiB page tables, 22 MSB bits are 1
-//    add     x1, x1, x2
     msr     vbar_el1, x1
 
     ldr     x1, =exception_vector_el2
@@ -204,7 +204,6 @@ completed:
 
     msr     DAIFClr, #0x0f // enable all interrupt
 
-	//    bl      main
 	bl entry
 .L5:
     wfe

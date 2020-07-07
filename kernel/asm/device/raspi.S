@@ -165,10 +165,17 @@ _start:
     // disable all interrupt (daif at bits 9..6)
     msr     DAIFSet, #0x0f
 
-    // read cpu id, stop slave cores
-    mrs     x1, mpidr_el1
-    and     x1, x1, #0xFF
-    cbz     x1, .L2
+    // set stack before _start
+    ldr     x1, =__stack_firm_start
+    mrs     x2, mpidr_el1 // read cpu id
+//    and     x2, x2, #0xFF
+//    mov     x4, #(STACKSIZE)
+//    mul     x3, x2, x4
+//    sub     x1, x1, x3
+    mov     sp, x1
+
+    // stop slave cores
+    cbz     x2, .L2
 
     // if cpu id > 0 then stop
 .L1:
@@ -177,10 +184,6 @@ _start:
 
     // if cpu id == 0
 .L2:
-    // set stack before _start
-    ldr     x1, =__stack_firm_start
-    mov     sp, x1
-
     // clear bss
     ldr     x1, =__bss_start
     ldr     w2, =__bss_size

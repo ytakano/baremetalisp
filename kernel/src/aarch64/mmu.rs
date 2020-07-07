@@ -393,6 +393,20 @@ fn set_sctlr(sctlr: u32) {
     }
 }
 
+/// set registers
+pub fn set_regs() {
+    let addr = Addr::new();
+
+    if el::get_current_el() == 2 {
+        set_reg_el2(addr.tt_firm_start as usize);
+    } else {
+        set_reg_el3(addr.tt_firm_start as usize);
+    };
+
+    set_reg_el1(addr.tt_el1_ttbr0_start as usize, addr.tt_el1_ttbr1_start as usize);
+}
+
+/// initialize transition tables
 pub fn init() -> Option<(Addr, TTable, (TTable, TTable))> {
     let addr = Addr::new();
 
@@ -490,6 +504,12 @@ fn init_firm(addr: &Addr) -> TTable {
         stack_end += PAGESIZE;
     }
 
+    for i in 0..NUM_CPU {
+        let stack_end = unsafe { &__stack_firm_end as *const u64 as u64 };
+        let addr = stack_end + i * addr.stack_size;
+        table.unmap(addr);
+    }
+
     // map non cached memory
     let mut no_cache_start = addr.no_cache_start;
     let flag = FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_MEM | 0b11;
@@ -537,7 +557,11 @@ fn init_firm(addr: &Addr) -> TTable {
 /// assume 2MiB stack space per CPU
 fn init_el3(addr: &Addr) -> TTable {
     let table = init_firm(addr);
+    set_reg_el3(addr.tt_firm_start as usize);
+    table
+}
 
+fn set_reg_el3(ttbr: usize) {
     // first, set Memory Attributes array, indexed by PT_MEM, PT_DEV, PT_NC in our example
     unsafe { llvm_asm!("msr mair_el3, $0" : : "r" (get_mair())) };
 
@@ -545,20 +569,22 @@ fn init_el3(addr: &Addr) -> TTable {
     unsafe { llvm_asm!("msr tcr_el3, $0" : : "r" (get_tcr())) };
 
     // tell the MMU where our translation tables are.
-    unsafe { llvm_asm!("msr ttbr0_el3, $0" : : "r" (addr.tt_firm_start | 1)) };
+    unsafe { llvm_asm!("msr ttbr0_el3, $0" : : "r" (ttbr | 1)) };
 
     // finally, toggle some bits in system control register to enable page translation
     let mut sctlr: u64;
     unsafe { llvm_asm!("dsb ish; isb; mrs $0, sctlr_el3" : "=r" (sctlr)) };
     sctlr = update_sctlr(sctlr);
     unsafe { llvm_asm!("msr sctlr_el3, $0; dsb sy; isb" : : "r" (sctlr)) };
-
-    table
 }
 
 fn init_el2(addr: &Addr) -> TTable {
     let table = init_firm(addr);
+    set_reg_el2(addr.tt_firm_start as usize);
+    table
+}
 
+fn set_reg_el2(ttbr: usize) {
     // first, set Memory Attributes array, indexed by PT_MEM, PT_DEV, PT_NC in our example
     unsafe { llvm_asm!("msr mair_el2, $0" : : "r" (get_mair())) };
 
@@ -566,15 +592,13 @@ fn init_el2(addr: &Addr) -> TTable {
     unsafe { llvm_asm!("msr tcr_el2, $0" : : "r" (get_tcr())) };
 
     // tell the MMU where our translation tables are.
-    unsafe { llvm_asm!("msr ttbr0_el2, $0" : : "r" (addr.tt_firm_start | 1)) };
+    unsafe { llvm_asm!("msr ttbr0_el2, $0" : : "r" (ttbr | 1)) };
 
     // finally, toggle some bits in system control register to enable page translation
     let mut sctlr: u64;
     unsafe { llvm_asm!("dsb ish; isb; mrs $0, sctlr_el2" : "=r" (sctlr)) };
     sctlr = update_sctlr(sctlr);
     unsafe { llvm_asm!("msr sctlr_el2, $0; dsb sy; isb" : : "r" (sctlr)) };
-
-    table
 }
 
 /// set up EL1's page table, 64KB page, level 2 and 3 translation tables,
@@ -609,6 +633,11 @@ fn init_el1(addr: &Addr) -> (TTable, TTable) {
         stack_end += PAGESIZE;
     }
 
+    for i in 0..NUM_CPU {
+        let addr = addr.stack_el0_end + i * addr.stack_size;
+        table0.unmap(addr);
+    }
+
     // map userland heap
     let mut heap_start = addr.el0_heap_start;
     let flag = FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_RW | FLAG_L3_ATTR_MEM | 0b11;
@@ -637,6 +666,11 @@ fn init_el1(addr: &Addr) -> (TTable, TTable) {
         stack_end += PAGESIZE;
     }
 
+    for i in 0..NUM_CPU {
+        let addr = addr.stack_el1_end + i * addr.stack_size;
+        table1.unmap(addr);
+    }
+
     // map transition table for TTBR0
     let mut tt_start = addr.tt_el1_ttbr0_start;
     let flag = FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_MEM | FLAG_L3_ATTR_NC | 0b11;
@@ -655,6 +689,12 @@ fn init_el1(addr: &Addr) -> (TTable, TTable) {
 
     //-------------------------------------------------------------------------
 
+    set_reg_el1(addr.tt_el1_ttbr0_start as usize, addr.tt_el1_ttbr1_start as usize);
+
+    (table0, table1)
+}
+
+fn set_reg_el1(ttbr0: usize, ttbr1: usize) {
     // first, set Memory Attributes array, indexed by PT_MEM, PT_DEV, PT_NC in our example
     unsafe { llvm_asm!("msr mair_el1, $0" : : "r" (get_mair())) };
 
@@ -679,8 +719,8 @@ fn init_el1(addr: &Addr) -> (TTable, TTable) {
     unsafe { llvm_asm!("msr tcr_el1, $0" : : "r" (tcr)) };
 
     // tell the MMU where our translation tables are.
-    unsafe { llvm_asm!("msr ttbr0_el1, $0" : : "r" (addr.tt_el1_ttbr0_start | 1)) };
-    unsafe { llvm_asm!("msr ttbr1_el1, $0" : : "r" (addr.tt_el1_ttbr1_start | 1)) };
+    unsafe { llvm_asm!("msr ttbr0_el1, $0" : : "r" (ttbr0 | 1)) };
+    unsafe { llvm_asm!("msr ttbr1_el1, $0" : : "r" (ttbr1 | 1)) };
 
     // finally, toggle some bits in system control register to enable page translation
     let mut sctlr: u64;
@@ -690,6 +730,4 @@ fn init_el1(addr: &Addr) -> (TTable, TTable) {
         1 << 4 // clear SA0
     );
     unsafe { llvm_asm!("msr sctlr_el1, $0; dsb sy; isb" : : "r" (sctlr)) };
-
-    (table0, table1)
 }

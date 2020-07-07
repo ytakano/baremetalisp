@@ -1,7 +1,13 @@
-# Default to the RPi4
+# Default to the Pine64
 ifndef $(BSP)
 	BSP = pine64
 endif
+
+# 2MiB Stack
+STACKSIZE = 1024 * 1024 * 2
+
+# 4 CPUs
+NUMCPU = 4
 
 # BSP-specific arguments
 ifeq ($(BSP),raspi3)
@@ -34,7 +40,7 @@ endif
 all: kernel8.img
 
 $(ASM_OBJ): $(ASM_FILE)
-	$(CC) --target=aarch64-elf -c $(ASM_FILE) -o $(ASM_OBJ) -D$(BSP)
+	$(CC) --target=aarch64-elf -c $(ASM_FILE) -o $(ASM_OBJ) -D$(BSP) -DSTACKSIZE="$(STACKSIZE)"
 
 $(RUSTLIB): FORCE
 	RUSTFLAGS="$(RUSTFLAGS)" cargo xrustc --features $(BSP) --target $(TARGET) --release
@@ -43,7 +49,7 @@ doc:
 	cargo xdoc --target=$(TARGET) --features $(BSP) --document-private-items
 
 link.ld.$(BSP): link.ld
-	sed "s/#INITADDR#/$(INITADDR)/" link.ld > link.ld.$(BSP)
+	sed "s/#INITADDR#/$(INITADDR)/" link.ld | sed "s/#STACKSIZE#/$(STACKSIZE)/" | sed "s/#NUMCPU#/$(NUMCPU)/" > link.ld.$(BSP)
 
 baremetalisp: $(RUSTLIB) $(MMU_OBJ) $(ASM_OBJ) link.ld.$(BSP)
 	$(LD) -m aarch64elf -nostdlib -T link.ld.$(BSP) -o baremetalisp $(ASM_OBJ) $(RUSTLIB)

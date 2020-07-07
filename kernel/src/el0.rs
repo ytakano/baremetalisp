@@ -1,7 +1,7 @@
 use crate::slab;
 use crate::lang;
 use crate::driver::uart;
-use crate::aarch64::mmu;
+use crate::aarch64::{mmu, delays, cpu};
 
 use alloc::boxed::Box;
 
@@ -86,6 +86,10 @@ pub fn el0_entry() -> ! {
     // initialize memory allocator
     slab::init(&addr);
 
+    // wake up slave CPUs
+    cpu::send_event();
+    cpu::wait_event();
+
     uart::puts("global code:\n");
     uart::puts(GLOBAL_CODE);
     uart::puts("\n");
@@ -95,7 +99,7 @@ pub fn el0_entry() -> ! {
     // let p = 0x400000000 as *mut u64;
     // unsafe { *p = 10 };
 
-    loop{}
+    delays::infinite_loop()
 }
 
 

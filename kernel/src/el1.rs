@@ -22,5 +22,5 @@ pub fn el1_entry() -> ! {
         );
     }
 
-    loop{}
+    aarch64::delays::infinite_loop()
 }
