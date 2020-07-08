@@ -21,6 +21,8 @@ else ifeq ($(BSP),pine64)
 	INITADDR = 0x40080000
 endif
 
+ASM_FILE_DEP=asm/device/raspi.S asm/device/pine64.S
+
 ASM_FILE=asm/boot.S
 ASM_OBJ=boot.o
 
@@ -39,7 +41,7 @@ endif
 
 all: kernel8.img
 
-$(ASM_OBJ): $(ASM_FILE)
+$(ASM_OBJ): $(ASM_FILE) $(ASM_FILE_DEP)
 	$(CC) --target=aarch64-elf -c $(ASM_FILE) -o $(ASM_OBJ) -D$(BSP) -DSTACKSIZE="$(STACKSIZE)"
 
 $(RUSTLIB): FORCE

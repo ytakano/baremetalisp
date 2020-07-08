@@ -65,3 +65,18 @@ pub fn send(c : u32) {
         volatile_store(UART0_DR, c);
     }
 }
+
+pub fn recv() -> u32 {
+    // wait until something is in the buffer
+    unsafe { llvm_asm!("nop;") };
+    while unsafe { volatile_load(UART0_FR) } & 0x10 != 0 {
+        unsafe { llvm_asm!("nop;") };
+    }
+
+    // write the character to the buffer
+    let c;
+    unsafe {
+        c = volatile_load(UART0_DR);
+    }
+    c as u32
+}

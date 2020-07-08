@@ -28,7 +28,7 @@ pub fn send(c : u32) {
     }
 }
 
-pub fn recv() -> u32{
+pub fn recv() -> u32 {
     // wait until we can send
     unsafe { llvm_asm!("nop;") };
     while unsafe { volatile_load(UART0_LSR) } & 1 == 0 {

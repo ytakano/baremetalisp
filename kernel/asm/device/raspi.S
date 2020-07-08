@@ -168,19 +168,13 @@ _start:
     // set stack before _start
     ldr     x1, =__stack_firm_start
     mrs     x2, mpidr_el1 // read cpu id
-//    and     x2, x2, #0xFF
-//    mov     x4, #(STACKSIZE)
-//    mul     x3, x2, x4
-//    sub     x1, x1, x3
+    and     x2, x2, #0xFF
+    mov     x4, #(STACKSIZE)
+    mul     x3, x2, x4
+    sub     x1, x1, x3
     mov     sp, x1
 
-    // stop slave cores
-    cbz     x2, .L2
-
-    // if cpu id > 0 then stop
-.L1:
-    wfe
-    b       .L1
+    cbnz    x2, .L4
 
     // if cpu id == 0
 .L2:
@@ -196,8 +190,6 @@ _start:
 .L4:
     // set exception vector
     ldr     x1, =exception_vector_el1
-//    mov     x2, #(0xFFFFFC << 40) // 64KiB page tables, 22 MSB bits are 1
-//    add     x1, x1, x2
     msr     vbar_el1, x1
 
     ldr     x1, =exception_vector_el2

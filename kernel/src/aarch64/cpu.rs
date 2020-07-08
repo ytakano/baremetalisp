@@ -20,3 +20,17 @@ pub fn send_event() {
 pub fn wait_event() {
     unsafe { llvm_asm!("wfe"); }
 }
+
+pub fn start_non_primary() {
+    if cfg!(feature = "raspi3") {
+        unsafe {
+            llvm_asm!(
+                "mov x1, #0xe0
+                 ldr x2, =_start
+                 str x2, [x1]
+                 str x2, [x1,  8] // core #2
+                 str x2, [x1, 16] // core #3"
+            );
+        }
+    }
+}

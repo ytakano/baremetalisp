@@ -36,9 +36,7 @@ fn init_master() {
     };
 
     boot::run();
-
-//    aarch64::cpu::send_event();
-//    aarch64::delays::infinite_loop();
+    aarch64::cpu::start_non_primary();
 
     match aarch64::el::get_current_el() {
         3 => { el3::el3_to_el1(&addr); }
@@ -54,11 +52,8 @@ fn init_master() {
 
 /// initialization for slave CPUs
 fn init_slave() -> ! {
-//    aarch64::mmu::set_regs();
-    if aarch64::cpu::get_affinity_lv0() == 2 {
-        driver::uart::puts("initialized CPU #2\n");
-        aarch64::cpu::send_event();
-    }
+    aarch64::mmu::set_regs();
+    //driver::uart::puts("initialized slaves\n");
     aarch64::delays::infinite_loop()
 }
 
@@ -67,7 +62,6 @@ pub fn entry() -> ! {
     if aarch64::cpu::get_affinity_lv0() == 0 {
         init_master();
     } else {
-        aarch64::delays::infinite_loop();
         init_slave();
     }
 

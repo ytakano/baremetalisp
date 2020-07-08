@@ -22,7 +22,7 @@ pub fn recv() -> u32 {
     return a64::uart::recv();
 
 #[cfg(any(feature = "raspi3", feature = "raspi4"))]
-    return '\n' as u32;
+    return bcm2711::uart::recv();
 }
 
 pub fn init() {

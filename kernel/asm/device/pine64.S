@@ -143,18 +143,13 @@ completed:
     // disable all interrupt (daif at bits 9..6)
     msr     DAIFSet, #0x0f
 
-    mrs     x1, scr_el3
-    orr     x1, x1, #0b1110 // EA, FIQ, IRQ
-    msr     scr_el3, x1
-    msr     DAIFClr, #0x0f // enable all interrupt
-
     // set stack before _start
     ldr     x1, =__stack_firm_start
     mrs     x2, mpidr_el1 // read cpu id
     and     x2, x2, #0xFF
-//    mov     x4, #(STACKSIZE) // set stack
-//    mul     x3, x2, x4
-//    sub     x1, x1, x3
+    mov     x4, #(STACKSIZE) // set stack
+    mul     x3, x2, x4
+    sub     x1, x1, x3
     mov     sp, x1
 
     // stop slave cores
@@ -163,7 +158,7 @@ completed:
     // if cpu id > 0 then stop
 .L1:
     wfe
-    b       .L4
+    b       .L1
 
     // if cpu id == 0
 .L2:
@@ -204,7 +199,7 @@ completed:
 
     msr     DAIFClr, #0x0f // enable all interrupt
 
-	bl entry
+    bl      entry
 .L5:
     wfe
     b       .L5

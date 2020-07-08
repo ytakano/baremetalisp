@@ -579,8 +579,13 @@ fn set_reg_el3(ttbr: usize) {
 }
 
 fn init_el2(addr: &Addr) -> TTable {
-    let table = init_firm(addr);
+    let mut table = init_firm(addr);
+
+    let flag = FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_MEM | FLAG_L3_ATTR_NC | 0b11;
+    table.map(0, 0, flag);
+
     set_reg_el2(addr.tt_firm_start as usize);
+
     table
 }
 
