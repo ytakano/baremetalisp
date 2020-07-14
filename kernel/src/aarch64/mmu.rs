@@ -6,13 +6,13 @@ use crate::driver;
 //-----------------------------------------------------------------------------
 // Raspberry Pi 3
 #[cfg(feature = "raspi3")]
-pub const DEVICE_MEM_START: u64 =  0x3C000000;
+pub const DEVICE_MEM_START: u64 = 0x3C000000;
 
 #[cfg(feature = "raspi3")]
-pub const DEVICE_MEM_END:   u64 =  0x40000000;
+pub const DEVICE_MEM_END: u64 = 0x40000000;
 
 #[cfg(feature = "raspi3")]
-pub const NUM_CPU:          u64 = 4;
+pub const NUM_CPU: u64 = 4;
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
@@ -21,24 +21,23 @@ pub const NUM_CPU:          u64 = 4;
 pub const DEVICE_MEM_START: u64 = 0x0fd000000; // maybe...
 
 #[cfg(feature = "raspi4")]
-pub const DEVICE_MEM_END:   u64 = 0x100000000; // maybe...
+pub const DEVICE_MEM_END: u64 = 0x100000000; // maybe...
 
 #[cfg(feature = "raspi4")]
-pub const NUM_CPU:          u64 = 4;
+pub const NUM_CPU: u64 = 4;
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
 // PINE64
 #[cfg(feature = "pine64")]
-pub const DEVICE_MEM_START: u64 =  0x01C00000;
+pub const DEVICE_MEM_START: u64 = 0x01C00000;
 
 #[cfg(feature = "pine64")]
-pub const DEVICE_MEM_END:   u64 =  0x01F10000;
+pub const DEVICE_MEM_END: u64 = 0x01F10000;
 
 #[cfg(feature = "pine64")]
-pub const NUM_CPU:          u64 = 4;
+pub const NUM_CPU: u64 = 4;
 //-----------------------------------------------------------------------------
-
 
 pub const EL1_ADDR_OFFSET: u64 = 0x3FFFFF << 42;
 
@@ -79,12 +78,12 @@ const PAGESIZE: u64 = 64 * 1024;
 // NSTable (63bit)
 const FLAG_L2_NS: u64 = 1 << 63; // non secure table
 
-const FLAG_L3_XN:   u64 = 1 << 54; // execute never
-const FLAG_L3_PXN:  u64 = 1 << 53; // priviledged execute
+const FLAG_L3_XN: u64 = 1 << 54; // execute never
+const FLAG_L3_PXN: u64 = 1 << 53; // priviledged execute
 const FLAG_L3_CONT: u64 = 1 << 52; // contiguous
-const FLAG_L3_DBM:  u64 = 1 << 51; // dirty bit modifier
-const FLAG_L3_AF:   u64 = 1 << 10; // access flag
-const FLAG_L3_NS:   u64 = 1 <<  5; // non secure
+const FLAG_L3_DBM: u64 = 1 << 51; // dirty bit modifier
+const FLAG_L3_AF: u64 = 1 << 10; // access flag
+const FLAG_L3_NS: u64 = 1 << 5; // non secure
 
 // [9:8]: Shareability attribute, for Normal memory
 //    | Shareability
@@ -104,24 +103,24 @@ const FLAG_L3_ISH: u64 = 0b11 << 8;
 // 01 | read/write             | read/write
 // 10 | read-only              | none
 // 11 | read-only              | read-only
-const FLAG_L3_SH_RW_N:  u64 =    0;
-const FLAG_L3_SH_RW_RW: u64 =    1 << 6;
-const FLAG_L3_SH_R_N:   u64 = 0b10 << 6;
-const FLAG_L3_SH_R_R:   u64 = 0b11 << 6;
+const FLAG_L3_SH_RW_N: u64 = 0;
+const FLAG_L3_SH_RW_RW: u64 = 1 << 6;
+const FLAG_L3_SH_R_N: u64 = 0b10 << 6;
+const FLAG_L3_SH_R_R: u64 = 0b11 << 6;
 
 // [4:2]: AttrIndx
 // defined in MAIR register
 // see get_mair()
-const FLAG_L3_ATTR_MEM: u64 = 0     ; // normal memory
+const FLAG_L3_ATTR_MEM: u64 = 0; // normal memory
 const FLAG_L3_ATTR_DEV: u64 = 1 << 2; // device MMIO
-const FLAG_L3_ATTR_NC:  u64 = 2 << 2; // non-cachable
+const FLAG_L3_ATTR_NC: u64 = 2 << 2; // non-cachable
 
 // transition table
 pub struct TTable {
     tt_lv2: &'static mut [u64],
     tt_lv3: &'static mut [u64],
     num_lv2: usize,
-    num_lv3: usize
+    num_lv3: usize,
 }
 
 pub struct VMTables {
@@ -149,44 +148,44 @@ pub struct Addr {
     pub stack_el0_end: u64,
     pub stack_el0_start: u64,
     pub el0_heap_start: u64,
-    pub el0_heap_end: u64
+    pub el0_heap_end: u64,
 }
 
 impl Addr {
     pub fn new() -> Addr {
         let no_cache_start = unsafe { &__free_mem_start as *const u64 as u64 };
-        let no_cache_end   = no_cache_start + PAGESIZE;
+        let no_cache_end = no_cache_start + PAGESIZE;
 
         // MMU's transition table for firmware
         let tt_firm_start = no_cache_end;
-        let tt_firm_end   = tt_firm_start + PAGESIZE * FIRM_TABLE_NUM as u64;
+        let tt_firm_end = tt_firm_start + PAGESIZE * FIRM_TABLE_NUM as u64;
 
         // MMU's transition table #0 for EL1
         let tt_el1_ttbr0_start = tt_firm_end;
-        let tt_el1_ttbr0_end   = tt_el1_ttbr0_start + PAGESIZE * KERN_TTBR0_TABLE_NUM as u64;
+        let tt_el1_ttbr0_end = tt_el1_ttbr0_start + PAGESIZE * KERN_TTBR0_TABLE_NUM as u64;
 
         // MMU's transition table #1 for EL1
         // level 2 table x 1 (for 4TiB space)
         // level 3 table x 1 (for 512MiB space)
         let tt_el1_ttbr1_start = tt_el1_ttbr0_end;
-        let tt_el1_ttbr1_end   = tt_el1_ttbr1_start + PAGESIZE * KERN_TTBR1_TABLE_NUM as u64;
+        let tt_el1_ttbr1_end = tt_el1_ttbr1_start + PAGESIZE * KERN_TTBR1_TABLE_NUM as u64;
 
         // 2MiB stack x NUM_CPU
         let stack_size = 32 * PAGESIZE * NUM_CPU;
 
         // EL1's stack
-        let stack_el1_end   = tt_el1_ttbr1_end;
+        let stack_el1_end = tt_el1_ttbr1_end;
         let stack_el1_start = stack_el1_end + stack_size;
 
         // EL0's stack
-        let stack_el0_end   = stack_el1_start;
+        let stack_el0_end = stack_el1_start;
         let stack_el0_start = stack_el0_end + stack_size;
 
         // heap memory for EL0
         let el0_heap_start = stack_el0_start;
-        let el0_heap_end   = el0_heap_start + PAGESIZE * 1024; // 64MiB
+        let el0_heap_end = el0_heap_start + PAGESIZE * 1024; // 64MiB
 
-        Addr{
+        Addr {
             no_cache_start: no_cache_start,
             no_cache_end: no_cache_end,
             tt_firm_start: tt_firm_start,
@@ -201,7 +200,7 @@ impl Addr {
             stack_el0_end: stack_el0_end,
             stack_el0_start: stack_el0_start,
             el0_heap_start: el0_heap_start,
-            el0_heap_end: el0_heap_end
+            el0_heap_end: el0_heap_end,
         }
     }
 
@@ -295,7 +294,7 @@ impl Addr {
 }
 
 impl TTable {
-    fn new(tt_addr: u64, num_lv2 : usize, num_lv3 : usize) -> TTable {
+    fn new(tt_addr: u64, num_lv2: usize, num_lv3: usize) -> TTable {
         let ptr = tt_addr as *mut u64;
         let tt_lv2 = unsafe { slice::from_raw_parts_mut(ptr, 8192 * num_lv2) };
 
@@ -319,7 +318,12 @@ impl TTable {
             tt_lv2[i] = (&tt_lv3[i * 8192] as *const u64) as u64 | 0b11;
         }
 
-        TTable{tt_lv2: tt_lv2, tt_lv3: tt_lv3, num_lv2: num_lv2, num_lv3: num_lv3}
+        TTable {
+            tt_lv2: tt_lv2,
+            tt_lv3: tt_lv3,
+            num_lv2: num_lv2,
+            num_lv3: num_lv3,
+        }
     }
 
     fn map(&mut self, vm_addr: u64, phy_addr: u64, flag: u64) {
@@ -403,7 +407,10 @@ pub fn set_regs() {
         set_reg_el3(addr.tt_firm_start as usize);
     };
 
-    set_reg_el1(addr.tt_el1_ttbr0_start as usize, addr.tt_el1_ttbr1_start as usize);
+    set_reg_el1(
+        addr.tt_el1_ttbr0_start as usize,
+        addr.tt_el1_ttbr1_start as usize,
+    );
 }
 
 /// initialize transition tables
@@ -416,12 +423,16 @@ pub fn init() -> Option<(Addr, TTable, (TTable, TTable))> {
     let mut mmfr: u64;
     unsafe { llvm_asm!("mrs $0, id_aa64mmfr0_el1" : "=r" (mmfr)) };
     let b = mmfr & 0xF;
-    if b < 1 /* 36 bits */ {
+    if b < 1
+    /* 36 bits */
+    {
         driver::uart::puts("ERROR: 36 bit address space not supported\n");
         return None;
     }
 
-    if mmfr & (0xF << 24) != 0 /* 64KiB */ {
+    if mmfr & (0xF << 24) != 0
+    /* 64KiB */
+    {
         driver::uart::puts("ERROR: 64KiB granule not supported\n");
         return None;
     }
@@ -440,7 +451,7 @@ pub fn init() -> Option<(Addr, TTable, (TTable, TTable))> {
 fn get_mair() -> u64 {
     (0xFF <<  0) | // AttrIdx=0: normal, IWBWA, OWBWA, NTR
     (0x04 <<  8) | // AttrIdx=1: device, nGnRE (must be OSH too)
-    (0x44 << 16)   // AttrIdx=2: non cacheable
+    (0x44 << 16) // AttrIdx=2: non cacheable
 }
 
 /// for TCR_EL2 and TCR_EL2
@@ -456,22 +467,23 @@ fn get_tcr() -> u64 {
     3 << 12 | // inner shadable
     1 << 10 | // Normal memory, Outer Write-Back Read-Allocate Write-Allocate Cacheable.
     1 <<  8 | // Normal memory, Inner Write-Back Read-Allocate Write-Allocate Cacheable.
-    22        // T0SZ = 22, 2 levels (level 2 and 3 translation tables), 2^42B (4TiB) space
+    22 // T0SZ = 22, 2 levels (level 2 and 3 translation tables), 2^42B (4TiB) space
 }
 
 fn update_sctlr(sctlr: u64) -> u64 {
-    let sctlr =
-        sctlr   |
+    let sctlr = sctlr   |
         1 << 44 | // set DSSBS, enable speculative load and store
         1 << 12 | // set I, instruction cache
         1 <<  2 | // set C, data cache
-        1;        // set M, enable MMU
-    sctlr & !(
-        1 << 25 | // clear EE
+        1; // set M, enable MMU
+    sctlr
+        & !(
+            1 << 25 | // clear EE
         1 << 19 | // clear WXN
         1 <<  3 | // clear SA
-        1 <<  1   // clear A
-    )
+        1 <<  1
+            // clear A
+        )
 }
 
 fn init_firm(addr: &Addr) -> TTable {
@@ -489,7 +501,13 @@ fn init_firm(addr: &Addr) -> TTable {
     // map .bss section
     let mut bss_start = unsafe { &__bss_start as *const u64 as u64 };
     let end = unsafe { &__stack_firm_end as *const u64 as u64 };
-    let flag = FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_RW | FLAG_L3_ATTR_MEM | 0b11;
+    let flag = FLAG_L3_XN
+        | FLAG_L3_PXN
+        | FLAG_L3_AF
+        | FLAG_L3_ISH
+        | FLAG_L3_SH_RW_RW
+        | FLAG_L3_ATTR_MEM
+        | 0b11;
     while bss_start < end {
         table.map(bss_start, bss_start, flag);
         bss_start += PAGESIZE;
@@ -498,7 +516,13 @@ fn init_firm(addr: &Addr) -> TTable {
     // map firmware stack
     let mut stack_end = unsafe { &__stack_firm_end as *const u64 as u64 };
     let stack_start = unsafe { &__stack_firm_start as *const u64 as u64 };
-    let flag = FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_MEM | 0b11;
+    let flag = FLAG_L3_XN
+        | FLAG_L3_PXN
+        | FLAG_L3_AF
+        | FLAG_L3_ISH
+        | FLAG_L3_SH_RW_N
+        | FLAG_L3_ATTR_MEM
+        | 0b11;
     while stack_end < stack_start {
         table.map(stack_end, stack_end, flag);
         stack_end += PAGESIZE;
@@ -512,7 +536,13 @@ fn init_firm(addr: &Addr) -> TTable {
 
     // map non cached memory
     let mut no_cache_start = addr.no_cache_start;
-    let flag = FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_MEM | 0b11;
+    let flag = FLAG_L3_XN
+        | FLAG_L3_PXN
+        | FLAG_L3_AF
+        | FLAG_L3_ISH
+        | FLAG_L3_SH_RW_N
+        | FLAG_L3_ATTR_MEM
+        | 0b11;
     while no_cache_start < addr.no_cache_end {
         table.map(no_cache_start, no_cache_start, flag);
         no_cache_start += PAGESIZE;
@@ -520,7 +550,14 @@ fn init_firm(addr: &Addr) -> TTable {
 
     // map transition table for EL2
     let mut tt_firm_start = addr.tt_firm_start;
-    let flag = FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_MEM | FLAG_L3_ATTR_NC | 0b11;
+    let flag = FLAG_L3_XN
+        | FLAG_L3_PXN
+        | FLAG_L3_AF
+        | FLAG_L3_ISH
+        | FLAG_L3_SH_RW_N
+        | FLAG_L3_ATTR_MEM
+        | FLAG_L3_ATTR_NC
+        | 0b11;
     while tt_firm_start < addr.tt_firm_end {
         table.map(tt_firm_start, tt_firm_start, flag);
         tt_firm_start += PAGESIZE;
@@ -528,7 +565,14 @@ fn init_firm(addr: &Addr) -> TTable {
 
     // map transition table for EL1 TTBR0
     let mut tt_start = addr.tt_el1_ttbr0_start;
-    let flag = FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_MEM | FLAG_L3_ATTR_NC | 0b11;
+    let flag = FLAG_L3_XN
+        | FLAG_L3_PXN
+        | FLAG_L3_AF
+        | FLAG_L3_ISH
+        | FLAG_L3_SH_RW_N
+        | FLAG_L3_ATTR_MEM
+        | FLAG_L3_ATTR_NC
+        | 0b11;
     while tt_start < addr.tt_el1_ttbr0_end {
         table.map(tt_start, tt_start, flag);
         tt_start += PAGESIZE;
@@ -536,7 +580,14 @@ fn init_firm(addr: &Addr) -> TTable {
 
     // map transition table for EL1 TTBR1
     let mut tt_start = addr.tt_el1_ttbr1_start;
-    let flag = FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_MEM | FLAG_L3_ATTR_NC | 0b11;
+    let flag = FLAG_L3_XN
+        | FLAG_L3_PXN
+        | FLAG_L3_AF
+        | FLAG_L3_ISH
+        | FLAG_L3_SH_RW_N
+        | FLAG_L3_ATTR_MEM
+        | FLAG_L3_ATTR_NC
+        | 0b11;
     while tt_start < addr.tt_el1_ttbr1_end {
         table.map(tt_start, tt_start, flag);
         tt_start += PAGESIZE;
@@ -544,7 +595,14 @@ fn init_firm(addr: &Addr) -> TTable {
 
     // map device memory
     let mut device_addr = DEVICE_MEM_START;
-    let flag = FLAG_L3_NS | FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_OSH | FLAG_L3_SH_RW_RW | FLAG_L3_ATTR_DEV | 0b11;
+    let flag = FLAG_L3_NS
+        | FLAG_L3_XN
+        | FLAG_L3_PXN
+        | FLAG_L3_AF
+        | FLAG_L3_OSH
+        | FLAG_L3_SH_RW_RW
+        | FLAG_L3_ATTR_DEV
+        | 0b11;
     while device_addr < DEVICE_MEM_END {
         table.map(device_addr, device_addr, flag);
         device_addr += PAGESIZE;
@@ -581,7 +639,14 @@ fn set_reg_el3(ttbr: usize) {
 fn init_el2(addr: &Addr) -> TTable {
     let mut table = init_firm(addr);
 
-    let flag = FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_MEM | FLAG_L3_ATTR_NC | 0b11;
+    let flag = FLAG_L3_XN
+        | FLAG_L3_PXN
+        | FLAG_L3_AF
+        | FLAG_L3_ISH
+        | FLAG_L3_SH_RW_N
+        | FLAG_L3_ATTR_MEM
+        | FLAG_L3_ATTR_NC
+        | 0b11;
     table.map(0, 0, flag);
 
     set_reg_el2(addr.tt_firm_start as usize);
@@ -610,7 +675,11 @@ fn set_reg_el2(ttbr: usize) {
 /// assume 2MiB stack space per CPU
 fn init_el1(addr: &Addr) -> (TTable, TTable) {
     // TTBR0: user space
-    let mut table0 = TTable::new(addr.tt_el1_ttbr0_start, KERN_TTBR0_LV2_TABLE_NUM, KERN_TTBR0_LV3_TABLE_NUM);
+    let mut table0 = TTable::new(
+        addr.tt_el1_ttbr0_start,
+        KERN_TTBR0_LV2_TABLE_NUM,
+        KERN_TTBR0_LV3_TABLE_NUM,
+    );
 
     // map .init and .text section
     let mut ram_start = unsafe { &__ram_start as *const u64 as u64 };
@@ -624,7 +693,13 @@ fn init_el1(addr: &Addr) -> (TTable, TTable) {
     // map .bss section
     let mut bss_start = unsafe { &__bss_start as *const u64 as u64 };
     let end = unsafe { &__stack_firm_end as *const u64 as u64 };
-    let flag = FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_RW | FLAG_L3_ATTR_MEM | 0b11;
+    let flag = FLAG_L3_XN
+        | FLAG_L3_PXN
+        | FLAG_L3_AF
+        | FLAG_L3_ISH
+        | FLAG_L3_SH_RW_RW
+        | FLAG_L3_ATTR_MEM
+        | 0b11;
     while bss_start < end {
         table0.map(bss_start, bss_start, flag);
         bss_start += PAGESIZE;
@@ -632,7 +707,13 @@ fn init_el1(addr: &Addr) -> (TTable, TTable) {
 
     // map userland stack
     let mut stack_end = addr.stack_el0_end;
-    let flag = FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_RW | FLAG_L3_ATTR_MEM | 0b11;
+    let flag = FLAG_L3_XN
+        | FLAG_L3_PXN
+        | FLAG_L3_AF
+        | FLAG_L3_ISH
+        | FLAG_L3_SH_RW_RW
+        | FLAG_L3_ATTR_MEM
+        | 0b11;
     while stack_end < addr.stack_el0_start {
         table0.map(stack_end, stack_end, flag);
         stack_end += PAGESIZE;
@@ -645,7 +726,13 @@ fn init_el1(addr: &Addr) -> (TTable, TTable) {
 
     // map userland heap
     let mut heap_start = addr.el0_heap_start;
-    let flag = FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_RW | FLAG_L3_ATTR_MEM | 0b11;
+    let flag = FLAG_L3_XN
+        | FLAG_L3_PXN
+        | FLAG_L3_AF
+        | FLAG_L3_ISH
+        | FLAG_L3_SH_RW_RW
+        | FLAG_L3_ATTR_MEM
+        | 0b11;
     while heap_start < addr.el0_heap_end {
         table0.map(heap_start, heap_start, flag);
         heap_start += PAGESIZE;
@@ -653,7 +740,14 @@ fn init_el1(addr: &Addr) -> (TTable, TTable) {
 
     // map device memory
     let mut device_addr = DEVICE_MEM_START;
-    let flag = FLAG_L3_NS | FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_OSH | FLAG_L3_SH_RW_RW | FLAG_L3_ATTR_DEV | 0b11;
+    let flag = FLAG_L3_NS
+        | FLAG_L3_XN
+        | FLAG_L3_PXN
+        | FLAG_L3_AF
+        | FLAG_L3_OSH
+        | FLAG_L3_SH_RW_RW
+        | FLAG_L3_ATTR_DEV
+        | 0b11;
     while device_addr < DEVICE_MEM_END {
         table0.map(device_addr, device_addr, flag);
         device_addr += PAGESIZE;
@@ -661,11 +755,21 @@ fn init_el1(addr: &Addr) -> (TTable, TTable) {
 
     //-------------------------------------------------------------------------
     // TTBR1: kernel space
-    let mut table1 = TTable::new(addr.tt_el1_ttbr1_start, KERN_TTBR1_LV2_TABLE_NUM, KERN_TTBR1_LV3_TABLE_NUM);
+    let mut table1 = TTable::new(
+        addr.tt_el1_ttbr1_start,
+        KERN_TTBR1_LV2_TABLE_NUM,
+        KERN_TTBR1_LV3_TABLE_NUM,
+    );
 
     // kernel stack
     let mut stack_end = addr.stack_el1_end;
-    let flag = FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_MEM | 0b11;
+    let flag = FLAG_L3_XN
+        | FLAG_L3_PXN
+        | FLAG_L3_AF
+        | FLAG_L3_ISH
+        | FLAG_L3_SH_RW_N
+        | FLAG_L3_ATTR_MEM
+        | 0b11;
     while stack_end < addr.stack_el1_start {
         table1.map(stack_end, stack_end, flag);
         stack_end += PAGESIZE;
@@ -678,7 +782,14 @@ fn init_el1(addr: &Addr) -> (TTable, TTable) {
 
     // map transition table for TTBR0
     let mut tt_start = addr.tt_el1_ttbr0_start;
-    let flag = FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_MEM | FLAG_L3_ATTR_NC | 0b11;
+    let flag = FLAG_L3_XN
+        | FLAG_L3_PXN
+        | FLAG_L3_AF
+        | FLAG_L3_ISH
+        | FLAG_L3_SH_RW_N
+        | FLAG_L3_ATTR_MEM
+        | FLAG_L3_ATTR_NC
+        | 0b11;
     while tt_start < addr.tt_el1_ttbr0_end {
         table1.map(tt_start, tt_start, flag);
         tt_start += PAGESIZE;
@@ -686,7 +797,14 @@ fn init_el1(addr: &Addr) -> (TTable, TTable) {
 
     // map transition table for TTBR1
     let mut tt_start = addr.tt_el1_ttbr1_start;
-    let flag = FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_MEM | FLAG_L3_ATTR_NC | 0b11;
+    let flag = FLAG_L3_XN
+        | FLAG_L3_PXN
+        | FLAG_L3_AF
+        | FLAG_L3_ISH
+        | FLAG_L3_SH_RW_N
+        | FLAG_L3_ATTR_MEM
+        | FLAG_L3_ATTR_NC
+        | 0b11;
     while tt_start < addr.tt_el1_ttbr1_end {
         table1.map(tt_start, tt_start, flag);
         tt_start += PAGESIZE;
@@ -694,7 +812,10 @@ fn init_el1(addr: &Addr) -> (TTable, TTable) {
 
     //-------------------------------------------------------------------------
 
-    set_reg_el1(addr.tt_el1_ttbr0_start as usize, addr.tt_el1_ttbr1_start as usize);
+    set_reg_el1(
+        addr.tt_el1_ttbr0_start as usize,
+        addr.tt_el1_ttbr1_start as usize,
+    );
 
     (table0, table1)
 }
@@ -707,8 +828,7 @@ fn set_reg_el1(ttbr0: usize, ttbr1: usize) {
     unsafe { llvm_asm!("mrs $0, id_aa64mmfr0_el1" : "=r" (mmfr)) };
     let b = mmfr & 0xF;
 
-    let tcr: u64 =
-         b << 32 |
+    let tcr: u64 = b << 32 |
          3 << 30 | // 64KiB granule, TTBR1_EL1
          3 << 28 | // inner shadable, TTBR1_EL1
          1 << 26 | // Normal memory, Outer Write-Back Read-Allocate Write-Allocate Cacheable, TTBR1_EL1
@@ -718,7 +838,7 @@ fn set_reg_el1(ttbr0: usize, ttbr1: usize) {
          3 << 12 | // inner shadable, TTBR0_EL1
          1 << 10 | // Normal memory, Outer Write-Back Read-Allocate Write-Allocate Cacheable, TTBR0_EL1
          1 <<  8 | // Normal memory, Inner Write-Back Read-Allocate Write-Allocate Cacheable, TTBR0_EL1
-        22;        // T0SZ = 22, 2 levels (level 2 and 3 translation tables), 2^42B (4TiB) space
+        22; // T0SZ = 22, 2 levels (level 2 and 3 translation tables), 2^42B (4TiB) space
 
     // next, specify mapping characteristics in translate control register
     unsafe { llvm_asm!("msr tcr_el1, $0" : : "r" (tcr)) };
@@ -732,7 +852,8 @@ fn set_reg_el1(ttbr0: usize, ttbr1: usize) {
     unsafe { llvm_asm!("dsb ish; isb; mrs $0, sctlr_el1" : "=r" (sctlr)) };
     sctlr = update_sctlr(sctlr);
     sctlr &= !(
-        1 << 4 // clear SA0
+        1 << 4
+        // clear SA0
     );
     unsafe { llvm_asm!("msr sctlr_el1, $0; dsb sy; isb" : : "r" (sctlr)) };
 }

@@ -9,15 +9,15 @@
  * $EXPRS := $EXP $EXPRS | ∅
  */
 
-use alloc::string::{String, ToString};
 use alloc::collections::linked_list::LinkedList;
+use alloc::string::{String, ToString};
 
 use super::Pos;
 
 #[derive(Debug)]
 pub struct SyntaxErr {
     pub pos: Pos,
-    pub msg: &'static str
+    pub msg: &'static str,
 }
 
 pub struct Parser<'a> {
@@ -32,16 +32,16 @@ pub enum Expr {
     Bool(bool, Pos),
     List(LinkedList<Expr>, Pos),
     Tuple(LinkedList<Expr>, Pos),
-    Apply(LinkedList<Expr>, Pos)
+    Apply(LinkedList<Expr>, Pos),
 }
 
 impl Expr {
     pub fn get_pos(&self) -> Pos {
         match self {
-            Expr::Num(_, pos)   => *pos,
-            Expr::ID(_, pos)    => *pos,
-            Expr::Bool(_, pos)  => *pos,
-            Expr::List(_, pos)  => *pos,
+            Expr::Num(_, pos) => *pos,
+            Expr::ID(_, pos) => *pos,
+            Expr::Bool(_, pos) => *pos,
+            Expr::List(_, pos) => *pos,
             Expr::Tuple(_, pos) => *pos,
             Expr::Apply(_, pos) => *pos,
         }
@@ -50,7 +50,10 @@ impl Expr {
 
 impl<'a> Parser<'a> {
     pub fn new(code: &'a str) -> Parser<'a> {
-        Parser{pos: Pos{line: 0, column: 0}, remain: code}
+        Parser {
+            pos: Pos { line: 0, column: 0 },
+            remain: code,
+        }
     }
 
     pub fn parse(&mut self) -> Result<LinkedList<Expr>, SyntaxErr> {
@@ -77,7 +80,10 @@ impl<'a> Parser<'a> {
         }
 
         if i == 0 {
-            Err(SyntaxErr{pos: self.pos, msg: "unexpected EOF"})
+            Err(SyntaxErr {
+                pos: self.pos,
+                msg: "unexpected EOF",
+            })
         } else {
             let c = self.remain[..i].to_string();
             self.remain = &self.remain[i..];
@@ -119,7 +125,10 @@ impl<'a> Parser<'a> {
                 expr = Ok(Expr::Num(num, self.pos));
             }
             Err(_msg) => {
-                return Err(SyntaxErr{pos: self.pos, msg: "failed to parse number"})
+                return Err(SyntaxErr {
+                    pos: self.pos,
+                    msg: "failed to parse number",
+                })
             }
         };
 
@@ -135,15 +144,18 @@ impl<'a> Parser<'a> {
                 if is_paren(c0) || is_space(c0) {
                     expr
                 } else {
-                    Err(SyntaxErr{pos: self.pos, msg: "expected '(', ')', '[', ']' or space"})
+                    Err(SyntaxErr {
+                        pos: self.pos,
+                        msg: "expected '(', ')', '[', ']' or space",
+                    })
                 }
             }
-            None => {
-                Err(SyntaxErr{pos: self.pos, msg: "unexpected EOF"})
-            }
+            None => Err(SyntaxErr {
+                pos: self.pos,
+                msg: "unexpected EOF",
+            }),
         }
     }
-
 
     fn skip_spaces(&mut self) {
         let mut i = 0;
@@ -184,15 +196,9 @@ impl<'a> Parser<'a> {
     fn parse_expr(&mut self) -> Result<Expr, SyntaxErr> {
         self.skip_spaces();
         match self.remain.chars().nth(0) {
-            Some('(') => {
-                self.parse_apply()
-            }
-            Some('\'') => {
-                self.parse_list()
-            }
-            Some('[') => {
-                self.parse_tuple()
-            }
+            Some('(') => self.parse_apply(),
+            Some('\'') => self.parse_list(),
+            Some('[') => self.parse_tuple(),
             Some(a) => {
                 if '0' <= a && a <= '9' {
                     self.parse_num()
@@ -205,17 +211,16 @@ impl<'a> Parser<'a> {
                                 self.parse_id_bool()
                             }
                         }
-                        _ => {
-                            self.parse_id_bool()
-                        }
+                        _ => self.parse_id_bool(),
                     }
                 } else {
                     self.parse_id_bool()
                 }
             }
-            _ => {
-                Err(SyntaxErr{pos: self.pos, msg: "unexpected character"})
-            }
+            _ => Err(SyntaxErr {
+                pos: self.pos,
+                msg: "unexpected character",
+            }),
         }
     }
 
@@ -230,7 +235,10 @@ impl<'a> Parser<'a> {
             self.pos.column += 1;
             Ok(Expr::Apply(exprs, pos))
         } else {
-            Err(SyntaxErr{pos: self.pos, msg: "expected ')'"})
+            Err(SyntaxErr {
+                pos: self.pos,
+                msg: "expected ')'",
+            })
         }
     }
 
@@ -248,12 +256,16 @@ impl<'a> Parser<'a> {
                     self.pos.column += 1;
                     Ok(Expr::List(exprs, pos))
                 } else {
-                    Err(SyntaxErr{pos: self.pos, msg: "expected ')'"})
+                    Err(SyntaxErr {
+                        pos: self.pos,
+                        msg: "expected ')'",
+                    })
                 }
             }
-            _ => {
-                Err(SyntaxErr{pos: self.pos, msg: "expected '('"})
-            }
+            _ => Err(SyntaxErr {
+                pos: self.pos,
+                msg: "expected '('",
+            }),
         }
     }
 
@@ -268,7 +280,10 @@ impl<'a> Parser<'a> {
             self.pos.column += 1;
             Ok(Expr::Tuple(exprs, pos))
         } else {
-            Err(SyntaxErr{pos: self.pos, msg: "expected ']'"})
+            Err(SyntaxErr {
+                pos: self.pos,
+                msg: "expected ']'",
+            })
         }
     }
 }

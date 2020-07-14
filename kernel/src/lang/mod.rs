@@ -1,6 +1,6 @@
 pub mod parser;
-pub mod semantics;
 pub mod runtime;
+pub mod semantics;
 
 use alloc::collections::linked_list::LinkedList;
 use alloc::string::String;
@@ -19,16 +19,14 @@ pub struct LispErr {
 
 impl LispErr {
     fn new(msg: String, pos: Pos) -> LispErr {
-        LispErr{msg: msg, pos: pos}
+        LispErr { msg: msg, pos: pos }
     }
 }
 
 pub fn init(code: &str) -> Result<LinkedList<parser::Expr>, LispErr> {
     let mut ps = parser::Parser::new(code);
     match ps.parse() {
-        Ok(e) => {
-            Ok(e)
-        }
+        Ok(e) => Ok(e),
         Err(e) => {
             let msg = format!("Syntax Error: {}", e.msg);
             Err(LispErr::new(msg, e.pos))
@@ -38,9 +36,7 @@ pub fn init(code: &str) -> Result<LinkedList<parser::Expr>, LispErr> {
 
 pub fn typing(exprs: &LinkedList<parser::Expr>) -> Result<semantics::Context, LispErr> {
     match semantics::exprs2context(exprs) {
-        Ok(c) => {
-            Ok(c)
-        }
+        Ok(c) => Ok(c),
         Err(e) => {
             let msg = format!("Typing Error: {}", e.msg);
             Err(LispErr::new(msg, e.pos))

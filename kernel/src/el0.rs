@@ -1,12 +1,11 @@
-use crate::slab;
-use crate::lang;
+use crate::aarch64::{cpu, delays, mmu};
 use crate::driver::uart;
-use crate::aarch64::{mmu, delays, cpu};
+use crate::lang;
+use crate::slab;
 
 use alloc::boxed::Box;
 
-const GLOBAL_CODE: &str =
-"
+const GLOBAL_CODE: &str = "
 (data Dim2 (Dim2 Int Int))
 
 (data (Maybe t)
@@ -101,7 +100,6 @@ pub fn el0_entry() -> ! {
 
     delays::infinite_loop()
 }
-
 
 /*
 const EVAL_CODE: &str =
