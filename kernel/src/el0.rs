@@ -23,6 +23,16 @@ const GLOBAL_CODE: &str = "
 
 (export lambda-test (z) (Pure (-> (Int) (Pure (-> (Int) Int))))
     (lambda (x) (+ x z)))
+
+(export tail-call-test (n) (Pure (-> (Int) Int))
+    (if (<= n 0)
+        0
+        (tail-call-test (- n 1))))
+
+(export frac (n) (Pure (-> (Int) Int))
+    (if (<= n 0)
+        1
+        (* n (frac (- n 1)))))
 ";
 
 fn callback(x: i64, y: i64, z: i64) -> i64 {

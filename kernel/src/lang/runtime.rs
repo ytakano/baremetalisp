@@ -2,7 +2,7 @@ use super::parser;
 use super::semantics;
 use super::{LispErr, Pos};
 
-// use crate::driver;
+// use crate::driver::uart;
 
 use alloc::collections::btree_map::BTreeMap;
 use alloc::collections::linked_list::LinkedList;
@@ -17,6 +17,7 @@ struct RuntimeErr {
     pos: Pos,
 }
 
+#[derive(Debug, Clone)]
 struct Variables {
     vars: LinkedList<BTreeMap<String, RTData>>,
 }
@@ -48,12 +49,19 @@ impl Variables {
 }
 
 #[derive(Debug, Clone)]
+enum TCall {
+    Defun(String),
+    Lambda(u64),
+}
+
+#[derive(Debug, Clone)]
 enum RTData {
     Int(i64),
     Bool(bool),
     Defun(String),
     Lambda(*const Clojure),
     LData(*const LabeledData),
+    TailCall(TCall, Variables),
 }
 
 impl RTData {
@@ -75,6 +83,8 @@ impl RTData {
                     None => format!("{})", msg),
                 }
             }
+            RTData::TailCall(TCall::Defun(f), _) => format!("(TailCall (Defun {}))", f),
+            RTData::TailCall(TCall::Lambda(f), _) => format!("(TailCall (Lambda {}))", f),
         }
     }
 }
@@ -245,6 +255,52 @@ fn eval_tuple(
     Ok(RTData::LData(elm))
 }
 
+fn get_fun<'a>(
+    ctx: &'a semantics::Context,
+    fun_name: &String,
+    expr: &Expr,
+) -> Result<&'a semantics::Defun, RuntimeErr> {
+    let fun;
+    match ctx.funs.get(fun_name) {
+        Some(f) => {
+            fun = f;
+        }
+        None => {
+            let pos = expr.get_pos();
+            let msg = format!("{:?} is not defined", fun_name);
+            return Err(RuntimeErr { msg: msg, pos: pos });
+        }
+    }
+
+    Ok(fun)
+}
+
+fn get_lambda<'a>(
+    ctx: &'a semantics::Context,
+    lambda: &'a BTreeMap<u64, semantics::Lambda>,
+    id: u64,
+    expr: &Expr,
+) -> Result<&'a semantics::Lambda, RuntimeErr> {
+    let fun;
+    match ctx.lambda.get(&id) {
+        Some(f) => {
+            fun = f;
+        }
+        None => match lambda.get(&id) {
+            Some(f) => {
+                fun = f;
+            }
+            None => {
+                let pos = expr.get_pos();
+                let msg = format!("could not find (Lambda {})", id);
+                return Err(RuntimeErr { msg: msg, pos: pos });
+            }
+        },
+    }
+
+    Ok(fun)
+}
+
 fn eval_apply(
     expr: &semantics::Apply,
     lambda: &BTreeMap<u64, semantics::Lambda>,
@@ -280,17 +336,7 @@ fn eval_apply(
             }
 
             // look up defun
-            let fun;
-            match ctx.funs.get(&fun_name) {
-                Some(f) => {
-                    fun = f;
-                }
-                None => {
-                    let pos = fun_expr.get_pos();
-                    let msg = format!("{:?} is not defined", fun_name);
-                    return Err(RuntimeErr { msg: msg, pos: pos });
-                }
-            }
+            let fun = get_fun(ctx, &fun_name, fun_expr)?;
 
             // set up arguments
             let mut vars_fun = Variables::new();
@@ -299,27 +345,17 @@ fn eval_apply(
                 vars_fun.insert(arg.id.to_string(), data);
             }
 
-            eval_expr(&fun.expr, lambda, ctx, root, &mut vars_fun)
+            // tail call optimization
+            if expr.is_tail {
+                Ok(RTData::TailCall(TCall::Defun(fun_name), vars_fun))
+            } else {
+                eval_tail_call(&fun.expr, lambda, ctx, root, &mut vars_fun)
+            }
         }
         RTData::Lambda(f) => {
             // look up lambda
-            let fun;
             let ident = unsafe { (*f).ident };
-            match ctx.lambda.get(&ident) {
-                Some(f) => {
-                    fun = f;
-                }
-                None => match lambda.get(&ident) {
-                    Some(f) => {
-                        fun = f;
-                    }
-                    None => {
-                        let pos = fun_expr.get_pos();
-                        let msg = format!("could not find (Lambda {})", ident);
-                        return Err(RuntimeErr { msg: msg, pos: pos });
-                    }
-                },
-            }
+            let fun = get_lambda(ctx, lambda, ident, fun_expr)?;
 
             // set up arguments
             let mut vars_fun = Variables::new();
@@ -338,7 +374,12 @@ fn eval_apply(
                 None => (),
             }
 
-            eval_expr(&fun.expr, lambda, ctx, root, &mut vars_fun)
+            // tail call optimization
+            if expr.is_tail {
+                Ok(RTData::TailCall(TCall::Lambda(ident), vars_fun))
+            } else {
+                eval_tail_call(&fun.expr, lambda, ctx, root, &mut vars_fun)
+            }
         }
         _ => {
             let pos = fun_expr.get_pos();
@@ -346,6 +387,36 @@ fn eval_apply(
                 msg: "not function".to_string(),
                 pos: pos,
             });
+        }
+    }
+}
+
+fn eval_tail_call<'a>(
+    mut expr: &'a Expr,
+    lambda: &'a BTreeMap<u64, semantics::Lambda>,
+    ctx: &'a semantics::Context,
+    root: &mut RootObject,
+    vars: &mut Variables,
+) -> Result<RTData, RuntimeErr> {
+    let mut vs;
+    let mut vars = vars;
+    loop {
+        match eval_expr(expr, lambda, ctx, root, vars)? {
+            RTData::TailCall(TCall::Defun(fun_name), vars_fun) => {
+                let fun = get_fun(ctx, &fun_name, expr)?;
+                vs = vars_fun;
+                expr = &fun.expr;
+                vars = &mut vs;
+            }
+            RTData::TailCall(TCall::Lambda(id), vars_fun) => {
+                let fun = get_lambda(ctx, lambda, id, expr)?;
+                vs = vars_fun;
+                expr = &fun.expr;
+                vars = &mut vs;
+            }
+            x => {
+                return Ok(x);
+            }
         }
     }
 }
