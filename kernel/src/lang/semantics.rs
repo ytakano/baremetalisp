@@ -3904,3 +3904,94 @@ fn tail_call_expr(expr: &mut LangExpr) -> LinkedList<&mut LangExpr> {
         _ => LinkedList::new(),
     }
 }
+
+fn exhaustive_match(expr: &MatchNode, ctx: &Context) {
+    let ty;
+    match &expr.ty {
+        Some(t) => {
+            ty = t;
+        }
+        None => {
+            return;
+        }
+    }
+
+    let mut is_all;
+    let mut pat;
+    match ty {
+        Type::TCon(tc) => {
+            is_all = false;
+            pat = BTreeSet::new();
+            match tc.id.as_ref() {
+                "Tuple" => {
+                    pat.insert("Tuple".to_string());
+                }
+                "List" => {
+                    pat.insert("Cons".to_string());
+                    pat.insert("Nil".to_string());
+                }
+                "Bool" => {
+                    pat.insert("true".to_string());
+                    pat.insert("false".to_string());
+                }
+                "Int" => {
+                    // integer type must be matched by general pattern
+                    pat.insert("'dummy".to_string());
+                }
+                _ => match ctx.data.get(&tc.id) {
+                    Some(data) => {
+                        pat = BTreeSet::new();
+                        for mem in &data.members {
+                            pat.insert(mem.id.id.clone());
+                        }
+                    }
+                    None => {
+                        return;
+                    }
+                },
+            }
+        }
+        _ => {
+            return;
+        }
+    }
+
+    for cs in &expr.cases {
+        match &cs.pattern {
+            Pattern::PatID(_) => {
+                is_all = true;
+            }
+            Pattern::PatData(p) => {
+                // TODO: warning
+                // if is_all then never match this pattern
+                pat.remove(&p.label.id);
+            }
+            Pattern::PatBool(p) => {
+                // TODO: warning
+                // if is_all then never match this pattern
+                if p.val {
+                    pat.remove("true");
+                } else {
+                    pat.remove("false");
+                }
+            }
+            Pattern::PatTuple(_) => {
+                // TODO: warning
+                // if is_all then never match this pattern
+                pat.remove("Tuple");
+            }
+            Pattern::PatNil(_) => {
+                pat.remove("Nil");
+            }
+            _ => {}
+        }
+    }
+
+    if is_all {
+        // success
+    } else if pat.is_empty() {
+        // success but need to check recursively
+    } else {
+        // fail
+    }
+}
