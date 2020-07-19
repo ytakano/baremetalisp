@@ -15,8 +15,10 @@ const GLOBAL_CODE: &str = "
 (defun id (x) (Pure (-> (t) t))
     x)
 
-(export test-label (x y) (Pure (-> (Int Int) (Maybe Dim2)))
-    (Just (id (Dim2 x y))))
+(export test-label () (Pure (-> () Int))
+    (match (Just 10)
+        ((Just x) x)
+        (Nothing 0)))
 
 (export test-callback (x y z) (IO (-> (Int Int Int) Int))
     (call-rust x y z))

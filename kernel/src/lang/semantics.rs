@@ -355,12 +355,14 @@ pub(crate) struct Lambda {
 pub(crate) struct NumNode {
     pub(crate) num: i64,
     pub(crate) pos: Pos,
+    ty: Option<Type>,
 }
 
 #[derive(Clone)]
 pub(crate) struct BoolNode {
     pub(crate) val: bool,
     pub(crate) pos: Pos,
+    ty: Option<Type>,
 }
 
 #[derive(Clone)]
@@ -430,6 +432,17 @@ impl Pattern {
             Pattern::PatTuple(e) => e.pos,
             Pattern::PatData(e) => e.pos,
             Pattern::PatNil(e) => e.pos,
+        }
+    }
+
+    fn get_type(&self) -> &Option<Type> {
+        match self {
+            Pattern::PatNum(e) => &e.ty,
+            Pattern::PatBool(e) => &e.ty,
+            Pattern::PatID(e) => &e.ty,
+            Pattern::PatTuple(e) => &e.ty,
+            Pattern::PatData(e) => &e.ty,
+            Pattern::PatNil(e) => &e.ty,
         }
     }
 
@@ -756,14 +769,25 @@ impl Context {
         self.check_defun_type()?;
         self.typing_functions()?;
         self.check_defun_type_after_infer()?;
+        self.check_match_exhaustive()?;
         self.find_tail_call();
         self.get_free_var_in_lambda();
 
         Ok(())
     }
 
+    fn check_match_exhaustive(&self) -> Result<(), TypingErr> {
+        for (_, fun) in &self.funs {
+            exhaustive_expr(&fun.expr, self)?;
+        }
+        Ok(())
+    }
+
     fn find_tail_call(&mut self) {
         for (_, fun) in self.funs.iter_mut() {
+            tail_call(&mut fun.expr);
+        }
+        for (_, fun) in self.lambda.iter_mut() {
             tail_call(&mut fun.expr);
         }
     }
@@ -2729,6 +2753,8 @@ pub(crate) fn typing_expr(
         false,
     )?;
 
+    exhaustive_expr(&expr, ctx)?;
+
     // capture free variables
     // TODO: should be cached
     let mut funs = BTreeSet::new();
@@ -3268,10 +3294,12 @@ fn expr2typed_expr(expr: &parser::Expr) -> Result<LangExpr, TypingErr> {
         parser::Expr::Num(num, pos) => Ok(LangExpr::LitNum(NumNode {
             num: *num,
             pos: *pos,
+            ty: Some(ty_int()),
         })),
         parser::Expr::Bool(val, pos) => Ok(LangExpr::LitBool(BoolNode {
             val: *val,
             pos: *pos,
+            ty: Some(ty_bool()),
         })),
         parser::Expr::ID(id, pos) => {
             let c = id.chars().nth(0).unwrap();
@@ -3585,6 +3613,7 @@ fn expr2mpat(expr: &parser::Expr) -> Result<Pattern, TypingErr> {
             Ok(Pattern::PatBool(BoolNode {
                 val: *val,
                 pos: *pos,
+                ty: Some(ty_bool()),
             }))
         }
         parser::Expr::Num(num, pos) => {
@@ -3592,6 +3621,7 @@ fn expr2mpat(expr: &parser::Expr) -> Result<Pattern, TypingErr> {
             Ok(Pattern::PatNum(NumNode {
                 num: *num,
                 pos: *pos,
+                ty: Some(ty_int()),
             }))
         }
         parser::Expr::Tuple(exprs, pos) => {
@@ -3905,23 +3935,119 @@ fn tail_call_expr(expr: &mut LangExpr) -> LinkedList<&mut LangExpr> {
     }
 }
 
-fn exhaustive_match(expr: &MatchNode, ctx: &Context) {
+fn exhaustive_expr(expr: &LangExpr, ctx: &Context) -> Result<(), TypingErr> {
+    match expr {
+        LangExpr::MatchExpr(e) => exhaustive_match(e, ctx),
+        LangExpr::IfExpr(e) => exhaustive_if(e, ctx),
+        LangExpr::LetExpr(e) => exhaustive_let(e, ctx),
+        LangExpr::LambdaExpr(e) => exhaustive_expr(&e.expr, ctx),
+        LangExpr::DataExpr(e) => exhaustive_exprs(&e.exprs, ctx),
+        LangExpr::ApplyExpr(e) => exhaustive_exprs(&e.exprs, ctx),
+        LangExpr::ListExpr(e) => exhaustive_exprs(&e.exprs, ctx),
+        LangExpr::TupleExpr(e) => exhaustive_exprs(&e.exprs, ctx),
+        _ => Ok(()),
+    }
+}
+
+fn exhaustive_exprs(exprs: &Vec<LangExpr>, ctx: &Context) -> Result<(), TypingErr> {
+    for e in exprs {
+        exhaustive_expr(e, ctx)?;
+    }
+    Ok(())
+}
+
+fn exhaustive_let(expr: &LetNode, ctx: &Context) -> Result<(), TypingErr> {
+    for dv in &expr.def_vars {
+        exhaustive_expr(&dv.expr, ctx)?;
+    }
+
+    exhaustive_expr(&expr.expr, ctx)?;
+
+    Ok(())
+}
+
+fn exhaustive_if(expr: &IfNode, ctx: &Context) -> Result<(), TypingErr> {
+    exhaustive_expr(&expr.cond_expr, ctx)?;
+    exhaustive_expr(&expr.then_expr, ctx)?;
+    exhaustive_expr(&expr.else_expr, ctx)?;
+    Ok(())
+}
+
+fn exhaustive_match(expr: &MatchNode, ctx: &Context) -> Result<(), TypingErr> {
+    exhaustive_expr(&expr.expr, ctx)?;
+
+    let mut patterns = LinkedList::new();
+    for cs in &expr.cases {
+        patterns.push_back(&cs.pattern);
+    }
+
+    check_pattern_exhaustive(&patterns, ctx, &expr.pos)?;
+
+    for cs in &expr.cases {
+        exhaustive_expr(&cs.expr, ctx)?;
+    }
+
+    Ok(())
+}
+
+struct Patterns<'a> {
+    pat: BTreeMap<(String, usize), LinkedList<&'a Pattern>>,
+}
+
+impl<'a> Patterns<'a> {
+    fn new() -> Patterns<'a> {
+        Patterns {
+            pat: BTreeMap::new(),
+        }
+    }
+
+    fn insert(&mut self, label: &String, idx: usize, p: &'a Pattern) {
+        match self.pat.get_mut(&(label.clone(), idx)) {
+            Some(lst) => {
+                lst.push_back(p);
+            }
+            None => {
+                let mut lst = LinkedList::new();
+                lst.push_back(p);
+                self.pat.insert((label.clone(), idx), lst);
+            }
+        }
+    }
+}
+
+fn check_pattern_exhaustive(
+    patterns: &LinkedList<&Pattern>,
+    ctx: &Context,
+    pos: &Pos,
+) -> Result<(), TypingErr> {
+    if patterns.is_empty() {
+        return Err(TypingErr {
+            msg: "no pattern".to_string(),
+            pos: pos.clone(),
+        });
+    }
+
     let ty;
-    match &expr.ty {
+    match patterns.front().unwrap().get_type() {
         Some(t) => {
             ty = t;
         }
         None => {
-            return;
+            return Ok(());
         }
     }
 
-    let mut is_all;
-    let mut pat;
-    match ty {
+    // list up labels of type
+    // example:
+    // if
+    //   (data (Maybe a)
+    //     (Just a)
+    //     Nothing)
+    // then
+    //   pat = [Just, Nothing]
+    let mut pat = BTreeSet::new();
+    match &ty {
         Type::TCon(tc) => {
-            is_all = false;
-            pat = BTreeSet::new();
             match tc.id.as_ref() {
                 "Tuple" => {
                     pat.insert("Tuple".to_string());
@@ -3946,29 +4072,51 @@ fn exhaustive_match(expr: &MatchNode, ctx: &Context) {
                         }
                     }
                     None => {
-                        return;
+                        let msg = format!("could not found \"{}\" type", ty);
+                        return Err(TypingErr {
+                            msg: msg,
+                            pos: pos.clone(),
+                        });
                     }
                 },
             }
         }
         _ => {
-            return;
+            return Ok(());
         }
     }
 
-    for cs in &expr.cases {
-        match &cs.pattern {
+    // remove labels specified in patterns
+    // example 1:
+    // if
+    //   pat = [Just, Nothing]
+    //   and
+    //   (match (Just 10)
+    //     ((Just x) x))
+    // then
+    //   pat = [Nothing]
+    //
+    // if variable pattern occurs then "is_all" becomes true
+    // example 2:
+    // if
+    //   (match (Just 10)
+    //     (x x))
+    // then
+    //   is_all = true
+    let mut is_all = false;
+    for p in patterns {
+        match p {
             Pattern::PatID(_) => {
                 is_all = true;
             }
             Pattern::PatData(p) => {
                 // TODO: warning
-                // if is_all then never match this pattern
+                // if is_all then unreachable
                 pat.remove(&p.label.id);
             }
             Pattern::PatBool(p) => {
                 // TODO: warning
-                // if is_all then never match this pattern
+                // if is_all then unreachable
                 if p.val {
                     pat.remove("true");
                 } else {
@@ -3977,7 +4125,7 @@ fn exhaustive_match(expr: &MatchNode, ctx: &Context) {
             }
             Pattern::PatTuple(_) => {
                 // TODO: warning
-                // if is_all then never match this pattern
+                // if is_all then unreachable
                 pat.remove("Tuple");
             }
             Pattern::PatNil(_) => {
@@ -3989,9 +4137,40 @@ fn exhaustive_match(expr: &MatchNode, ctx: &Context) {
 
     if is_all {
         // success
+        Ok(())
     } else if pat.is_empty() {
         // success but need to check recursively
+        let mut ps = Patterns::new();
+        for p in patterns {
+            match p {
+                Pattern::PatData(e) => {
+                    let mut i = 0;
+                    for p2 in &e.pattern {
+                        ps.insert(&e.label.id, i, p2);
+                        i += 1;
+                    }
+                }
+                Pattern::PatTuple(e) => {
+                    let mut i = 0;
+                    for p2 in &e.pattern {
+                        ps.insert(&"Tuple".to_string(), i, p2);
+                        i += 1;
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        for (_, plst) in &ps.pat {
+            check_pattern_exhaustive(&plst, ctx, pos)?;
+        }
+
+        Ok(())
     } else {
         // fail
+        Err(TypingErr {
+            msg: "pattern is not exhaustive".to_string(),
+            pos: pos.clone(),
+        })
     }
 }
