@@ -20,11 +20,15 @@ const GLOBAL_CODE: &str = "
         ((Just x) x)
         (Nothing 0)))
 
-(export test-callback (x y z) (IO (-> (Int Int Int) Int))
-    (call-rust x y z))
+(export test-callback (x)
+    (IO (-> (Int Int Int) Int))
+    (call-rust x 0 0))
 
-(export lambda-test (z) (Pure (-> (Int) (Pure (-> (Int) Int))))
-    (lambda (x) (+ x z)))
+(export lambda-test (f) (Pure (-> ((Pure (-> (Int) Int))) Int))
+    (mul2 (f 2)))
+
+(defun mul2 (x) (Pure (-> (Int) Int))
+    (* 2 x))
 
 (export tail-call-test (n) (Pure (-> (Int) Int))
     (if (<= n 0)

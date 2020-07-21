@@ -1,6 +1,5 @@
 use super::parser;
 use super::Pos;
-use crate::driver;
 
 use alloc::boxed::Box;
 use alloc::collections::btree_map::BTreeMap;
@@ -29,7 +28,7 @@ impl fmt::Display for Type {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Type::TCon(t) => t.fmt(f),
-            Type::TVar(id) => write!(f, "{}", id),
+            Type::TVar(id) => write!(f, "'t{}", id),
         }
     }
 }
@@ -3168,11 +3167,7 @@ fn expr2type_fun(expr: &parser::Expr) -> Result<TypeExpr, TypingErr> {
                 pos: *pos,
             }))
         }
-        _ => {
-            let msg = format!("{:#?}\n", expr);
-            driver::uart::puts(&msg);
-            Err(TypingErr::new("must be function type", expr))
-        }
+        _ => Err(TypingErr::new("must be function type", expr)),
     }
 }
 
