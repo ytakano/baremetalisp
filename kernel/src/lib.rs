@@ -6,16 +6,15 @@
 #![no_std]
 #![allow(dead_code)]
 
+mod aarch64;
 mod boot;
 mod driver;
-mod aarch64;
 mod el0;
 mod el1;
 mod el2;
 mod el3;
-mod slab;
 mod pager;
-mod lang;
+mod slab;
 
 #[macro_use]
 extern crate alloc;
@@ -26,8 +25,7 @@ use core::panic::PanicInfo;
 fn init_master() {
     driver::init();
 
-    let addr =
-    match aarch64::mmu::init() {
+    let addr = match aarch64::mmu::init() {
         Some((a, _, _)) => a,
         None => {
             driver::uart::puts("Error: failed to initialize MMU\n");
@@ -39,7 +37,9 @@ fn init_master() {
     aarch64::cpu::start_non_primary();
 
     match aarch64::el::get_current_el() {
-        3 => { el3::el3_to_el1(&addr); }
+        3 => {
+            el3::el3_to_el1(&addr);
+        }
         2 => {
             driver::uart::puts("Warning: execution level is not EL3\n");
             el2::el2_to_el1(&addr);
@@ -70,7 +70,7 @@ pub fn entry() -> ! {
 
 #[lang = "eh_personality"]
 #[no_mangle]
-extern fn eh_personality() {}
+extern "C" fn eh_personality() {}
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {

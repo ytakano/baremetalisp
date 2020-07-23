@@ -1,7 +1,8 @@
 use crate::aarch64::{cpu, delays, mmu};
 use crate::driver::uart;
-use crate::lang;
 use crate::slab;
+
+extern crate blisp;
 
 use alloc::boxed::Box;
 
@@ -49,10 +50,10 @@ fn callback(x: i64, y: i64, z: i64) -> i64 {
 
 fn run_lisp() {
     // initialize
-    match lang::init(GLOBAL_CODE) {
+    match blisp::init(GLOBAL_CODE) {
         Ok(exprs) => {
             // typing
-            match lang::typing(&exprs) {
+            match blisp::typing(&exprs) {
                 Ok(mut ctx) => {
                     // register callback function
                     ctx.set_callback(Box::new(callback));
@@ -77,7 +78,7 @@ fn run_lisp() {
     }
 }
 
-fn repl_uart(ctx: &lang::semantics::Context) -> ! {
+fn repl_uart(ctx: &blisp::semantics::Context) -> ! {
     loop {
         uart::puts("input code:\n");
         let code_str = uart::read_line();
@@ -88,7 +89,7 @@ fn repl_uart(ctx: &lang::semantics::Context) -> ! {
         uart::puts("\n");
         uart::puts("run\n\n");
 
-        let result = lang::eval(code, &ctx);
+        let result = blisp::eval(code, &ctx);
         let msg = format!("{:#?}\n", result);
         uart::puts(&msg);
     }
