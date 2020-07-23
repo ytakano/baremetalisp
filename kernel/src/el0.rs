@@ -15,13 +15,13 @@ const GLOBAL_CODE: &str = "
 (defun id (x) (Pure (-> (t) t))
     x)
 
-(export test-label () (Pure (-> () Int))
+(export label-test () (Pure (-> () Int))
     (match (Just 10)
         ((Just x) x)
         (Nothing 0)))
 
-(export test-callback (x)
-    (IO (-> (Int Int Int) Int))
+(export callback-test (x)
+    (IO (-> (Int) Int))
     (call-rust x 0 0))
 
 (export lambda-test (f) (Pure (-> ((Pure (-> (Int) Int))) Int))

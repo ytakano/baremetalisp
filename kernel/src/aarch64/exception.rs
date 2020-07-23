@@ -2,16 +2,16 @@ use crate::driver;
 
 #[repr(C)]
 pub struct Context {
-     x0: u64,
-     x1: u64,
-     x2: u64,
-     x3: u64,
-     x4: u64,
-     x5: u64,
-     x6: u64,
-     x7: u64,
-     x8: u64,
-     x9: u64,
+    x0: u64,
+    x1: u64,
+    x2: u64,
+    x3: u64,
+    x4: u64,
+    x5: u64,
+    x6: u64,
+    x7: u64,
+    x8: u64,
+    x9: u64,
     x10: u64,
     x11: u64,
     x12: u64,
@@ -35,7 +35,7 @@ pub struct Context {
     x30: u64,  // link register
     elr: u64,  // exception link register
     spsr: u32, // saved program status register
-    _unused: [u8; 12]
+    _unused: [u8; 12],
 }
 
 //------------------------------------------------------------------------------
@@ -104,45 +104,29 @@ pub fn curr_el_spx_serror_el3(ctx: *mut Context) {
 
 // from lower EL (AArch64)
 #[no_mangle]
-pub fn lower_el_aarch64_sync_el3(_ctx: *mut Context) {
-
-}
+pub fn lower_el_aarch64_sync_el3(_ctx: *mut Context) {}
 
 #[no_mangle]
-pub fn lower_el_aarch64_irq_el3(_ctx: *mut Context) {
-
-}
+pub fn lower_el_aarch64_irq_el3(_ctx: *mut Context) {}
 
 #[no_mangle]
-pub fn lower_el_aarch64_fiq_el3(_ctx: *mut Context) {
-
-}
+pub fn lower_el_aarch64_fiq_el3(_ctx: *mut Context) {}
 
 #[no_mangle]
-pub fn lower_el_aarch64_serror_el3(_ctx: *mut Context) {
-
-}
+pub fn lower_el_aarch64_serror_el3(_ctx: *mut Context) {}
 
 // from lower EL (AArch32)
 #[no_mangle]
-pub fn lower_el_aarch32_sync_el3(_ctx: *mut Context) {
-
-}
+pub fn lower_el_aarch32_sync_el3(_ctx: *mut Context) {}
 
 #[no_mangle]
-pub fn lower_el_aarch32_irq_el3(_ctx: *mut Context) {
-
-}
+pub fn lower_el_aarch32_irq_el3(_ctx: *mut Context) {}
 
 #[no_mangle]
-pub fn lower_el_aarch32_fiq_el3(_ctx: *mut Context) {
-
-}
+pub fn lower_el_aarch32_fiq_el3(_ctx: *mut Context) {}
 
 #[no_mangle]
-pub fn lower_el_aarch32_serror_el3(_ctx: *mut Context) {
-
-}
+pub fn lower_el_aarch32_serror_el3(_ctx: *mut Context) {}
 
 //------------------------------------------------------------------------------
 
@@ -214,14 +198,10 @@ pub fn lower_el_aarch64_sync_el2(ctx: *mut Context) {
 }
 
 #[no_mangle]
-pub fn lower_el_aarch64_irq_el2(_ctx: *mut Context) {
-
-}
+pub fn lower_el_aarch64_irq_el2(_ctx: *mut Context) {}
 
 #[no_mangle]
-pub fn lower_el_aarch64_fiq_el2(_ctx: *mut Context) {
-
-}
+pub fn lower_el_aarch64_fiq_el2(_ctx: *mut Context) {}
 
 #[no_mangle]
 pub fn lower_el_aarch64_serror_el2(_ctx: *mut Context) {
@@ -230,24 +210,16 @@ pub fn lower_el_aarch64_serror_el2(_ctx: *mut Context) {
 
 // from lower EL (AArch32)
 #[no_mangle]
-pub fn lower_el_aarch32_sync_el2(_ctx: *mut Context) {
-
-}
+pub fn lower_el_aarch32_sync_el2(_ctx: *mut Context) {}
 
 #[no_mangle]
-pub fn lower_el_aarch32_irq_el2(_ctx: *mut Context) {
-
-}
+pub fn lower_el_aarch32_irq_el2(_ctx: *mut Context) {}
 
 #[no_mangle]
-pub fn lower_el_aarch32_fiq_el2(_ctx: *mut Context) {
-
-}
+pub fn lower_el_aarch32_fiq_el2(_ctx: *mut Context) {}
 
 #[no_mangle]
-pub fn lower_el_aarch32_serror_el2(_ctx: *mut Context) {
-
-}
+pub fn lower_el_aarch32_serror_el2(_ctx: *mut Context) {}
 
 //------------------------------------------------------------------------------
 
@@ -309,47 +281,33 @@ pub fn curr_el_spx_serror_el1(_ctx: *mut Context) {
 #[no_mangle]
 pub fn lower_el_aarch64_sync_el1(ctx: *mut Context) {
     let r = unsafe { &*ctx };
-    driver::uart::puts("EL1 exception: lower EL Sync\nELR = 0x");
+    driver::uart::puts("EL1 exception: lower EL Sync\nELR  = 0x");
     driver::uart::hex(r.elr);
     driver::uart::puts("\nSPSR = 0x");
     driver::uart::hex(r.spsr as u64);
-    driver::uart::puts("\nESR = 0x");
+    driver::uart::puts("\nESR  = 0x");
     driver::uart::hex(get_esr_el1() as u64);
     driver::uart::puts("\n");
 }
 
 #[no_mangle]
-pub fn lower_el_aarch64_irq_el1(_ctx: *mut Context) {
-
-}
+pub fn lower_el_aarch64_irq_el1(_ctx: *mut Context) {}
 
 #[no_mangle]
-pub fn lower_el_aarch64_fiq_el1(_ctx: *mut Context) {
-
-}
+pub fn lower_el_aarch64_fiq_el1(_ctx: *mut Context) {}
 
 #[no_mangle]
-pub fn lower_el_aarch64_serror_el1(_ctx: *mut Context) {
-
-}
+pub fn lower_el_aarch64_serror_el1(_ctx: *mut Context) {}
 
 // from lower EL (AArch32)
 #[no_mangle]
-pub fn lower_el_aarch32_sync_el1(_ctx: *mut Context) {
-
-}
+pub fn lower_el_aarch32_sync_el1(_ctx: *mut Context) {}
 
 #[no_mangle]
-pub fn lower_el_aarch32_irq_el1(_ctx: *mut Context) {
-
-}
+pub fn lower_el_aarch32_irq_el1(_ctx: *mut Context) {}
 
 #[no_mangle]
-pub fn lower_el_aarch32_fiq_el1(_ctx: *mut Context) {
-
-}
+pub fn lower_el_aarch32_fiq_el1(_ctx: *mut Context) {}
 
 #[no_mangle]
-pub fn lower_el_aarch32_serror_el1(_ctx: *mut Context) {
-
-}
+pub fn lower_el_aarch32_serror_el1(_ctx: *mut Context) {}

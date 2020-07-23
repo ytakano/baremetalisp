@@ -1,11 +1,11 @@
+use alloc::alloc::handle_alloc_error;
 use core::alloc::{GlobalAlloc, Layout};
 use core::ptr::null_mut;
-use alloc::alloc::handle_alloc_error;
 
-use crate::driver;
 use crate::aarch64::bits::clz;
-use crate::pager;
 use crate::aarch64::{lock, mmu};
+use crate::driver;
+use crate::pager;
 
 struct Allocator;
 
@@ -13,30 +13,30 @@ struct SlabAllocator {
     lock: lock::LockVar,
     pages: pager::PageManager,
 
-       slab16_partial: *mut    Slab16,
-       slab32_partial: *mut    Slab32,
-       slab64_partial: *mut    Slab64,
-      slab128_partial: *mut   Slab128,
-      slab256_partial: *mut   Slab256,
-      slab512_partial: *mut   Slab512,
-     slab1024_partial: *mut  Slab1024,
-     slab2040_partial: *mut  Slab2040,
-     slab4088_partial: *mut  Slab4088,
-     slab8184_partial: *mut  Slab8184,
+    slab16_partial: *mut Slab16,
+    slab32_partial: *mut Slab32,
+    slab64_partial: *mut Slab64,
+    slab128_partial: *mut Slab128,
+    slab256_partial: *mut Slab256,
+    slab512_partial: *mut Slab512,
+    slab1024_partial: *mut Slab1024,
+    slab2040_partial: *mut Slab2040,
+    slab4088_partial: *mut Slab4088,
+    slab8184_partial: *mut Slab8184,
     slab16376_partial: *mut Slab16376,
     slab32752_partial: *mut Slab32752,
     slab65512_partial: *mut Slab65512, // always null
 
-       slab16_full: *mut    Slab16,
-       slab32_full: *mut    Slab32,
-       slab64_full: *mut    Slab64,
-      slab128_full: *mut   Slab128,
-      slab256_full: *mut   Slab256,
-      slab512_full: *mut   Slab512,
-     slab1024_full: *mut  Slab1024,
-     slab2040_full: *mut  Slab2040,
-     slab4088_full: *mut  Slab4088,
-     slab8184_full: *mut  Slab8184,
+    slab16_full: *mut Slab16,
+    slab32_full: *mut Slab32,
+    slab64_full: *mut Slab64,
+    slab128_full: *mut Slab128,
+    slab256_full: *mut Slab256,
+    slab512_full: *mut Slab512,
+    slab1024_full: *mut Slab1024,
+    slab2040_full: *mut Slab2040,
+    slab4088_full: *mut Slab4088,
+    slab8184_full: *mut Slab8184,
     slab16376_full: *mut Slab16376,
     slab32752_full: *mut Slab32752,
     slab65512_full: *mut Slab65512,
@@ -95,14 +95,10 @@ macro_rules! AllocMemory {
                                     }
                                     ret
                                 }
-                                None => {
-                                    null_mut()
-                                }
+                                None => null_mut(),
                             }
                         }
-                        None => {
-                            null_mut()
-                        }
+                        None => null_mut(),
                     }
                 }
             }
@@ -112,7 +108,7 @@ macro_rules! AllocMemory {
             handle_alloc_error($layout);
         }
         return r;
-    }
+    };
 }
 
 macro_rules! DeallocMemory {
@@ -177,19 +173,19 @@ macro_rules! DeallocMemory {
             }
             None => {}
         }
-    }
+    };
 }
 
 unsafe impl GlobalAlloc for Allocator {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-/*
-        driver::uart::puts("alloc:\n");
-        driver::uart::puts("  layout.size: ");
-        driver::uart::decimal(layout.size() as u64);
-        driver::uart::puts("\n  layout.align: ");
-        driver::uart::decimal(layout.align() as u64);
-        driver::uart::puts("\n");
-*/
+        /*
+                driver::uart::puts("alloc:\n");
+                driver::uart::puts("  layout.size: ");
+                driver::uart::decimal(layout.size() as u64);
+                driver::uart::puts("\n  layout.align: ");
+                driver::uart::decimal(layout.align() as u64);
+                driver::uart::puts("\n");
+        */
         let size = layout.size();
         let n = clz(size as u64 + 8 - 1);
 
@@ -255,18 +251,18 @@ unsafe impl GlobalAlloc for Allocator {
     unsafe fn dealloc(&self, ptr: *mut u8, _layout: Layout) {
         let addr_slab = *((ptr as usize - 8) as *const u64);
         let size = *((addr_slab + 65532) as *const u32);
-/*
-        driver::uart::puts("dealloc:\n");
-        driver::uart::puts("  ptr: 0x");
-        driver::uart::hex(ptr as u64);
-        driver::uart::puts("\n");
-        driver::uart::puts("  addr_slab: 0x");
-        driver::uart::hex(addr_slab);
-        driver::uart::puts("\n");
-        driver::uart::puts("  size: ");
-        driver::uart::decimal(size as u64);
-        driver::uart::puts("\n");
-*/
+        /*
+                driver::uart::puts("dealloc:\n");
+                driver::uart::puts("  ptr: 0x");
+                driver::uart::hex(ptr as u64);
+                driver::uart::puts("\n");
+                driver::uart::puts("  addr_slab: 0x");
+                driver::uart::hex(addr_slab);
+                driver::uart::puts("\n");
+                driver::uart::puts("  size: ");
+                driver::uart::decimal(size as u64);
+                driver::uart::puts("\n");
+        */
         match size {
             16 => {
                 DeallocMemory!(ptr, addr_slab, Slab16, slab16_partial, slab16_full);
@@ -318,44 +314,50 @@ static GLOBAL: Allocator = Allocator;
 static mut SLAB_ALLOC: SlabAllocator = SlabAllocator {
     lock: lock::LockVar::new(),
     pages: pager::PageManager::new(),
-       slab16_partial: null_mut(),
-       slab32_partial: null_mut(),
-       slab64_partial: null_mut(),
-      slab128_partial: null_mut(),
-      slab256_partial: null_mut(),
-      slab512_partial: null_mut(),
-     slab1024_partial: null_mut(),
-     slab2040_partial: null_mut(),
-     slab4088_partial: null_mut(),
-     slab8184_partial: null_mut(),
+    slab16_partial: null_mut(),
+    slab32_partial: null_mut(),
+    slab64_partial: null_mut(),
+    slab128_partial: null_mut(),
+    slab256_partial: null_mut(),
+    slab512_partial: null_mut(),
+    slab1024_partial: null_mut(),
+    slab2040_partial: null_mut(),
+    slab4088_partial: null_mut(),
+    slab8184_partial: null_mut(),
     slab16376_partial: null_mut(),
     slab32752_partial: null_mut(),
     slab65512_partial: null_mut(),
-       slab16_full: null_mut(),
-       slab32_full: null_mut(),
-       slab64_full: null_mut(),
-      slab128_full: null_mut(),
-      slab256_full: null_mut(),
-      slab512_full: null_mut(),
-     slab1024_full: null_mut(),
-     slab2040_full: null_mut(),
-     slab4088_full: null_mut(),
-     slab8184_full: null_mut(),
+    slab16_full: null_mut(),
+    slab32_full: null_mut(),
+    slab64_full: null_mut(),
+    slab128_full: null_mut(),
+    slab256_full: null_mut(),
+    slab512_full: null_mut(),
+    slab1024_full: null_mut(),
+    slab2040_full: null_mut(),
+    slab4088_full: null_mut(),
+    slab8184_full: null_mut(),
     slab16376_full: null_mut(),
     slab32752_full: null_mut(),
     slab65512_full: null_mut(),
 };
 
 #[alloc_error_handler]
-fn on_oom(_layout: Layout) -> ! {
-    driver::uart::puts("memory allocation error\n");
+fn on_oom(layout: Layout) -> ! {
+    print_slabs();
+
+    let size = layout.size() as u64;
+    driver::uart::puts("memory allocation error: size = ");
+    driver::uart::decimal(size);
+    driver::uart::puts("\n");
     loop {}
 }
 
 pub fn init(addr: &mmu::Addr) {
     unsafe {
-        SLAB_ALLOC.pages.set_range(addr.el0_heap_start as usize,
-                                   addr.el0_heap_end as usize);
+        SLAB_ALLOC
+            .pages
+            .set_range(addr.el0_heap_start as usize, addr.el0_heap_end as usize);
     }
 }
 
@@ -378,7 +380,7 @@ macro_rules! SlabSmall {
             prev: *mut $id,
             next: *mut $id,
             num: u32,
-            size: u32
+            size: u32,
         }
 
         impl Slab for $id {
@@ -401,11 +403,23 @@ macro_rules! SlabSmall {
 
                 let size = self.size as usize;
                 let idx = idx1 * size * 64 + idx2 * size;
+
+                if idx >= 65536 - 32 - 8 * $n {
+                    driver::uart::puts("error: idx = ");
+                    driver::uart::decimal(idx as u64);
+                    driver::uart::puts(", n = ");
+                    driver::uart::decimal($n);
+                    driver::uart::puts("\n");
+                    print_slabs();
+                }
+
                 let ptr = &mut (self.buf[idx]) as *mut u8;
                 let ptr64 = ptr as *mut usize;
 
                 // first 64 bits points the slab
-                unsafe { *ptr64 = self as *mut $id as usize; }
+                unsafe {
+                    *ptr64 = self as *mut $id as usize;
+                }
 
                 self.num += 1;
 
@@ -443,11 +457,14 @@ macro_rules! SlabSmall {
                 self.l2_bitmap[$n - 1] = $l2val;
                 self.prev = null_mut();
                 self.next = null_mut();
+                self.num = 0;
                 self.size = $size;
             }
 
             fn print(&self) {
-                driver::uart::puts("L1 bitmap: 0x");
+                driver::uart::puts("num: ");
+                driver::uart::decimal(self.num as u64);
+                driver::uart::puts("\nL1 bitmap: 0x");
                 driver::uart::hex(self.l1_bitmap);
                 driver::uart::puts("\n");
 
@@ -473,13 +490,13 @@ macro_rules! SlabSmall {
                 }
             }
         }
-    }
+    };
 }
 
 // l1_bitmap = 0 (initial value)
 // l2_bitmap[63] = 0xFFFF FFFF | 0b11 << 32 (initial value)
 // size = 16
-SlabSmall!(Slab16, 64, 4, 0, 0xFFFFFFFF, 16);
+SlabSmall!(Slab16, 64, 4, 0, 0xFFFFFFFF | (0b11 << 32), 16);
 
 // l1_bitmap = 0xFFFF FFFF (initial value)
 // l2_bitmap[31] = 0b111111111 (initial value)
@@ -582,7 +599,7 @@ macro_rules! SlabLarge {
                 self.next = null_mut();
                 self.l1_bitmap = $l1val;
                 self.size = $size;
-                self.num  = 0;
+                self.num = 0;
             }
 
             fn print(&self) {
@@ -599,7 +616,7 @@ macro_rules! SlabLarge {
                 }
             }
         }
-    }
+    };
 }
 
 // l1_bitmap = 0xFFFF FFFF (initial value)
@@ -645,7 +662,9 @@ impl Slab for Slab65512 {
         let ptr64 = ptr as *mut usize;
 
         // first 64 bits points the slab
-        unsafe { *ptr64 = self as *mut Slab65512 as usize; }
+        unsafe {
+            *ptr64 = self as *mut Slab65512 as usize;
+        }
 
         self.num = 1;
 
@@ -668,7 +687,7 @@ impl Slab for Slab65512 {
         self.next = null_mut();
         self.prev = null_mut();
         self.size = 65512;
-        self.num  = 0;
+        self.num = 0;
     }
 
     fn print(&self) {
@@ -704,7 +723,7 @@ macro_rules! print_slabs {
             }
             None => {}
         }
-    }
+    };
 }
 
 pub fn print_slabs() {

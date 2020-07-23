@@ -1,4 +1,5 @@
 use crate::aarch64::bits::clz;
+use crate::driver::uart;
 
 /// 64 * 64 * 64 pages = 64 * 64 * 64 * 64KiB = 16GiB
 ///
@@ -21,7 +22,7 @@ pub struct PageManager {
 
 #[derive(Copy, Clone)]
 pub struct Book {
-    pages: [u64; 64]
+    pages: [u64; 64],
 }
 
 impl PageManager {
@@ -31,8 +32,27 @@ impl PageManager {
             end: 0,
             vacancy_books: 0,
             vacancy_pages: [0; 64],
-            book: [Book{pages: [0; 64]}; 64],
+            book: [Book { pages: [0; 64] }; 64],
         }
+    }
+
+    pub fn print(&self) {
+        uart::puts("start = 0x");
+        uart::hex(self.start as u64);
+        uart::puts("\nend = 0x");
+        uart::hex(self.end as u64);
+        uart::puts("\nvacancy_books = 0x");
+        uart::hex(self.vacancy_books);
+        uart::puts("\nvacancy_pages:");
+        let mut i = 0;
+        for p in self.vacancy_pages.iter() {
+            uart::puts("\n  ");
+            uart::decimal(i);
+            uart::puts(": 0x");
+            uart::hex(*p);
+            i += 1;
+        }
+        uart::puts("\n");
     }
 
     pub fn set_range(&mut self, start: usize, end: usize) {
@@ -49,7 +69,8 @@ impl PageManager {
         let idx2 = clz(!self.vacancy_pages[idx1]) as usize;
         let idx3 = clz(!self.book[idx1].pages[idx2]) as usize;
 
-        let addr = 64 * 1024 * 64 * 64 * idx1 + 64 * 1024 * 64 * idx2 + 64 * 1024 * idx3 + self.start;
+        let addr =
+            64 * 1024 * 64 * 64 * idx1 + 64 * 1024 * 64 * idx2 + 64 * 1024 * idx3 + self.start;
 
         if addr >= self.end {
             return None;
