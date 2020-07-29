@@ -2,31 +2,18 @@ use crate::aarch64::{cpu, delays, mmu};
 use crate::driver::uart;
 use crate::slab;
 
-extern crate blisp;
-
 use alloc::boxed::Box;
+use blisp;
 
 const GLOBAL_CODE: &str = "
 (data Dim2 (Dim2 Int Int))
 
-(data (Maybe t)
-    (Just t)
-    Nothing)
-
 (defun id (x) (Pure (-> (t) t))
     x)
-
-(export label-test () (Pure (-> () Int))
-    (match (Just 10)
-        ((Just x) x)
-        (Nothing 0)))
 
 (export callback-test (x)
     (IO (-> (Int) Int))
     (call-rust x 0 0))
-
-(export lambda-test (f) (Pure (-> ((Pure (-> (Int) Int))) Int))
-    (mul2 (f 2)))
 
 (defun mul2 (x) (Pure (-> (Int) Int))
     (* 2 x))
@@ -35,6 +22,18 @@ const GLOBAL_CODE: &str = "
     (if (<= n 0)
         0
         (tail-call-test (- n 1))))
+
+(data (Maybe t)
+    (Just t)
+    Nothing)
+
+(export label-test () (Pure (-> () Int))
+    (match (Just 10)
+        ((Just x) x)
+        (Nothing 0)))
+
+(export lambda-test (f) (Pure (-> ((Pure (-> (Int) Int))) Int))
+    (mul2 (f 2)))
 
 (export factorial (n) (Pure (-> (Int) Int))
     (if (<= n 0)
@@ -66,7 +65,7 @@ fn run_lisp() {
                     //uart::puts(&msg);
                 }
                 Err(e) => {
-                    let msg = format!("{:#?}\n", e);
+                    let msg = format!("{}:{}: {}", e.pos.line + 1, e.pos.column + 1, e.msg);
                     uart::puts(&msg);
                 }
             }
@@ -80,18 +79,22 @@ fn run_lisp() {
 
 fn repl_uart(ctx: &blisp::semantics::Context) -> ! {
     loop {
-        uart::puts("input code:\n");
+        uart::puts("\n> ");
         let code_str = uart::read_line();
         let code = alloc::str::from_utf8(&code_str).unwrap();
-        uart::puts("code = ");
-
-        uart::puts(code);
-        uart::puts("\n");
-        uart::puts("run\n\n");
 
         let result = blisp::eval(code, &ctx);
-        let msg = format!("{:#?}\n", result);
-        uart::puts(&msg);
+        match result {
+            Ok(rs) => {
+                for r in &rs {
+                    uart::puts(r);
+                }
+            }
+            Err(e) => {
+                let msg = format!("{}:{}: {}", e.pos.line + 1, e.pos.column + 1, e.msg);
+                uart::puts(&msg);
+            }
+        }
     }
 }
 
