@@ -2,6 +2,7 @@
 #![feature(lang_items)]
 #![feature(start)]
 #![feature(llvm_asm)]
+#![feature(asm)]
 #![feature(alloc_error_handler)]
 #![no_std]
 #![allow(dead_code)]

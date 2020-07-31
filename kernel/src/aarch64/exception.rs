@@ -1,40 +1,41 @@
 use crate::driver;
+use crate::el3;
 
 #[repr(C)]
 pub struct Context {
-    x0: u64,
-    x1: u64,
-    x2: u64,
-    x3: u64,
-    x4: u64,
-    x5: u64,
-    x6: u64,
-    x7: u64,
-    x8: u64,
-    x9: u64,
-    x10: u64,
-    x11: u64,
-    x12: u64,
-    x13: u64,
-    x14: u64,
-    x15: u64,
-    x16: u64,
-    x17: u64,
-    x18: u64,
-    x19: u64,
-    x20: u64,
-    x21: u64,
-    x22: u64,
-    x23: u64,
-    x24: u64,
-    x25: u64,
-    x26: u64,
-    x27: u64,
-    x28: u64,
-    x29: u64,
-    x30: u64,  // link register
-    elr: u64,  // exception link register
-    spsr: u32, // saved program status register
+    pub x0: u64,
+    pub x1: u64,
+    pub x2: u64,
+    pub x3: u64,
+    pub x4: u64,
+    pub x5: u64,
+    pub x6: u64,
+    pub x7: u64,
+    pub x8: u64,
+    pub x9: u64,
+    pub x10: u64,
+    pub x11: u64,
+    pub x12: u64,
+    pub x13: u64,
+    pub x14: u64,
+    pub x15: u64,
+    pub x16: u64,
+    pub x17: u64,
+    pub x18: u64,
+    pub x19: u64,
+    pub x20: u64,
+    pub x21: u64,
+    pub x22: u64,
+    pub x23: u64,
+    pub x24: u64,
+    pub x25: u64,
+    pub x26: u64,
+    pub x27: u64,
+    pub x28: u64,
+    pub x29: u64,
+    pub x30: u64,  // link register
+    pub elr: u64,  // exception link register
+    pub spsr: u32, // saved program status register
     _unused: [u8; 12],
 }
 
@@ -104,7 +105,10 @@ pub fn curr_el_spx_serror_el3(ctx: *mut Context) {
 
 // from lower EL (AArch64)
 #[no_mangle]
-pub fn lower_el_aarch64_sync_el3(_ctx: *mut Context) {}
+pub fn lower_el_aarch64_sync_el3(ctx: *mut Context) {
+    // secure monitor call
+    el3::handle_smc64(unsafe { &*ctx });
+}
 
 #[no_mangle]
 pub fn lower_el_aarch64_irq_el3(_ctx: *mut Context) {}
