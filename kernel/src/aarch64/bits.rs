@@ -1,14 +1,14 @@
 /// counting leading zero
 pub fn clz(n: u64) -> u64 {
     let rd: u64;
-    unsafe { llvm_asm!("clz $0, $1": "=r"(rd) : "r"(n)) }
+    unsafe { asm!("clz {}, {}", lateout(reg) rd, in(reg) n) }
     rd
 }
 
 /// reverse bits
 pub fn reverse(n: u64) -> u64 {
     let rd: u64;
-    unsafe { llvm_asm!("rbit $0, $1": "=r"(rd) : "r"(n)) }
+    unsafe { asm!("rbit {}, {}", lateout(reg) rd, in(reg) n) }
     rd
 }
 

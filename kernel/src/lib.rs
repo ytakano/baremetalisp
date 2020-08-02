@@ -38,7 +38,7 @@ fn init_master() {
     boot::run();
     aarch64::cpu::start_non_primary();
 
-    match aarch64::el::get_current_el() {
+    match aarch64::cpu::get_current_el() {
         3 => {
             el3::el3_to_el1(&addr);
         }

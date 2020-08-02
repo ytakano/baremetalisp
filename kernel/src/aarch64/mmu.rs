@@ -1,6 +1,6 @@
 use core::slice;
 
-use super::el;
+use super::cpu;
 use crate::driver;
 
 //-----------------------------------------------------------------------------
@@ -357,7 +357,7 @@ impl TTable {
 pub fn enabled() -> Option<bool> {
     let mut sctlr: u32;
 
-    let el = el::get_current_el();
+    let el = cpu::get_current_el();
     if el == 1 {
         unsafe { llvm_asm!("mrs $0, SCTLR_EL1" : "=r"(sctlr)) };
         Some(sctlr & 1 == 1)
@@ -374,7 +374,7 @@ pub fn enabled() -> Option<bool> {
 
 fn get_sctlr() -> u32 {
     let mut sctlr: u32 = 0;
-    let el = el::get_current_el();
+    let el = cpu::get_current_el();
     if el == 1 {
         unsafe { llvm_asm!("mrs $0, SCTLR_EL1" : "=r"(sctlr)) };
     } else if el == 2 {
@@ -387,7 +387,7 @@ fn get_sctlr() -> u32 {
 }
 
 fn set_sctlr(sctlr: u32) {
-    let el = el::get_current_el();
+    let el = cpu::get_current_el();
     if el == 1 {
         unsafe { llvm_asm!("msr SCTLR_EL1, $0" : : "r"(sctlr)) };
     } else if el == 2 {
@@ -401,7 +401,7 @@ fn set_sctlr(sctlr: u32) {
 pub fn set_regs() {
     let addr = Addr::new();
 
-    if el::get_current_el() == 2 {
+    if cpu::get_current_el() == 2 {
         set_reg_el2(addr.tt_firm_start as usize);
     } else {
         set_reg_el3(addr.tt_firm_start as usize);
@@ -437,7 +437,7 @@ pub fn init() -> Option<(Addr, TTable, (TTable, TTable))> {
         return None;
     }
 
-    let table_firm = if el::get_current_el() == 2 {
+    let table_firm = if cpu::get_current_el() == 2 {
         init_el2(&addr)
     } else {
         init_el3(&addr)

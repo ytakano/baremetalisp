@@ -10,7 +10,7 @@ pub fn run() {
 /// print current execution level
 fn print_el() {
     driver::uart::puts("[Current EL  ] EL");
-    let el = aarch64::el::get_current_el();
+    let el = aarch64::cpu::get_current_el();
     driver::uart::decimal(el as u64);
     driver::uart::puts("\n");
 

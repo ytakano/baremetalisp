@@ -16,6 +16,12 @@ pub fn get_affinity_lv1() -> u64 {
     (mpidr >> 8) & 0xFF
 }
 
+pub fn get_current_el() -> u32 {
+    let el: u64;
+    unsafe { asm!("mrs {}, CurrentEL", lateout(reg) el) }
+    ((el >> 2) & 0x3) as u32
+}
+
 pub fn send_event() {
     unsafe {
         asm!("sev");
