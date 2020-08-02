@@ -1,11 +1,11 @@
-use core::intrinsics::volatile_store;
 use core::intrinsics::volatile_load;
+use core::intrinsics::volatile_store;
 
 use super::memory::*;
 
-const RNG_CTRL:     *mut u32 = (MMIO_BASE + 0x00104000) as *mut u32;
-const RNG_STATUS:   *mut u32 = (MMIO_BASE + 0x00104004) as *mut u32;
-const RNG_DATA:     *mut u32 = (MMIO_BASE + 0x00104008) as *mut u32;
+const RNG_CTRL: *mut u32 = (MMIO_BASE + 0x00104000) as *mut u32;
+const RNG_STATUS: *mut u32 = (MMIO_BASE + 0x00104004) as *mut u32;
+const RNG_DATA: *mut u32 = (MMIO_BASE + 0x00104008) as *mut u32;
 const RNG_INT_MASK: *mut u32 = (MMIO_BASE + 0x00104010) as *mut u32;
 
 /// Initilaize random number generator (only Raspberry Pi 3).
@@ -23,7 +23,7 @@ pub fn init() {
     }
 
     while (unsafe { volatile_load(RNG_STATUS) } >> 24) == 0 {
-        unsafe { llvm_asm!("nop;") };
+        unsafe { asm!("nop;") };
     }
 }
 

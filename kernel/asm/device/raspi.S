@@ -117,37 +117,37 @@ _start:
      * Bit 9 clear: Increment by 1 (vs. 2).
      * Bit 8 clear: Timer source is 19.2MHz crystal (vs. APB).
      */
-    mov x0, LOCAL_CONTROL
-    str wzr, [x0]
+    mov     x0, LOCAL_CONTROL
+    str     wzr, [x0]
     /* LOCAL_PRESCALER; divide-by (0x80000000 / register_val) == 1 */
-    mov w1, 0x80000000
-    str w1, [x0, #(LOCAL_PRESCALER - LOCAL_CONTROL)]
+    mov     w1, 0x80000000
+    str     w1, [x0, #(LOCAL_PRESCALER - LOCAL_CONTROL)]
 
     /* Set L2 read/write cache latency to 3 */
-    mrs x0, L2CTLR_EL1
-    mov x1, #0x22
-    orr x0, x0, x1
-    msr L2CTLR_EL1, x0
+    mrs     x0, L2CTLR_EL1
+    mov     x1, #0x22
+    orr     x0, x0, x1
+    msr     L2CTLR_EL1, x0
 
     /* Set up CNTFRQ_EL0 */
-    ldr x0, =OSC_FREQ
-    msr CNTFRQ_EL0, x0
+    ldr     x0, =OSC_FREQ
+    msr     CNTFRQ_EL0, x0
 
     /* Set up CNTVOFF_el2 */
-    msr CNTVOFF_el2, xzr
+    msr     CNTVOFF_el2, xzr
 
     /* Enable FP/SIMD */
     /* All set bits below are res1; bit 10 (TFP) is set to 0 */
-    mov x0, #(1 << 8)
-    msr CPTR_EL3, x0
+    mov     x0, #(1 << 8)
+    msr     CPTR_EL3, x0
 
     /* Set up SCR */
-    mov x0, #SCR_VAL
-    msr SCR_EL3, x0
+    mov     x0, #SCR_VAL
+    msr     SCR_EL3, x0
 
     /* Set SMPEN */
-    mov x0, #CPUECTLR_EL1_SMPEN
-    msr CPUECTLR_EL1, x0
+    mov     x0, #CPUECTLR_EL1_SMPEN
+    msr     CPUECTLR_EL1, x0
 
 #ifdef GIC
     bl      setup_gic
@@ -155,10 +155,10 @@ _start:
 #endif // NOEL3
 
     // enable FP/SIMD on EL2 and EL1
-    mov x0, #(0x32FF)
-    msr CPTR_EL2, x0
-    mov x0, #(0b110011 << 16)
-    msr CPACR_EL1, x0
+    mov     x0, #(0x32FF)
+    msr     CPTR_EL2, x0
+    mov     x0, #(0b110011 << 16)
+    msr     CPACR_EL1, x0
 
 #endif // raspi4
 

@@ -1,2 +1,3 @@
-pub mod uart;
+pub mod cpu;
 pub mod memory;
+pub mod uart;

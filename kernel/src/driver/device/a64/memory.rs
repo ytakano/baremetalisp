@@ -1,1 +1,4 @@
-pub const MMIO_BASE: u32 = 0x01C00000;
+pub const SUNXI_CPUCFG_BASE: u32 = 0x01700000;
+pub const SUNXI_UART0_BASE: u32 = 0x01c28000;
+pub const SUNXI_R_PRCM_BASE: u32 = 0x01f01400;
+pub const SUNXI_R_CPUCFG_BASE: u32 = 0x01f01c00;

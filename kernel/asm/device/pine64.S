@@ -110,35 +110,51 @@
 #define GICD_CTRLR          0x0
 #define GICD_IGROUPR        0x80
 
+#define CPUCFG_BASE_L       0x0C00
+#define CPUCFG_BASE_H       0x0170
+
+#define RESET_CONTROL       0x0080
+#define CPU0_ADDR_L         0x00A0
+#define CPU0_ADDR_H         0x00A4
+#define CPU1_ADDR_L         0x00A8
+#define CPU1_ADDR_H         0x00AC
+#define CPU2_ADDR_L         0x00B0
+#define CPU2_ADDR_H         0x00B4
+#define CPU3_ADDR_L         0x00B8
+#define CPU3_ADDR_H         0x00BC
+
+#define CPU0_RESET          0x01
+#define CPU1_RESET          0x02
+#define CPU2_RESET          0x04
+#define CPU3_RESET          0x08
+
 _start:
-completed:
     /* Set up CNTFRQ_EL0 */
-    ldr x0, =OSC_FREQ
-    msr CNTFRQ_EL0, x0
+    ldr     x0, =OSC_FREQ
+    msr     CNTFRQ_EL0, x0
 
     /* Set up CNTVOFF_el2 */
-    msr CNTVOFF_el2, xzr
+    msr     CNTVOFF_el2, xzr
 
     /* Enable FP/SIMD */
     /* All set bits below are res1; bit 10 (TFP) is set to 0 */
-    mov x0, #(1 << 8)
-    msr CPTR_EL3, x0
-
+    mov     x0, #(1 << 8)
+    msr     CPTR_EL3, x0
 
     /* Set up SCR */
-    mov x0, #SCR_VAL
-    msr SCR_EL3, x0
+    mov     x0, #SCR_VAL
+    msr     SCR_EL3, x0
 
     /* Set SMPEN */
-    mov x0, #CPUECTLR_EL1_SMPEN
-    msr CPUECTLR_EL1, x0
+    mov     x0, #CPUECTLR_EL1_SMPEN
+    msr     CPUECTLR_EL1, x0
     bl      setup_gic
 
    // enable FP/SIMD on EL2 and EL1
-    mov x0, #(0x32FF)
-    msr CPTR_EL2, x0
-    mov x0, #(0b110011 << 16)
-    msr CPACR_EL1, x0
+    mov     x0, #(0x32FF)
+    msr     CPTR_EL2, x0
+    mov     x0, #(0b110011 << 16)
+    msr     CPACR_EL1, x0
 
     // disable all interrupt (daif at bits 9..6)
     msr     DAIFSet, #0x0f
@@ -147,18 +163,12 @@ completed:
     ldr     x1, =__stack_firm_start
     mrs     x2, mpidr_el1 // read cpu id
     and     x2, x2, #0xFF
-    mov     x4, #(STACKSIZE) // set stack
+    mov     x4, #(STACKSIZE)
     mul     x3, x2, x4
     sub     x1, x1, x3
     mov     sp, x1
 
-    // stop slave cores
-    cbz     x2, .L2
-
-    // if cpu id > 0 then stop
-.L1:
-    wfe
-    b       .L1
+    cbnz    x2, .L4
 
     // if cpu id == 0
 .L2:
@@ -170,7 +180,6 @@ completed:
     str     xzr, [x1], #8
     sub     w2, w2, #1
     cbnz    w2, .L3
-
 
 .L4:
     // set exception vector

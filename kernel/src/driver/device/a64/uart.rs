@@ -1,9 +1,7 @@
-use core::intrinsics::volatile_store;
 use core::intrinsics::volatile_load;
+use core::intrinsics::volatile_store;
 
-use super::memory;
-
-pub const SUNXI_UART0_BASE: u32 = (memory::MMIO_BASE + 0x00028000) as u32;
+use super::memory::SUNXI_UART0_BASE;
 
 pub const UART0_THR: *mut u64 = (SUNXI_UART0_BASE + 0x00) as *mut u64; // transmit holding register
 pub const UART0_RBR: *mut u64 = (SUNXI_UART0_BASE + 0x00) as *mut u64; // receive holding register
@@ -18,9 +16,9 @@ pub fn init() {
 }
 
 /// send a character to serial console
-pub fn send(c : u32) {
+pub fn send(c: u32) {
     while unsafe { volatile_load(UART0_LSR) } & (1 << 5) == 0 {
-        unsafe { llvm_asm!("nop;") };
+        unsafe { asm!("nop;") };
     }
 
     unsafe {
@@ -30,9 +28,9 @@ pub fn send(c : u32) {
 
 pub fn recv() -> u32 {
     // wait until we can send
-    unsafe { llvm_asm!("nop;") };
+    unsafe { asm!("nop;") };
     while unsafe { volatile_load(UART0_LSR) } & 1 == 0 {
-        unsafe { llvm_asm!("nop;") };
+        unsafe { asm!("nop;") };
     }
 
     let c;

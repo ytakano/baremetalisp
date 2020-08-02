@@ -1,30 +1,37 @@
 pub fn get_affinity_lv0() -> u64 {
-    let mut ret: u64;
-
+    let mpidr: u64;
     unsafe {
-        llvm_asm!(
-            "mrs x0, mpidr_el1;
-             and $0, x0, #0xFF"
-            : "=r"(ret)
-            :
-            : "x0")
+        asm!("mrs {}, mpidr_el1", lateout(reg) mpidr);
     }
 
-    ret
+    mpidr & 0xFF
+}
+
+pub fn get_affinity_lv1() -> u64 {
+    let mpidr: u64;
+    unsafe {
+        asm!("mrs {}, mpidr_el1", lateout(reg) mpidr);
+    }
+
+    (mpidr >> 8) & 0xFF
 }
 
 pub fn send_event() {
-    unsafe { llvm_asm!("sev"); }
+    unsafe {
+        asm!("sev");
+    }
 }
 
 pub fn wait_event() {
-    unsafe { llvm_asm!("wfe"); }
+    unsafe {
+        asm!("wfe");
+    }
 }
 
 pub fn start_non_primary() {
     if cfg!(feature = "raspi3") {
         unsafe {
-            llvm_asm!(
+            asm!(
                 "mov x1, #0xe0
                  ldr x2, =_start
                  str x2, [x1]

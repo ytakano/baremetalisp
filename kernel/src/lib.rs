@@ -8,6 +8,7 @@
 #![allow(dead_code)]
 
 mod aarch64;
+mod bits;
 mod boot;
 mod driver;
 mod el0;
