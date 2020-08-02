@@ -20,13 +20,13 @@ jobs:
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       - name: Install Dependencies
-        run: sudo apt-get -y install make curl software-properties-common
+        run: sudo apt-get -y install make curl software-properties-common lld
 
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: nightly-2020-05-15
+          toolchain: nightly-2020-07-27
           override: true
           components: rust-src
 
@@ -44,4 +44,4 @@ jobs:
 
       # Runs a single command using the runners shell
       - name: Compile
-        run: cd $GITHUB_WORKSPACE/kernel && make CC=clang-10 baremetalisp
+        run: cd $GITHUB_WORKSPACE/kernel && make CC=clang-10 LD=ld.lld baremetalisp
