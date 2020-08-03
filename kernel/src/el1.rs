@@ -9,14 +9,15 @@ pub fn el1_entry() -> ! {
     unsafe {
         asm!("
              // change execution level to EL1
-             mov x0, {}
-             msr sp_el0, x0    // set stack pointer
-             mov x0, #0        // EL0t
-             msr spsr_el1, x0
-             adr x0, el0_entry // set entry point
-             msr elr_el1, x0
+             mov {0}, {1}
+             msr sp_el0, {0}    // set stack pointer
+             mov {0}, #0        // EL0t
+             msr spsr_el1, {0}
+             adr {0}, el0_entry // set entry point
+             msr elr_el1, {0}
              eret",
-            in(reg) stack
+            out(reg) _,
+            in(reg) stack,
         );
     }
 

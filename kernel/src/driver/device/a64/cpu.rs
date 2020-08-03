@@ -1,18 +1,21 @@
 use core::intrinsics::volatile_load;
 use core::intrinsics::volatile_store;
 
-use super::memory::{SUNXI_CPUCFG_BASE, SUNXI_R_CPUCFG_BASE, SUNXI_R_PRCM_BASE};
+use super::memory::{
+    SUNXI_CPUCFG_BASE, SUNXI_R_CPUCFG_BASE, SUNXI_R_PRCM_BASE, SUNXI_SCP_BASE, SUNXI_SRAM_A2_BASE,
+};
 use crate::bits::{bit_clear32, bit_set32};
 
 const CPUCFG_DBG_REG0: *mut u32 = (SUNXI_CPUCFG_BASE + 0x0020) as *mut u32;
-const CPU0_ADDR_L: *mut u32 = (SUNXI_CPUCFG_BASE + 0x00A0) as *mut u32;
-const CPU0_ADDR_H: *mut u32 = (SUNXI_CPUCFG_BASE + 0x00A4) as *mut u32;
-const CPU1_ADDR_L: *mut u32 = (SUNXI_CPUCFG_BASE + 0x00A8) as *mut u32;
-const CPU1_ADDR_H: *mut u32 = (SUNXI_CPUCFG_BASE + 0x00AC) as *mut u32;
-const CPU2_ADDR_L: *mut u32 = (SUNXI_CPUCFG_BASE + 0x00B0) as *mut u32;
-const CPU2_ADDR_H: *mut u32 = (SUNXI_CPUCFG_BASE + 0x00B4) as *mut u32;
-const CPU3_ADDR_L: *mut u32 = (SUNXI_CPUCFG_BASE + 0x00B8) as *mut u32;
-const CPU3_ADDR_H: *mut u32 = (SUNXI_CPUCFG_BASE + 0x00BC) as *mut u32;
+const SCP_FIRMWARE_MAGIC: u32 = 0xb4400012;
+const OR1K_VEC_FIRST: u32 = 0x01;
+const OR1K_VEC_LAST: u32 = 0x0e;
+
+static mut SCPI_AVAILABLE: bool = false;
+
+extern "C" {
+    fn _start();
+}
 
 fn cpucfg_cls_ctrl_reg0(core: usize) -> *mut u32 {
     (SUNXI_CPUCFG_BASE + (core as u32) * 16) as *mut u32
@@ -46,6 +49,53 @@ fn enable_power(cluster: usize, core: usize) {
         volatile_store(addr, 0xe0);
         volatile_store(addr, 0x80);
         volatile_store(addr, 0x00);
+    }
+}
+
+fn cpucfg_rvbar_lo_reg(core: usize) -> *mut u32 {
+    (SUNXI_CPUCFG_BASE as usize + 0x00a0 + core * 8) as *mut u32
+}
+
+fn cpucfg_rvbar_hi_reg(core: usize) -> *mut u32 {
+    (SUNXI_CPUCFG_BASE as usize + 0x00a4 + core * 8) as *mut u32
+}
+
+fn or1k_vec_addr(n: u32) -> u32 {
+    0x100 * n
+}
+
+pub fn init() {
+    // Program all CPU entry points
+    let start = _start as *const () as u64;
+    for i in 0..4 {
+        let addr_lo = cpucfg_rvbar_lo_reg(i);
+        let addr_hi = cpucfg_rvbar_hi_reg(i);
+        unsafe {
+            volatile_store(addr_lo, (start & 0xFFFFFFFF) as u32);
+            volatile_store(addr_hi, (start >> 32) as u32);
+        }
+    }
+
+    // Check for a valid SCP firmware, and boot the SCP if found.
+    let scp_base = SUNXI_SCP_BASE as *mut u32;
+    if unsafe { volatile_load(scp_base) } == SCP_FIRMWARE_MAGIC {
+        // Program SCP exception vectors to the firmware entrypoint.
+        for i in OR1K_VEC_FIRST..(OR1K_VEC_LAST + 1) {
+            let vector = SUNXI_SRAM_A2_BASE + or1k_vec_addr(i);
+            let offset = SUNXI_SCP_BASE - vector;
+            unsafe {
+                volatile_store(vector as *mut u32, offset >> 2);
+
+                // TODO: clear cache
+            }
+            // Take the SCP out of reset.
+            bit_set32(SUNXI_R_CPUCFG_BASE as *mut u32, 0);
+
+            // if scpi_wait_ready() == 0
+            unsafe {
+                SCPI_AVAILABLE = true;
+            }
+        }
     }
 }
 

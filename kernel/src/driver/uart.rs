@@ -1,40 +1,39 @@
-use alloc::vec::Vec;
 #[cfg(any(feature = "raspi3", feature = "raspi4"))]
-
 use super::device::bcm2711;
+use alloc::vec::Vec;
 
 #[cfg(feature = "pine64")]
 use super::device::a64;
 
 const UART_CLOCK: u64 = 48000000;
-const UART_BAUD:  u64 = 115200;
+const UART_BAUD: u64 = 115200;
 
-fn send(c : u32) {
-#[cfg(any(feature = "raspi3", feature = "raspi4"))]
+fn send(c: u32) {
+    #[cfg(any(feature = "raspi3", feature = "raspi4"))]
     bcm2711::uart::send(c);
 
-#[cfg(feature = "pine64")]
+    #[cfg(feature = "pine64")]
     a64::uart::send(c);
 }
 
 pub fn recv() -> u32 {
-#[cfg(feature = "pine64")]
+    #[cfg(feature = "pine64")]
     return a64::uart::recv();
 
-#[cfg(any(feature = "raspi3", feature = "raspi4"))]
+    #[cfg(any(feature = "raspi3", feature = "raspi4"))]
     return bcm2711::uart::recv();
 }
 
 pub fn init() {
-#[cfg(any(feature = "raspi3", feature = "raspi4"))]
+    #[cfg(any(feature = "raspi3", feature = "raspi4"))]
     bcm2711::uart::init(UART_CLOCK, UART_BAUD);
 
-#[cfg(feature = "pine64")]
+    #[cfg(feature = "pine64")]
     a64::uart::init();
 }
 
 /// print characters to serial console
-pub fn puts(s : &str) {
+pub fn puts(s: &str) {
     for c in s.bytes() {
         send(c as u32);
         if c == '\n' as u8 {
@@ -44,7 +43,7 @@ pub fn puts(s : &str) {
 }
 
 /// print a 64-bit value in hexadecimal to serial console
-pub fn hex(h : u64) {
+pub fn hex(h: u64) {
     for i in (0..61).step_by(4).rev() {
         let mut n = (h >> i) & 0xF;
         n += if n > 9 { 0x37 } else { 0x30 };
@@ -53,7 +52,7 @@ pub fn hex(h : u64) {
 }
 
 /// print a 32-bit value in hexadecimal to serial console
-pub fn hex32(h : u32) {
+pub fn hex32(h: u32) {
     for i in (0..29).step_by(4).rev() {
         let mut n = (h >> i) & 0xF;
         n += if n > 9 { 0x37 } else { 0x30 };
@@ -91,9 +90,17 @@ pub fn read_line() -> Vec<u8> {
         let c = recv() as u8;
         if c == '\r' as u8 || c == '\n' as u8 {
             break;
+        } else if c == 0x08 || c == 0x7F {
+            if !res.is_empty() {
+                send(0x08 as u32);
+                send(' ' as u32);
+                send(0x08 as u32);
+                res.pop();
+            }
+        } else {
+            send(c as u32);
+            res.push(c);
         }
-        send(c as u32);
-        res.push(c);
     }
 
     puts("\n");
