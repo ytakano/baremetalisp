@@ -1,4 +1,3 @@
-
 // Raspberry Pi 4, Broadcom BCM2711
 #[cfg(any(feature = "raspi3", feature = "raspi4"))]
 pub mod bcm2711;

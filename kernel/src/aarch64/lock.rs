@@ -60,6 +60,10 @@ impl BakeryTicket {
             number: [0; NUM_CPU as usize],
         }
     }
+
+    pub fn lock(&mut self) -> BakeryLock {
+        BakeryLock::new(self)
+    }
 }
 
 pub struct BakeryLock<'a> {

@@ -1,35 +1,24 @@
 #[cfg(any(feature = "raspi3", feature = "raspi4"))]
-use super::device::bcm2711;
-use alloc::vec::Vec;
+use super::device::bcm2711::uart;
 
 #[cfg(feature = "pine64")]
-use super::device::a64;
+use super::device::a64::uart;
+
+use alloc::vec::Vec;
 
 const UART_CLOCK: u64 = 48000000;
 const UART_BAUD: u64 = 115200;
 
 fn send(c: u32) {
-    #[cfg(any(feature = "raspi3", feature = "raspi4"))]
-    bcm2711::uart::send(c);
-
-    #[cfg(feature = "pine64")]
-    a64::uart::send(c);
+    uart::send(c);
 }
 
 pub fn recv() -> u32 {
-    #[cfg(feature = "pine64")]
-    return a64::uart::recv();
-
-    #[cfg(any(feature = "raspi3", feature = "raspi4"))]
-    return bcm2711::uart::recv();
+    return uart::recv();
 }
 
 pub fn init() {
-    #[cfg(any(feature = "raspi3", feature = "raspi4"))]
-    bcm2711::uart::init(UART_CLOCK, UART_BAUD);
-
-    #[cfg(feature = "pine64")]
-    a64::uart::init();
+    uart::init(UART_CLOCK, UART_BAUD);
 }
 
 /// print characters to serial console
@@ -92,6 +81,19 @@ pub fn read_line() -> Vec<u8> {
             break;
         } else if c == 0x08 || c == 0x7F {
             if !res.is_empty() {
+                send(0x08 as u32);
+                send(' ' as u32);
+                send(0x08 as u32);
+                res.pop();
+            }
+        } else if c == '\t' as u8 {
+            let c = ' ' as u8;
+            for _ in 0..8 {
+                send(c as u32);
+                res.push(c);
+            }
+        } else if c == 0x15 {
+            while !res.is_empty() {
                 send(0x08 as u32);
                 send(' ' as u32);
                 send(0x08 as u32);

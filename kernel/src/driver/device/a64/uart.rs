@@ -8,7 +8,7 @@ pub const UART0_RBR: *mut u64 = (SUNXI_UART0_BASE + 0x00) as *mut u64; // receiv
 pub const UART0_FCR: *mut u64 = (SUNXI_UART0_BASE + 0x08) as *mut u64; // fifo control register
 pub const UART0_LSR: *mut u32 = (SUNXI_UART0_BASE + 0x14) as *mut u32; // line status register
 
-pub fn init() {
+pub fn init(_uart_clock: u64, _baudrate: u64) {
     unsafe {
         let val = volatile_load(UART0_FCR);
         volatile_store(UART0_THR, val | 1);

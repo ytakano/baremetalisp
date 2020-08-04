@@ -2,42 +2,9 @@ use core::slice;
 
 use super::cpu;
 use crate::driver;
+use crate::driver::memory::{DEVICE_MEM_END, DEVICE_MEM_START};
 
-//-----------------------------------------------------------------------------
-// Raspberry Pi 3
-#[cfg(feature = "raspi3")]
-pub const DEVICE_MEM_START: u64 = 0x3C000000;
-
-#[cfg(feature = "raspi3")]
-pub const DEVICE_MEM_END: u64 = 0x40000000;
-
-#[cfg(feature = "raspi3")]
 pub const NUM_CPU: u64 = 4;
-//-----------------------------------------------------------------------------
-
-//-----------------------------------------------------------------------------
-// Raspberry Pi 4
-#[cfg(feature = "raspi4")]
-pub const DEVICE_MEM_START: u64 = 0x0fd000000; // maybe...
-
-#[cfg(feature = "raspi4")]
-pub const DEVICE_MEM_END: u64 = 0x100000000; // maybe...
-
-#[cfg(feature = "raspi4")]
-pub const NUM_CPU: u64 = 4;
-//-----------------------------------------------------------------------------
-
-//-----------------------------------------------------------------------------
-// PINE64
-#[cfg(feature = "pine64")]
-pub const DEVICE_MEM_START: u64 = 0x01C00000;
-
-#[cfg(feature = "pine64")]
-pub const DEVICE_MEM_END: u64 = 0x01F10000;
-
-#[cfg(feature = "pine64")]
-pub const NUM_CPU: u64 = 4;
-//-----------------------------------------------------------------------------
 
 pub const EL1_ADDR_OFFSET: u64 = 0x3FFFFF << 42;
 

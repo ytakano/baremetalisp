@@ -5,6 +5,7 @@ use super::memory::{
     SUNXI_CPUCFG_BASE, SUNXI_R_CPUCFG_BASE, SUNXI_R_PRCM_BASE, SUNXI_SCP_BASE, SUNXI_SRAM_A2_BASE,
 };
 use crate::bits::{bit_clear32, bit_set32};
+use crate::driver::arm::scpi;
 
 const CPUCFG_DBG_REG0: *mut u32 = (SUNXI_CPUCFG_BASE + 0x0020) as *mut u32;
 const SCP_FIRMWARE_MAGIC: u32 = 0xb4400012;
@@ -91,9 +92,11 @@ pub fn init() {
             // Take the SCP out of reset.
             bit_set32(SUNXI_R_CPUCFG_BASE as *mut u32, 0);
 
-            // if scpi_wait_ready() == 0
-            unsafe {
-                SCPI_AVAILABLE = true;
+            // Wait for the SCP firmware to boot.
+            if scpi::scpi_wait_ready() {
+                unsafe {
+                    SCPI_AVAILABLE = true;
+                }
             }
         }
     }
