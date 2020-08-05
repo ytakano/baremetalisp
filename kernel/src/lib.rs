@@ -27,8 +27,8 @@ use core::panic::PanicInfo;
 fn init_master() {
     driver::init();
 
-    let addr = match aarch64::mmu::init() {
-        Some((a, _, _)) => a,
+    match aarch64::mmu::init() {
+        Some(_) => (),
         None => {
             driver::uart::puts("Error: failed to initialize MMU\n");
             aarch64::delays::infinite_loop();
@@ -40,11 +40,11 @@ fn init_master() {
 
     match aarch64::cpu::get_current_el() {
         3 => {
-            el3::el3_to_el1(&addr);
+            el3::el3_to_el1();
         }
         2 => {
             driver::uart::puts("Warning: execution level is not EL3\n");
-            el2::el2_to_el1(&addr);
+            el2::el2_to_el1();
         }
         _ => {
             driver::uart::puts("Error: execution level is not EL3\n");
@@ -61,6 +61,8 @@ fn init_slave() -> ! {
 
 #[no_mangle]
 pub fn entry() -> ! {
+    aarch64::mmu::init_memory_map();
+
     if aarch64::cpu::get_affinity_lv0() == 0 {
         init_master();
     } else {

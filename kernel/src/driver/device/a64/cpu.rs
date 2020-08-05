@@ -14,6 +14,10 @@ const OR1K_VEC_LAST: u32 = 0x0e;
 
 static mut SCPI_AVAILABLE: bool = false;
 
+pub(crate) fn scpi_available() -> bool {
+    unsafe { SCPI_AVAILABLE }
+}
+
 extern "C" {
     fn _start();
 }
@@ -99,10 +103,6 @@ pub fn init() {
                 }
             }
         }
-    }
-
-    if unsafe { SCPI_AVAILABLE } {
-    } else {
     }
 }
 

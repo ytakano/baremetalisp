@@ -1,6 +1,7 @@
 use crate::aarch64;
 
-pub fn el2_to_el1(addr: &aarch64::mmu::Addr) {
+pub fn el2_to_el1() {
+    let addr = aarch64::mmu::get_memory_map();
     let aff = aarch64::cpu::get_affinity_lv0();
     let stack = addr.stack_el1_start - addr.stack_size * aff + aarch64::mmu::EL1_ADDR_OFFSET;
 

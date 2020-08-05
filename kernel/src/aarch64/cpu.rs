@@ -34,6 +34,24 @@ pub fn wait_event() {
     }
 }
 
+pub fn dmb_st() {
+    unsafe {
+        asm!("dmb st");
+    }
+}
+
+pub fn dmb_ld() {
+    unsafe {
+        asm!("dmb ld");
+    }
+}
+
+pub fn dmb() {
+    unsafe {
+        asm!("dmb");
+    }
+}
+
 pub fn start_non_primary() {
     if cfg!(feature = "raspi3") {
         unsafe {

@@ -100,7 +100,7 @@ fn repl_uart(ctx: &blisp::semantics::Context) -> ! {
 
 #[no_mangle]
 pub fn el0_entry() -> ! {
-    let addr = mmu::Addr::new();
+    let addr = mmu::get_memory_map();
 
     // initialize memory allocator
     slab::init(&addr);

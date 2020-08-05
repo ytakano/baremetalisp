@@ -26,6 +26,24 @@ pub const KERN_TTBR1_LV2_TABLE_NUM: usize = 1;
 pub const KERN_TTBR1_LV3_TABLE_NUM: usize = 4;
 pub const KERN_TTBR1_TABLE_NUM: usize = KERN_TTBR1_LV2_TABLE_NUM + KERN_TTBR1_LV3_TABLE_NUM;
 
+static mut MEMORY_MAP: Addr = Addr {
+    no_cache_start: 0,
+    no_cache_end: 0,
+    tt_firm_start: 0,
+    tt_firm_end: 0,
+    tt_el1_ttbr0_start: 0,
+    tt_el1_ttbr0_end: 0,
+    tt_el1_ttbr1_start: 0,
+    tt_el1_ttbr1_end: 0,
+    stack_size: 0,
+    stack_el1_end: 0,
+    stack_el1_start: 0,
+    stack_el0_end: 0,
+    stack_el0_start: 0,
+    el0_heap_start: 0,
+    el0_heap_end: 0,
+};
+
 extern "C" {
     static __ram_start: u64;
     static __free_mem_start: u64;
@@ -119,56 +137,38 @@ pub struct Addr {
 }
 
 impl Addr {
-    pub fn new() -> Addr {
-        let no_cache_start = unsafe { &__free_mem_start as *const u64 as u64 };
-        let no_cache_end = no_cache_start + PAGESIZE;
+    fn init(&mut self) {
+        self.no_cache_start = unsafe { &__free_mem_start as *const u64 as u64 };
+        self.no_cache_end = self.no_cache_start + PAGESIZE * NUM_CPU;
 
         // MMU's transition table for firmware
-        let tt_firm_start = no_cache_end;
-        let tt_firm_end = tt_firm_start + PAGESIZE * FIRM_TABLE_NUM as u64;
+        self.tt_firm_start = self.no_cache_end;
+        self.tt_firm_end = self.tt_firm_start + PAGESIZE * FIRM_TABLE_NUM as u64;
 
         // MMU's transition table #0 for EL1
-        let tt_el1_ttbr0_start = tt_firm_end;
-        let tt_el1_ttbr0_end = tt_el1_ttbr0_start + PAGESIZE * KERN_TTBR0_TABLE_NUM as u64;
+        self.tt_el1_ttbr0_start = self.tt_firm_end;
+        self.tt_el1_ttbr0_end = self.tt_el1_ttbr0_start + PAGESIZE * KERN_TTBR0_TABLE_NUM as u64;
 
         // MMU's transition table #1 for EL1
         // level 2 table x 1 (for 4TiB space)
         // level 3 table x 1 (for 512MiB space)
-        let tt_el1_ttbr1_start = tt_el1_ttbr0_end;
-        let tt_el1_ttbr1_end = tt_el1_ttbr1_start + PAGESIZE * KERN_TTBR1_TABLE_NUM as u64;
+        self.tt_el1_ttbr1_start = self.tt_el1_ttbr0_end;
+        self.tt_el1_ttbr1_end = self.tt_el1_ttbr1_start + PAGESIZE * KERN_TTBR1_TABLE_NUM as u64;
 
         // 2MiB stack x NUM_CPU
-        let stack_size = 32 * PAGESIZE * NUM_CPU;
+        self.stack_size = 32 * PAGESIZE * NUM_CPU;
 
         // EL1's stack
-        let stack_el1_end = tt_el1_ttbr1_end;
-        let stack_el1_start = stack_el1_end + stack_size;
+        self.stack_el1_end = self.tt_el1_ttbr1_end;
+        self.stack_el1_start = self.stack_el1_end + self.stack_size;
 
         // EL0's stack
-        let stack_el0_end = stack_el1_start;
-        let stack_el0_start = stack_el0_end + stack_size;
+        self.stack_el0_end = self.stack_el1_start;
+        self.stack_el0_start = self.stack_el0_end + self.stack_size;
 
         // heap memory for EL0
-        let el0_heap_start = stack_el0_start;
-        let el0_heap_end = el0_heap_start + PAGESIZE * 1024; // 64MiB
-
-        Addr {
-            no_cache_start: no_cache_start,
-            no_cache_end: no_cache_end,
-            tt_firm_start: tt_firm_start,
-            tt_firm_end: tt_firm_end,
-            tt_el1_ttbr0_start: tt_el1_ttbr0_start,
-            tt_el1_ttbr0_end: tt_el1_ttbr0_end,
-            tt_el1_ttbr1_start: tt_el1_ttbr1_start,
-            tt_el1_ttbr1_end: tt_el1_ttbr1_end,
-            stack_size: stack_size,
-            stack_el1_end: stack_el1_end,
-            stack_el1_start: stack_el1_start,
-            stack_el0_end: stack_el0_end,
-            stack_el0_start: stack_el0_start,
-            el0_heap_start: el0_heap_start,
-            el0_heap_end: el0_heap_end,
-        }
+        self.el0_heap_start = self.stack_el0_start;
+        self.el0_heap_end = self.el0_heap_start + PAGESIZE * 1024; // 64MiB
     }
 
     fn print(&self) {
@@ -257,6 +257,19 @@ impl Addr {
         driver::uart::puts("el0_heap_end       = 0x");
         driver::uart::hex(self.el0_heap_end as u64);
         driver::uart::puts("\n");
+    }
+}
+
+pub fn init_memory_map() {
+    unsafe {
+        MEMORY_MAP.init();
+    }
+}
+
+pub fn get_memory_map() -> &'static Addr {
+    unsafe {
+        let addr = &mut MEMORY_MAP as *mut Addr as usize;
+        (addr as *mut Addr).as_mut().unwrap()
     }
 }
 
@@ -366,7 +379,7 @@ fn set_sctlr(sctlr: u32) {
 
 /// set registers
 pub fn set_regs() {
-    let addr = Addr::new();
+    let addr = get_memory_map();
 
     if cpu::get_current_el() == 2 {
         set_reg_el2(addr.tt_firm_start as usize);
@@ -381,8 +394,8 @@ pub fn set_regs() {
 }
 
 /// initialize transition tables
-pub fn init() -> Option<(Addr, TTable, (TTable, TTable))> {
-    let addr = Addr::new();
+pub fn init() -> Option<(TTable, (TTable, TTable))> {
+    let addr = get_memory_map();
 
     addr.print();
 
@@ -412,7 +425,7 @@ pub fn init() -> Option<(Addr, TTable, (TTable, TTable))> {
 
     let table_el1 = init_el1(&addr);
 
-    Some((addr, table_firm, table_el1))
+    Some((table_firm, table_el1))
 }
 
 fn get_mair() -> u64 {
@@ -823,4 +836,13 @@ fn set_reg_el1(ttbr0: usize, ttbr1: usize) {
         // clear SA0
     );
     unsafe { llvm_asm!("msr sctlr_el1, $0; dsb sy; isb" : : "r" (sctlr)) };
+}
+
+pub fn get_no_cache<T>() -> &'static mut T {
+    let addr = get_memory_map();
+    let addr = addr.no_cache_start + PAGESIZE * cpu::get_affinity_lv0();
+    unsafe {
+        let addr = addr as *mut u64 as usize;
+        (addr as *mut T).as_mut().unwrap()
+    }
 }

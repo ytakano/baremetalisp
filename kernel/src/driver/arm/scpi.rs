@@ -1,10 +1,13 @@
-use core::intrinsics::copy;
+use core::intrinsics::{copy, volatile_store};
 
+use crate::aarch64::cpu;
+use crate::aarch64::mmu;
 use crate::driver::memory::CSS_SCP_COM_SHARED_MEM_BASE;
 use crate::driver::mhu;
 
 const SCPI_SHARED_MEM_SCP_TO_AP: u32 = CSS_SCP_COM_SHARED_MEM_BASE;
 const SCPI_SHARED_MEM_AP_TO_SCP: u32 = CSS_SCP_COM_SHARED_MEM_BASE + 0x100;
+const SCPI_CMD_PAYLOAD_AP_TO_SCP: u32 = SCPI_SHARED_MEM_AP_TO_SCP + (4 * 6); // sizeof ScpiCmd
 
 const SCPI_MHU_SLOT_ID: u32 = 0;
 
@@ -37,7 +40,7 @@ enum ScpiCommand {
     ScpiCmdSysPowerStat = 0x00,
 }
 
-enum ScpiPowerState {
+pub enum ScpiPowerState {
     ScpiPowerOn = 0,
     ScpiPowerRetention = 1,
     ScpiPowerOff = 3,
@@ -70,15 +73,23 @@ impl ScpiCmd {
             status: 0,
         }
     }
+
+    fn set_id(&mut self, id: ScpiCommand) {
+        self.id = id as u32;
+    }
+
+    fn set_set(&mut self, set: ScpiSet) {
+        self.set = set as u32;
+    }
 }
 
 pub fn scpi_wait_ready() -> bool {
-    let mut cmd = ScpiCmd::new();
+    let cmd = mmu::get_no_cache::<ScpiCmd>();
 
     {
         // Get a message from the SCP
         mhu::SecureMsgLock::new();
-        if !scpi_secure_message_receive(&mut cmd) {
+        if !scpi_secure_message_receive(cmd) {
             // If no message was received, don't send a response
             return false;
         }
@@ -100,7 +111,7 @@ pub fn scpi_wait_ready() -> bool {
         mhu::SecureMsgLock::new();
         unsafe {
             copy(
-                &cmd as *const ScpiCmd,
+                cmd as *const ScpiCmd,
                 SCPI_SHARED_MEM_AP_TO_SCP as *mut ScpiCmd,
                 1,
             );
@@ -116,9 +127,7 @@ pub fn scpi_secure_message_send(_payload_size: usize) {
     // Ensure that any write to the SCPI payload area is seen by SCP before
     // we write to the MHU register. If these 2 writes were reordered by
     // the CPU then SCP would read stale payload data
-    unsafe {
-        asm!("dmb st");
-    }
+    cpu::dmb_st();
 
     mhu::mhu_secure_message_send(SCPI_MHU_SLOT_ID);
 }
@@ -131,12 +140,11 @@ pub fn scpi_secure_message_receive(cmd: &mut ScpiCmd) -> bool {
         return false;
     }
 
+    // Ensure that any read to the SCPI payload area is done after reading
+    // the MHU register. If these 2 reads were reordered then the CPU would
+    // read invalid payload data
+    cpu::dmb_ld();
     unsafe {
-        // Ensure that any read to the SCPI payload area is done after reading
-        // the MHU register. If these 2 reads were reordered then the CPU would
-        // read invalid payload data
-        asm!("dmb ld");
-
         copy(
             SCPI_SHARED_MEM_SCP_TO_AP as *const ScpiCmd,
             cmd as *mut ScpiCmd,
@@ -145,4 +153,43 @@ pub fn scpi_secure_message_receive(cmd: &mut ScpiCmd) -> bool {
     }
 
     true
+}
+
+pub fn scpi_set_css_power_state(
+    mpidr: usize,
+    cpu_state: ScpiPowerState,
+    cluster_state: ScpiPowerState,
+    css_state: ScpiPowerState,
+) {
+    let state: u32 = (mpidr & 0xf) as u32 // CPU ID
+        | ((mpidr & 0xf00) >> 4) as u32   // Cluster ID
+        | (cpu_state as u32) << 8
+        | (css_state as u32) << 16
+        | (cluster_state as u32) << 12;
+
+    // Populate the command header
+    let mut cmd = ScpiCmd::new();
+    cmd.set_id(ScpiCommand::ScpiCmdSetCssPowerState);
+    cmd.set_set(ScpiSet::ScpiSetNormal);
+    cmd.sender = 0;
+    cmd.size = 4; // sizeof state
+    {
+        mhu::SecureMsgLock::new();
+        unsafe {
+            copy(
+                &cmd as *const ScpiCmd,
+                SCPI_SHARED_MEM_AP_TO_SCP as *mut ScpiCmd,
+                1,
+            );
+        }
+    }
+
+    // Populate the command payload
+    unsafe {
+        volatile_store(SCPI_CMD_PAYLOAD_AP_TO_SCP as *mut u32, state);
+    }
+    scpi_secure_message_send(4); // sizeof state
+
+    // SCP does not reply to this command in order to avoid MHU interrupts
+    // from the sender, which could interfere with its power state request.
 }

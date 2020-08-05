@@ -1,16 +1,18 @@
 #[cfg(feature = "pine64")]
 use super::device::a64::psci;
 
-pub const PSCI_E_SUCCESS: isize = 0;
-pub const PSCI_E_NOT_SUPPORTED: isize = -1;
-pub const PSCI_E_INVALID_PARAMS: isize = -2;
-pub const PSCI_E_DENIED: isize = -3;
-pub const PSCI_E_ALREADY_ON: isize = -4;
-pub const PSCI_E_ON_PENDING: isize = -5;
-pub const PSCI_E_INTERN_FAIL: isize = -6;
-pub const PSCI_E_NOT_PRESENT: isize = -7;
-pub const PSCI_E_DISABLED: isize = -8;
-pub const PSCI_E_INVALID_ADDRESS: isize = -9;
+pub enum PsciResult {
+    PsciESuccess = 0,
+    PsciENotSupported = -1,
+    PsciEInvalidParams = -2,
+    PsciEDenied = -3,
+    PsciEAleadyOn = -4,
+    PsciEOnPending = -5,
+    PsciEInternFail = -6,
+    PsciENotPresent = -7,
+    PsciEDisabled = -8,
+    PsciEInvalidAddress = -9,
+}
 
 // The pwr_domain_state[] stores the local power state at each level
 // for the CPU.
@@ -20,7 +22,7 @@ pub fn cpu_standby(cpu_state: u8) {
     psci::cpu_standby(cpu_state);
 }
 
-pub fn pwr_domain_on(mpidr: u64) -> isize {
+pub fn pwr_domain_on(mpidr: usize) -> PsciResult {
     psci::pwr_domain_on(mpidr)
 }
 
@@ -77,18 +79,18 @@ pub fn get_pwr_lvl_state_idx(pwr_domain_state: u8, pwrlvl: isize) -> isize {
 }
 
 pub fn translate_power_state_by_mpidr(
-    mpidr: u64,
+    mpidr: usize,
     power_state: usize,
     output_state: &mut PsciPowerState,
 ) -> isize {
     psci::translate_power_state_by_mpidr(mpidr, power_state, output_state)
 }
 
-pub fn get_node_hw_state(mpidr: u64, power_level: usize) -> isize {
+pub fn get_node_hw_state(mpidr: usize, power_level: usize) -> isize {
     psci::get_node_hw_state(mpidr, power_level)
 }
 
-pub fn mem_protect_chk(base: u64, length: u64) -> isize {
+pub fn mem_protect_chk(base: usize, length: usize) -> isize {
     psci::mem_protect_chk(base, length)
 }
 

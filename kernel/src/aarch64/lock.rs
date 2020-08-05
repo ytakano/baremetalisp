@@ -40,6 +40,7 @@ impl<'a> SpinLock<'a> {
 impl<'a> Drop for SpinLock<'a> {
     fn drop(&mut self) {
         *self.lock = 0;
+        cpu::dmb_st();
         cpu::send_event();
     }
 }
@@ -83,16 +84,12 @@ impl<'a> BakeryLock<'a> {
             }
             t.number[core] = 1 + max;
             t.entering[core] = false;
-            cpu::send_event();
+            cpu::dmb();
 
             for i in 0..(NUM_CPU as usize) {
-                while t.entering[i] {
-                    cpu::wait_event();
-                }
+                while t.entering[i] {}
 
-                while t.number[i] != 0 && (t.number[i], i) < (t.number[core], core) {
-                    cpu::wait_event();
-                }
+                while t.number[i] != 0 && (t.number[i], i) < (t.number[core], core) {}
             }
         }
     }
@@ -102,7 +99,6 @@ impl<'a> Drop for BakeryLock<'a> {
     fn drop(&mut self) {
         let core = cpu::get_affinity_lv0() as usize;
         self.lock.number[core] = 0;
-        cpu::send_event();
     }
 }
 
