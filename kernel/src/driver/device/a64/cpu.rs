@@ -100,6 +100,10 @@ pub fn init() {
             }
         }
     }
+
+    if unsafe { SCPI_AVAILABLE } {
+    } else {
+    }
 }
 
 pub fn cpu_on(mpidr: usize) {

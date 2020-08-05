@@ -1,2 +1,2 @@
-pub mod memory;
-pub mod uart;
+pub(crate) mod memory;
+pub(crate) mod uart;

@@ -1,5 +1,6 @@
-pub mod cpu;
-pub mod mbox;
-pub mod memory;
-pub mod mhu;
-pub mod uart;
+mod cpu;
+mod mbox;
+pub(crate) mod memory;
+pub(crate) mod mhu;
+pub(crate) mod psci;
+pub(crate) mod uart;
