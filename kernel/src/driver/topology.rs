@@ -13,7 +13,7 @@ pub fn core_pos_by_mpidr(mpidr: usize) -> Option<usize> {
     let lvl2 = (mpidr >> 16) & 0xFF;
     let lvl3 = (mpidr >> 24) & 0xFF;
 
-    if lvl2 > 0 || lvl2 > 0 || cluster >= CLUSTER_COUNT || core >= MAX_CPUS_PER_CLUSTER {
+    if lvl2 > 0 || lvl3 > 0 || cluster >= CLUSTER_COUNT || core >= MAX_CPUS_PER_CLUSTER {
         None
     } else {
         Some(core)

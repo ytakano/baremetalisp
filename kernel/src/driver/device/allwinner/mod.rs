@@ -1,5 +1,5 @@
-mod cpu;
-mod mbox;
+pub(crate) mod cpu;
+pub(crate) mod mbox;
 pub(crate) mod memory;
 pub(crate) mod mhu;
 pub(crate) mod psci;

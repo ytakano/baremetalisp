@@ -1,15 +1,19 @@
 use super::cpu;
 use crate::driver::arm::scpi;
-use crate::driver::psci;
 use crate::driver::psci::PsciResult;
+use crate::driver::{psci, topology};
 
 pub(crate) const PLAT_MAX_PWR_LVL: usize = 2;
+
+pub(crate) fn init() {
+    cpu::init();
+}
 
 pub(crate) fn cpu_standby(cpu_state: u8) {}
 
 pub(crate) fn pwr_domain_on(mpidr: usize) -> PsciResult {
     // validation
-    match driver::topology::core_pos_by_mpidr(mpidr) {
+    match topology::core_pos_by_mpidr(mpidr) {
         Some(_) => (),
         None => {
             return PsciResult::PsciEInternFail;

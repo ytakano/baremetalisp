@@ -14,6 +14,9 @@ mod mhu;
 pub fn init() {
     uart::init();
 
+    #[cfg(feature = "pine64")]
+    psci::init();
+
     //rand::init();
     //uart::puts("initialized rand\n");
 }

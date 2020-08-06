@@ -27,11 +27,16 @@ use core::panic::PanicInfo;
 fn init_master() {
     driver::init();
 
+    #[cfg(feature = "pine64")]
+    driver::psci::pwr_domain_on(1); // wake up CPU #1
+
+    aarch64::delays::wait_microsec(10000000); // wait 1 sec
+
     match aarch64::mmu::init() {
         Some(_) => (),
         None => {
             driver::uart::puts("Error: failed to initialize MMU\n");
-            aarch64::delays::infinite_loop();
+            aarch64::delays::forever();
         }
     };
 
@@ -54,9 +59,9 @@ fn init_master() {
 
 /// initialization for slave CPUs
 fn init_slave() -> ! {
-    aarch64::mmu::set_regs();
-    //driver::uart::puts("initialized slaves\n");
-    aarch64::delays::infinite_loop()
+    //aarch64::mmu::set_regs();
+    driver::uart::puts("initialized slaves\n");
+    aarch64::delays::forever()
 }
 
 #[no_mangle]
@@ -69,7 +74,7 @@ pub fn entry() -> ! {
         init_slave();
     }
 
-    aarch64::delays::infinite_loop()
+    aarch64::delays::forever()
 }
 
 #[lang = "eh_personality"]
@@ -91,10 +96,10 @@ fn panic(info: &PanicInfo) -> ! {
         driver::uart::puts("\n");
     }
 
-    aarch64::delays::infinite_loop();
+    aarch64::delays::forever();
 }
 
 #[no_mangle]
 pub fn abort() -> ! {
-    aarch64::delays::infinite_loop();
+    aarch64::delays::forever();
 }

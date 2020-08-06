@@ -26,7 +26,7 @@ pub fn wait_microsec(n: u32) {
     }
 }
 
-pub fn infinite_loop() -> ! {
+pub fn forever() -> ! {
     loop {
         unsafe { asm!("wfe") };
     }

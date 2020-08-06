@@ -6,6 +6,7 @@ use super::memory::{
 };
 use crate::bits::{bit_clear32, bit_set32};
 use crate::driver::arm::scpi;
+//use crate::driver::uart;
 
 const CPUCFG_DBG_REG0: *mut u32 = (SUNXI_CPUCFG_BASE + 0x0020) as *mut u32;
 const SCP_FIRMWARE_MAGIC: u32 = 0xb4400012;
@@ -22,20 +23,20 @@ extern "C" {
     fn _start();
 }
 
-fn cpucfg_cls_ctrl_reg0(core: usize) -> *mut u32 {
-    (SUNXI_CPUCFG_BASE + (core as u32) * 16) as *mut u32
+fn cpucfg_cls_ctrl_reg0(cluster: usize) -> *mut u32 {
+    (SUNXI_CPUCFG_BASE + (cluster as u32) * 16) as *mut u32
 }
 
-fn cpucfg_rst_ctrl_reg(core: usize) -> *mut u32 {
-    (SUNXI_CPUCFG_BASE + 0x0080 + (core as u32) * 4) as *mut u32
+fn cpucfg_rst_ctrl_reg(cluster: usize) -> *mut u32 {
+    (SUNXI_CPUCFG_BASE + 0x0080 + (cluster as u32) * 4) as *mut u32
 }
 
-fn poweron_rst_reg(core: usize) -> *mut u32 {
-    (SUNXI_R_CPUCFG_BASE + 0x0030 + (core as u32) * 4) as *mut u32
+fn poweron_rst_reg(cluster: usize) -> *mut u32 {
+    (SUNXI_R_CPUCFG_BASE + 0x0030 + (cluster as u32) * 4) as *mut u32
 }
 
-fn poweroff_gating_reg(core: usize) -> *mut u32 {
-    (SUNXI_R_PRCM_BASE + 0x0100 + (core as u32) * 4) as *mut u32
+fn poweroff_gating_reg(cluster: usize) -> *mut u32 {
+    (SUNXI_R_PRCM_BASE + 0x0100 + (cluster as u32) * 4) as *mut u32
 }
 
 fn cpu_power_clamp_reg(cluster: usize, core: usize) -> *mut u32 {
@@ -69,7 +70,7 @@ fn or1k_vec_addr(n: u32) -> u32 {
     0x100 * n
 }
 
-pub fn init() {
+pub(crate) fn init() {
     // Program all CPU entry points
     let start = _start as *const () as u64;
     for i in 0..4 {
@@ -93,27 +94,27 @@ pub fn init() {
 
                 // TODO: clear cache
             }
-            // Take the SCP out of reset.
-            bit_set32(SUNXI_R_CPUCFG_BASE as *mut u32, 0);
+        }
+        // Take the SCP out of reset.
+        bit_set32(SUNXI_R_CPUCFG_BASE as *mut u32, 0);
 
-            // Wait for the SCP firmware to boot.
-            if scpi::scpi_wait_ready() {
-                unsafe {
-                    SCPI_AVAILABLE = true;
-                }
+        // Wait for the SCP firmware to boot.
+        if scpi::scpi_wait_ready() {
+            unsafe {
+                SCPI_AVAILABLE = true;
             }
         }
     }
 }
 
-pub fn cpu_on(mpidr: usize) {
+pub(crate) fn cpu_on(mpidr: usize) {
     let cluster = (mpidr >> 8) & 0xFF;
     let core = mpidr & 0xFF;
 
-    let cls_ctrl = cpucfg_cls_ctrl_reg0(core);
-    let rst_ctrl = cpucfg_rst_ctrl_reg(core);
-    let poweron_rst = poweron_rst_reg(core);
-    let poweroff_gating = poweroff_gating_reg(core);
+    let cls_ctrl = cpucfg_cls_ctrl_reg0(cluster);
+    let rst_ctrl = cpucfg_rst_ctrl_reg(cluster);
+    let poweron_rst = poweron_rst_reg(cluster);
+    let poweroff_gating = poweroff_gating_reg(cluster);
 
     // Assert CPU core reset
     bit_clear32(rst_ctrl, core as u32);

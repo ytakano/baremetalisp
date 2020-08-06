@@ -84,12 +84,12 @@ impl ScpiCmd {
 }
 
 pub fn scpi_wait_ready() -> bool {
-    let cmd = mmu::get_no_cache::<ScpiCmd>();
+    let mut cmd = ScpiCmd::new();
 
     {
         // Get a message from the SCP
         mhu::SecureMsgLock::new();
-        if !scpi_secure_message_receive(cmd) {
+        if !scpi_secure_message_receive(&mut cmd) {
             // If no message was received, don't send a response
             return false;
         }
@@ -111,7 +111,7 @@ pub fn scpi_wait_ready() -> bool {
         mhu::SecureMsgLock::new();
         unsafe {
             copy(
-                cmd as *const ScpiCmd,
+                &cmd as *const ScpiCmd,
                 SCPI_SHARED_MEM_AP_TO_SCP as *mut ScpiCmd,
                 1,
             );

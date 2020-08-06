@@ -27,22 +27,34 @@ pub struct SpinLock<'a> {
 
 impl<'a> SpinLock<'a> {
     fn new(n: &'a mut u64) -> SpinLock<'a> {
+        if 0 == unsafe { volatile_load(n) } {
+            if test_and_set_no_release(n) {
+                return SpinLock { lock: n };
+            }
+        }
+
         loop {
-            if 0 == unsafe { volatile_load(n) } {
-                if test_and_set(n) {
-                    return SpinLock { lock: n };
+            cpu::send_event_local();
+            loop {
+                cpu::wait_event();
+                if 0 == unsafe { volatile_load(n) } {
+                    break;
                 }
             }
-            cpu::wait_event();
+
+            if test_and_set_no_release(n) {
+                return SpinLock { lock: n };
+            }
         }
     }
 }
 
 impl<'a> Drop for SpinLock<'a> {
     fn drop(&mut self) {
-        *self.lock = 0;
-        cpu::dmb_st();
-        cpu::send_event();
+        let addr = self.lock as *mut u64 as usize;
+        unsafe {
+            asm!("stlr xzr, [{}]", in(reg) addr);
+        }
     }
 }
 
@@ -85,7 +97,6 @@ impl<'a> BakeryLock<'a> {
             }
             t.number[core] = 1 + max;
             t.entering[core] = false;
-            cpu::dmb();
 
             for i in 0..(MAX_CPUS_PER_CLUSTER as usize) {
                 while t.entering[i] {}
@@ -103,6 +114,29 @@ impl<'a> Drop for BakeryLock<'a> {
     }
 }
 
+/// load-acquire and store exclusive
+fn test_and_set_no_release(n: &mut u64) -> bool {
+    let mut rd: u64;
+    let addr = n as *mut u64 as u64;
+    unsafe {
+        asm! (
+            "mov   {2}, #1
+             1:
+             ldaxr {3}, [{0}]
+             stxr  {4:w}, {2}, [{0}]
+             cbnz  {4:w}, 1b
+             and   {1}, {3}, #1",
+            in(reg) addr,
+            lateout(reg) rd,
+            out(reg) _,
+            out(reg) _,
+            out(reg) _,
+        );
+    }
+    rd == 0
+}
+
+/// load-acquire and store-release exclusive
 fn test_and_set(n: &mut u64) -> bool {
     let mut rd: u64;
     let addr = n as *mut u64 as u64;

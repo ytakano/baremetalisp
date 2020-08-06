@@ -118,7 +118,7 @@ pub fn el0_entry() -> ! {
     // let p = 0x400000000 as *mut u64;
     // unsafe { *p = 10 };
 
-    delays::infinite_loop()
+    delays::forever()
 }
 
 /*

@@ -28,6 +28,12 @@ pub fn send_event() {
     }
 }
 
+pub fn send_event_local() {
+    unsafe {
+        asm!("sevl");
+    }
+}
+
 pub fn wait_event() {
     unsafe {
         asm!("wfe");
@@ -43,12 +49,6 @@ pub fn dmb_st() {
 pub fn dmb_ld() {
     unsafe {
         asm!("dmb ld");
-    }
-}
-
-pub fn dmb() {
-    unsafe {
-        asm!("dmb");
     }
 }
 

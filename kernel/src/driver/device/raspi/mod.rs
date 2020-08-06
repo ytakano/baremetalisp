@@ -1,3 +1,3 @@
 pub(crate) mod memory;
-pub(crate) mod toplogy;
+pub(crate) mod topology;
 pub(crate) mod uart;
