@@ -1,8 +1,8 @@
 #[cfg(any(feature = "raspi3", feature = "raspi4"))]
-use super::device::bcm2711::uart;
+use super::device::raspi::uart;
 
 #[cfg(feature = "pine64")]
-use super::device::a64::uart;
+use super::device::allwinner::uart;
 
 use alloc::vec::Vec;
 

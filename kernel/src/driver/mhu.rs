@@ -1,5 +1,5 @@
 #[cfg(feature = "pine64")]
-use super::device::a64::mhu;
+use super::device::allwinner::mhu;
 
 pub type SecureMsgLock<'a> = mhu::SecureMsgLock<'a>;
 

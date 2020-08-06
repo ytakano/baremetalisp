@@ -1,6 +1,7 @@
 mod arm;
 mod device;
 pub mod memory;
+pub mod topology;
 pub mod uart;
 
 #[cfg(feature = "pine64")]

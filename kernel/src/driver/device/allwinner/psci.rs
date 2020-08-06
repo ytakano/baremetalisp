@@ -8,10 +8,13 @@ pub(crate) const PLAT_MAX_PWR_LVL: usize = 2;
 pub(crate) fn cpu_standby(cpu_state: u8) {}
 
 pub(crate) fn pwr_domain_on(mpidr: usize) -> PsciResult {
-    // TODO: validation
-    //if mpidr_is_valid(mpidr) == 0 {
-    //    return PSCI_E_INTERN_FAIL;
-    //}
+    // validation
+    match driver::topology::core_pos_by_mpidr(mpidr) {
+        Some(_) => (),
+        None => {
+            return PsciResult::PsciEInternFail;
+        }
+    }
 
     if cpu::scpi_available() {
         scpi::scpi_set_css_power_state(

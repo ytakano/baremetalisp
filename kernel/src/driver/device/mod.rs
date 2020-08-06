@@ -1,7 +1,7 @@
-// Raspberry Pi 4, Broadcom BCM2711
+// Raspberry Pi 4, Broadcom BCM2xxx
 #[cfg(any(feature = "raspi3", feature = "raspi4"))]
-pub mod bcm2711;
+pub mod raspi;
 
-// Pine64, Allwineer A64
+// Pine64, Allwineer sunxi
 #[cfg(feature = "pine64")]
-pub mod a64;
+pub mod allwinner;

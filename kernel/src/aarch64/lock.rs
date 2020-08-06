@@ -1,5 +1,6 @@
 use super::cpu;
-use super::mmu::NUM_CPU;
+use crate::driver::topology::MAX_CPUS_PER_CLUSTER;
+
 use core::intrinsics::volatile_load;
 
 pub struct LockVar {
@@ -50,15 +51,15 @@ impl<'a> Drop for SpinLock<'a> {
 /// ticket.lock();                    // acquire lock
 /// ```
 pub struct BakeryTicket {
-    entering: [bool; NUM_CPU as usize],
-    number: [usize; NUM_CPU as usize],
+    entering: [bool; MAX_CPUS_PER_CLUSTER as usize],
+    number: [usize; MAX_CPUS_PER_CLUSTER as usize],
 }
 
 impl BakeryTicket {
     pub const fn new() -> BakeryTicket {
         BakeryTicket {
-            entering: [false; NUM_CPU as usize],
-            number: [0; NUM_CPU as usize],
+            entering: [false; MAX_CPUS_PER_CLUSTER as usize],
+            number: [0; MAX_CPUS_PER_CLUSTER as usize],
         }
     }
 
@@ -86,7 +87,7 @@ impl<'a> BakeryLock<'a> {
             t.entering[core] = false;
             cpu::dmb();
 
-            for i in 0..(NUM_CPU as usize) {
+            for i in 0..(MAX_CPUS_PER_CLUSTER as usize) {
                 while t.entering[i] {}
 
                 while t.number[i] != 0 && (t.number[i], i) < (t.number[core], core) {}
