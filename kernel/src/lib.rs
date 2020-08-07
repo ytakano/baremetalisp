@@ -18,6 +18,9 @@ mod el3;
 mod pager;
 mod slab;
 
+#[cfg(feature = "pine64")]
+mod psci;
+
 #[macro_use]
 extern crate alloc;
 
@@ -30,7 +33,7 @@ fn init_master() {
     #[cfg(feature = "pine64")]
     driver::psci::pwr_domain_on(1); // wake up CPU #1
 
-    aarch64::delays::wait_microsec(10000000); // wait 1 sec
+    aarch64::delays::wait_microsec(1000000); // wait 1 sec
 
     match aarch64::mmu::init() {
         Some(_) => (),

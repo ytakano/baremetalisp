@@ -6,7 +6,6 @@ use super::memory::{
 };
 use crate::bits::{bit_clear32, bit_set32};
 use crate::driver::arm::scpi;
-//use crate::driver::uart;
 
 const CPUCFG_DBG_REG0: *mut u32 = (SUNXI_CPUCFG_BASE + 0x0020) as *mut u32;
 const SCP_FIRMWARE_MAGIC: u32 = 0xb4400012;
@@ -103,6 +102,10 @@ pub(crate) fn init() {
             unsafe {
                 SCPI_AVAILABLE = true;
             }
+        }
+    } else {
+        unsafe {
+            SCPI_AVAILABLE = false;
         }
     }
 }

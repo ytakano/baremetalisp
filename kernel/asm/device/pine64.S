@@ -74,11 +74,7 @@
 #define GIC_DISTB           0xff841000
 #define GIC_CPUB            0xff842000
 
-#if BCM2711
-#define OSC_FREQ            54000000
-#else
-#define OSC_FREQ            19200000
-#endif
+#define OSC_FREQ            24000000
 
 #define SCR_RW              BIT(10)
 #define SCR_HCE             BIT(8)
@@ -87,8 +83,8 @@
 #define SCR_RES1_4          BIT(4)
 #define SCR_NS              BIT(0)
 #define SCR_VAL \
-	(SCR_RW | SCR_HCE | SCR_RES1_5 | SCR_RES1_4)
-//		(SCR_RW | SCR_HCE | SCR_RES1_5 | SCR_RES1_4 | SCR_NS)
+    (SCR_RW | SCR_HCE | SCR_RES1_5 | SCR_RES1_4 | SCR_NS)
+
 #define CPUECTLR_EL1        S3_1_C15_C2_1
 #define CPUECTLR_EL1_SMPEN  BIT(6)
 
@@ -98,8 +94,7 @@
 #define SPSR_EL3_F          BIT(6)
 #define SPSR_EL3_MODE_el3H  9
 #define SPSR_EL3_VAL \
-	(SPSR_EL3_D | SPSR_EL3_A | SPSR_EL3_I | SPSR_EL3_F | SPSR_EL3_MODE_el3H)
-
+    (SPSR_EL3_D | SPSR_EL3_A | SPSR_EL3_I | SPSR_EL3_F | SPSR_EL3_MODE_el3H)
 
 #define L2CTLR_EL1          S3_1_C11_C0_2
 
@@ -109,24 +104,6 @@
 #define IT_NR               0x8 // Number of interrupt enable registers (256 total irqs)
 #define GICD_CTRLR          0x0
 #define GICD_IGROUPR        0x80
-
-#define CPUCFG_BASE_L       0x0C00
-#define CPUCFG_BASE_H       0x0170
-
-#define RESET_CONTROL       0x0080
-#define CPU0_ADDR_L         0x00A0
-#define CPU0_ADDR_H         0x00A4
-#define CPU1_ADDR_L         0x00A8
-#define CPU1_ADDR_H         0x00AC
-#define CPU2_ADDR_L         0x00B0
-#define CPU2_ADDR_H         0x00B4
-#define CPU3_ADDR_L         0x00B8
-#define CPU3_ADDR_H         0x00BC
-
-#define CPU0_RESET          0x01
-#define CPU1_RESET          0x02
-#define CPU2_RESET          0x04
-#define CPU3_RESET          0x08
 
 _start:
     /* Set up CNTFRQ_EL0 */

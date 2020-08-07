@@ -1,5 +1,6 @@
 #[cfg(feature = "pine64")]
 use super::device::allwinner::psci;
+//use super::uart;
 
 pub enum PsciResult {
     PsciESuccess = 0,
