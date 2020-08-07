@@ -81,36 +81,38 @@ impl BakeryTicket {
 }
 
 pub struct BakeryLock<'a> {
-    lock: &'a mut BakeryTicket,
+    ticket: &'a mut BakeryTicket,
 }
 
 impl<'a> BakeryLock<'a> {
     fn new(t: &'a mut BakeryTicket) -> BakeryLock<'a> {
         let core = cpu::get_affinity_lv0() as usize;
-        loop {
-            t.entering[core] = true;
-            let mut max = 0;
-            for v in &t.number {
-                if max < *v {
-                    max = *v;
-                }
-            }
-            t.number[core] = 1 + max;
-            t.entering[core] = false;
-
-            for i in 0..(MAX_CPUS_PER_CLUSTER as usize) {
-                while t.entering[i] {}
-
-                while t.number[i] != 0 && (t.number[i], i) < (t.number[core], core) {}
+        t.entering[core] = true;
+        cpu::dmb_sy();
+        let mut max = 0;
+        for v in &t.number {
+            if max < *v {
+                max = *v;
             }
         }
+        t.number[core] = 1 + max;
+        t.entering[core] = false;
+        cpu::dmb_sy();
+
+        for i in 0..(MAX_CPUS_PER_CLUSTER as usize) {
+            while t.entering[i] {}
+
+            while t.number[i] != 0 && (t.number[i], i) < (t.number[core], core) {}
+        }
+
+        BakeryLock { ticket: t }
     }
 }
 
 impl<'a> Drop for BakeryLock<'a> {
     fn drop(&mut self) {
         let core = cpu::get_affinity_lv0() as usize;
-        self.lock.number[core] = 0;
+        self.ticket.number[core] = 0;
     }
 }
 

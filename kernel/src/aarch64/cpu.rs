@@ -52,6 +52,12 @@ pub fn dmb_ld() {
     }
 }
 
+pub fn dmb_sy() {
+    unsafe {
+        asm!("dmb sy");
+    }
+}
+
 pub fn start_non_primary() {
     if cfg!(feature = "raspi3") {
         unsafe {
