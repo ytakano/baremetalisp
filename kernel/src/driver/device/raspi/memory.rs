@@ -55,3 +55,5 @@ pub const AUX_MU_SCRATCH: *mut u32 = (MMIO_BASE + 0x0021505C) as *mut u32;
 pub const AUX_MU_CNTL: *mut u32 = (MMIO_BASE + 0x00215060) as *mut u32;
 pub const AUX_MU_STAT: *mut u32 = (MMIO_BASE + 0x00215064) as *mut u32;
 pub const AUX_MU_BAUD: *mut u32 = (MMIO_BASE + 0x00215068) as *mut u32;
+
+pub const DRAM_BASE: u64 = 0;

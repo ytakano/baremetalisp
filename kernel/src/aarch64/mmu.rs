@@ -4,8 +4,7 @@ use super::cpu;
 use crate::driver;
 use crate::driver::memory::{DEVICE_MEM_END, DEVICE_MEM_START};
 
-const NUM_CPU: u64 =
-    (driver::topology::CLUSTER_COUNT * driver::topology::MAX_CPUS_PER_CLUSTER) as u64;
+const NUM_CPU: u64 = driver::topology::CORE_COUNT as u64;
 
 pub const EL1_ADDR_OFFSET: u64 = 0x3FFFFF << 42;
 

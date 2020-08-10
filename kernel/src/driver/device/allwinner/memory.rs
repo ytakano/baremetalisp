@@ -15,3 +15,5 @@ pub const SUNXI_MSGBOX_BASE: u32 = 0x01c17000;
 pub const SUNXI_UART0_BASE: u32 = 0x01c28000;
 pub const SUNXI_R_PRCM_BASE: u32 = 0x01f01400;
 pub const SUNXI_R_CPUCFG_BASE: u32 = 0x01f01c00;
+
+pub const DRAM_BASE: u64 = 0x40000000;

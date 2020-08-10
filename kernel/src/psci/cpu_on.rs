@@ -1,4 +1,5 @@
-use super::{EntryPointInfo, PsciResult};
+use super::ep_info::EntryPointInfo;
+use super::PsciResult;
 
 /// Generic handler which is called to physically power on a cpu identified by
 /// its mpidr. It performs the generic, architectural, platform setup and state
@@ -8,6 +9,6 @@ use super::{EntryPointInfo, PsciResult};
 ///
 /// The state of all the relevant power domains are changed after calling the
 /// platform handler as it can return error.
-pub(crate) fn psci_cpu_on_start(target_cpu: usize, ep: &EntryPointInfo) -> PsciResult {
+pub(crate) fn psci_cpu_on_start(target_cpu: usize, ep: EntryPointInfo) -> PsciResult {
     PsciResult::PsciENotSupported
 }

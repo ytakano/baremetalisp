@@ -6,6 +6,7 @@ use super::device::allwinner::topology;
 
 pub const MAX_CPUS_PER_CLUSTER: usize = topology::MAX_CPUS_PER_CLUSTER;
 pub const CLUSTER_COUNT: usize = topology::CLUSTER_COUNT;
+pub const CORE_COUNT: usize = topology::CLUSTER_COUNT * topology::MAX_CPUS_PER_CLUSTER;
 
 pub fn core_pos_by_mpidr(mpidr: usize) -> Option<usize> {
     let core = mpidr & 0xFF;

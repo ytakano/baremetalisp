@@ -1,7 +1,12 @@
 mod cpu_on;
+mod ep_info;
 mod setup;
 
+use core::mem::size_of;
+
+use crate::aarch64::cpu;
 use crate::driver;
+use ep_info::{Aapcs64Params, EntryPointInfo, ParamHeader};
 
 type PsciResult = driver::psci::PsciResult;
 
@@ -46,56 +51,9 @@ pub const SMC_32: u32 = 1;
 pub const SMC_TYPE_FAST: u32 = 1;
 pub const SMC_TYPE_YIELD: u32 = 0;
 
-/// This structure provides version information and the size of the
-/// structure, attributes for the structure it represents
-pub struct ParamHeader {
-    pub htype: u8,   // type of the structure
-    pub version: u8, // version of this structure
-    pub size: u16,   // size of this structure in bytes
-    pub attr: u32,   // attributes: unused bits SBZ
-}
-
-pub struct PsciLibArgs {
-    pub h: ParamHeader,
-    pub mailbox_ep: usize,
-}
-
-pub struct Aapcs64Params {
-    pub arg0: u64,
-    pub arg1: u64,
-    pub arg2: u64,
-    pub arg3: u64,
-    pub arg4: u64,
-    pub arg5: u64,
-    pub arg6: u64,
-    pub arg7: u64,
-}
-
-pub struct Aapcs32Params {
-    pub arg0: u32,
-    pub arg1: u32,
-    pub arg2: u32,
-    pub arg3: u32,
-}
-
-// This structure represents the superset of information needed while
-// switching exception levels. The only two mechanisms to do so are
-// ERET & SMC. Security state is indicated using bit zero of header
-// attribute
-// NOTE: BL1 expects entrypoint followed by spsr at an offset from the start
-// of this structure defined by the macro `ENTRY_POINT_INFO_PC_OFFSET` while
-// processing SMC to jump to BL31.
-pub struct EntryPointInfo {
-    pub h: ParamHeader,
-    pub pc: usize,
-    pub spsr: u32,
-    pub args: EPIArgs,
-}
-
-pub enum EPIArgs {
-    AArch32(usize, Aapcs32Params), // lr_svc, args
-    AArch64(Aapcs64Params),        // args
-}
+// Various flags passed to SMC handlers
+const SMC_FROM_SECURE: usize = 0 << 0;
+const SMC_FROM_NON_SECURE: usize = 1 << 0;
 
 /// This function does the architectural setup and takes the warm boot
 /// entry-point `mailbox_ep` as an argument. The function also initializes the
@@ -120,11 +78,26 @@ pub enum EPIArgs {
 /// ------------------------------------------------
 pub fn init() {}
 
+fn is_caller_non_secure(f: usize) -> bool {
+    f & SMC_FROM_NON_SECURE != 0
+}
+
+fn is_caller_secure(f: usize) -> bool {
+    !is_caller_non_secure(f)
+}
+
 /// PSCI top level handler for servicing SMCs.
 pub fn psci_smc_handler(smc_fid: u32, x1: usize, x2: usize, x3: usize, flags: usize) -> PsciResult {
+    if is_caller_secure(flags) {
+        return PsciResult::PsciENotSupported;
+    }
+
     if (smc_fid >> FUNCID_CC_SHIFT) & FUNCID_CC_MASK == SMC_32 {
         // AArch32
-        PsciResult::PsciENotSupported
+        match smc_fid {
+            PSCI_CPU_ON_AARCH32 => psci_cpu_on(x1, x2, x3),
+            _ => PsciResult::PsciENotSupported,
+        }
     } else {
         // AArch64
         match smc_fid {
@@ -134,7 +107,124 @@ pub fn psci_smc_handler(smc_fid: u32, x1: usize, x2: usize, x3: usize, flags: us
     }
 }
 
+fn psci_validate_mpidr(mpidr: usize) -> bool {
+    match driver::topology::core_pos_by_mpidr(mpidr) {
+        Some(_) => true,
+        None => false,
+    }
+}
+
 /// PSCI frontend api for servicing SMCs. Described in the PSCI spec.
 fn psci_cpu_on(target_cpu: usize, entrypoint: usize, context_id: usize) -> PsciResult {
-    PsciResult::PsciENotSupported
+    // Determine if the cpu exists of not
+    if psci_validate_mpidr(target_cpu) {
+        return PsciResult::PsciEInvalidParams;
+    }
+
+    // Validate the entry point and get the entry_point_info
+    let ep;
+    match psci_validate_entry_point(entrypoint, context_id) {
+        Ok(e) => {
+            ep = e;
+        }
+        Err(e) => {
+            return e;
+        }
+    }
+
+    // To turn this cpu on, specify which power
+    // levels need to be turned on
+    cpu_on::psci_cpu_on_start(target_cpu, ep)
+}
+
+// This function validates the entrypoint with the platform layer if the
+// appropriate pm_ops hook is exported by the platform and returns the
+// 'entry_point_info'.
+fn psci_validate_entry_point(
+    entrypoint: usize,
+    context_id: usize,
+) -> Result<EntryPointInfo, PsciResult> {
+    // Validate the entrypoint using platform psci_ops
+    match driver::psci::validate_ns_entrypoint(entrypoint) {
+        PsciResult::PsciESuccess => (),
+        _ => {
+            return Err(PsciResult::PsciEInvalidAddress);
+        }
+    }
+
+    // Verify and derive the re-entry information for
+    // the non-secure world from the non-secure state from
+    // where this call originated.
+    psci_get_ns_ep_info(entrypoint, context_id)
+}
+
+/// This function determines the full entrypoint information for the requested
+/// PSCI entrypoint on power on/resume and returns it.
+/// (for AArch64)
+fn psci_get_ns_ep_info(entrypoint: usize, context_id: usize) -> Result<EntryPointInfo, PsciResult> {
+    let ns_scr_el3 = cpu::get_scr_el3();
+    let sctlr = if (ns_scr_el3 & cpu::SCR_HCE_BIT) != 0 {
+        cpu::get_sctlr_el2()
+    } else {
+        cpu::get_sctlr_el1()
+    };
+
+    let ee;
+    let ep_attr;
+    if (sctlr & cpu::SCTLR_EE_BIT) != 0 {
+        ep_attr = ep_info::EP_NON_SECURE | ep_info::EP_EE_BIG | ep_info::EP_ST_DISABLE;
+        ee = 1;
+    } else {
+        ep_attr = ep_info::EP_NON_SECURE | ep_info::EP_ST_DISABLE;
+        ee = 0;
+    }
+
+    // Figure out whether the cpu enters the non-secure address space
+    // in aarch32 or aarch64
+    let spsr = if (ns_scr_el3 & cpu::SCR_RW_BIT) != 0 {
+        // Check whether a Thumb entry point has been provided for an
+        // aarch64 EL
+        if (entrypoint & 0x1) != 0 {
+            return Err(PsciResult::PsciEInvalidAddress);
+        }
+
+        let mode = if (ns_scr_el3 & cpu::SCR_HCE_BIT) != 0 {
+            cpu::MODE_EL2
+        } else {
+            cpu::MODE_EL1
+        };
+
+        cpu::spsr64(mode, cpu::MODE_SP_ELX, cpu::DISABLE_ALL_EXCEPTIONS)
+    } else {
+        let mode = if (ns_scr_el3 & cpu::SCR_HCE_BIT) != 0 {
+            cpu::MODE32_HYP
+        } else {
+            cpu::MODE32_SVC
+        };
+
+        // TODO: Choose async. exception bits if HYP mode is not
+        // implemented according to the values of SCR.{AW, FW} bits
+        let daif = cpu::DAIF_ABT_BIT | cpu::DAIF_IRQ_BIT | cpu::DAIF_FIQ_BIT;
+
+        cpu::spsr32(mode, entrypoint as u64 & 1, ee, daif)
+    };
+
+    let headr = ParamHeader {
+        htype: ep_info::PARAM_EP,
+        version: ep_info::PARAM_VERSION_1,
+        size: size_of::<ParamHeader>() as u16,
+        attr: ep_attr as u32,
+    };
+
+    let mut args = Aapcs64Params::new();
+    args.arg0 = context_id as u64;
+
+    let ep = EntryPointInfo {
+        h: headr,
+        pc: entrypoint,
+        spsr: spsr as u32,
+        args: args,
+    };
+
+    Ok(ep)
 }

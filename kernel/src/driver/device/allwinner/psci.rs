@@ -1,4 +1,5 @@
 use super::cpu;
+use super::memory;
 use crate::driver::arm::scpi;
 use crate::driver::psci::PsciResult;
 use crate::driver::{psci, topology};
@@ -59,8 +60,12 @@ pub(crate) fn validate_power_state(
     PsciResult::PsciENotSupported as isize
 }
 
-pub(crate) fn validate_ns_entrypoint(ns_entrypoint: usize) -> isize {
-    PsciResult::PsciENotSupported as isize
+pub(crate) fn validate_ns_entrypoint(ns_entrypoint: usize) -> PsciResult {
+    if ns_entrypoint >= memory::DRAM_BASE as usize {
+        PsciResult::PsciESuccess
+    } else {
+        PsciResult::PsciEInvalidAddress
+    }
 }
 
 pub(crate) fn get_sys_suspend_power_state(target_state: &psci::PsciPowerState) {}

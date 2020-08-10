@@ -5,9 +5,11 @@ use crate::aarch64::mmu;
 use crate::driver::memory::CSS_SCP_COM_SHARED_MEM_BASE;
 use crate::driver::mhu;
 
+use core::mem::size_of;
+
 const SCPI_SHARED_MEM_SCP_TO_AP: u32 = CSS_SCP_COM_SHARED_MEM_BASE;
 const SCPI_SHARED_MEM_AP_TO_SCP: u32 = CSS_SCP_COM_SHARED_MEM_BASE + 0x100;
-const SCPI_CMD_PAYLOAD_AP_TO_SCP: u32 = SCPI_SHARED_MEM_AP_TO_SCP + (4 * 6); // sizeof ScpiCmd
+const SCPI_CMD_PAYLOAD_AP_TO_SCP: u32 = SCPI_SHARED_MEM_AP_TO_SCP + size_of::<ScpiCmd>() as u32;
 
 const SCPI_MHU_SLOT_ID: u32 = 0;
 
@@ -172,7 +174,7 @@ pub fn scpi_set_css_power_state(
     cmd.set_id(ScpiCommand::ScpiCmdSetCssPowerState);
     cmd.set_set(ScpiSet::ScpiSetNormal);
     cmd.sender = 0;
-    cmd.size = 4; // sizeof state
+    cmd.size = size_of::<u32>() as u32; // sizeof state
     {
         mhu::SecureMsgLock::new();
         unsafe {
@@ -188,7 +190,7 @@ pub fn scpi_set_css_power_state(
     unsafe {
         volatile_store(SCPI_CMD_PAYLOAD_AP_TO_SCP as *mut u32, state);
     }
-    scpi_secure_message_send(4); // sizeof state
+    scpi_secure_message_send(size_of::<u32>()); // sizeof state
 
     // SCP does not reply to this command in order to avoid MHU interrupts
     // from the sender, which could interfere with its power state request.

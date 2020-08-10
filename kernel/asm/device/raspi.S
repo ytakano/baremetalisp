@@ -87,7 +87,8 @@
 #define SCR_RES1_4          BIT(4)
 #define SCR_NS              BIT(0)
 #define SCR_VAL \
-    (SCR_RW | SCR_HCE | SCR_RES1_5 | SCR_RES1_4 | SCR_NS)
+    (SCR_RW | SCR_HCE | SCR_RES1_5 | SCR_RES1_4)
+//    (SCR_RW | SCR_HCE | SCR_RES1_5 | SCR_RES1_4 | SCR_NS)
 
 #define CPUECTLR_EL1        S3_1_C15_C2_1
 #define CPUECTLR_EL1_SMPEN  BIT(6)

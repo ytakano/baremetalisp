@@ -71,7 +71,7 @@ pub fn validate_power_state(power_state: usize, req_state: &mut PsciPowerState) 
     psci::validate_power_state(power_state, req_state)
 }
 
-pub fn validate_ns_entrypoint(ns_entrypoint: usize) -> isize {
+pub fn validate_ns_entrypoint(ns_entrypoint: usize) -> PsciResult {
     psci::validate_ns_entrypoint(ns_entrypoint)
 }
 
