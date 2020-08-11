@@ -58,7 +58,7 @@ extern "C" {
 // 64KB page
 // level 2 and 3 translation tables
 
-const PAGESIZE: u64 = 64 * 1024;
+pub const PAGESIZE: u64 = 64 * 1024;
 
 // NSTable (63bit)
 const FLAG_L2_NS: u64 = 1 << 63; // non secure table
