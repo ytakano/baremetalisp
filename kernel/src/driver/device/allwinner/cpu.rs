@@ -1,5 +1,4 @@
-use core::intrinsics::volatile_load;
-use core::intrinsics::volatile_store;
+use core::ptr::{read_volatile, write_volatile};
 
 use super::memory::{
     SUNXI_CPUCFG_BASE, SUNXI_R_CPUCFG_BASE, SUNXI_R_PRCM_BASE, SUNXI_SCP_BASE, SUNXI_SRAM_A2_BASE,
@@ -15,7 +14,11 @@ const OR1K_VEC_LAST: u32 = 0x0e;
 static mut SCPI_AVAILABLE: bool = false;
 
 pub(crate) fn scpi_available() -> bool {
-    unsafe { SCPI_AVAILABLE }
+    unsafe { read_volatile(&SCPI_AVAILABLE) }
+}
+
+fn set_scpi_available(v: bool) {
+    unsafe { write_volatile(&mut SCPI_AVAILABLE, v) }
 }
 
 extern "C" {
@@ -44,16 +47,16 @@ fn cpu_power_clamp_reg(cluster: usize, core: usize) -> *mut u32 {
 
 fn enable_power(cluster: usize, core: usize) {
     let addr = cpu_power_clamp_reg(cluster, core);
-    if unsafe { volatile_load(addr) } == 0 {
+    if unsafe { read_volatile(addr) } == 0 {
         return;
     }
 
     unsafe {
-        volatile_store(addr, 0xfe);
-        volatile_store(addr, 0xf8);
-        volatile_store(addr, 0xe0);
-        volatile_store(addr, 0x80);
-        volatile_store(addr, 0x00);
+        write_volatile(addr, 0xfe);
+        write_volatile(addr, 0xf8);
+        write_volatile(addr, 0xe0);
+        write_volatile(addr, 0x80);
+        write_volatile(addr, 0x00);
     }
 }
 
@@ -76,20 +79,20 @@ pub(crate) fn init() {
         let addr_lo = cpucfg_rvbar_lo_reg(i);
         let addr_hi = cpucfg_rvbar_hi_reg(i);
         unsafe {
-            volatile_store(addr_lo, (start & 0xFFFFFFFF) as u32);
-            volatile_store(addr_hi, (start >> 32) as u32);
+            write_volatile(addr_lo, (start & 0xFFFFFFFF) as u32);
+            write_volatile(addr_hi, (start >> 32) as u32);
         }
     }
 
     // Check for a valid SCP firmware, and boot the SCP if found.
     let scp_base = SUNXI_SCP_BASE as *mut u32;
-    if unsafe { volatile_load(scp_base) } == SCP_FIRMWARE_MAGIC {
+    if unsafe { read_volatile(scp_base) } == SCP_FIRMWARE_MAGIC {
         // Program SCP exception vectors to the firmware entrypoint.
         for i in OR1K_VEC_FIRST..(OR1K_VEC_LAST + 1) {
             let vector = SUNXI_SRAM_A2_BASE + or1k_vec_addr(i);
             let offset = SUNXI_SCP_BASE - vector;
             unsafe {
-                volatile_store(vector as *mut u32, offset >> 2);
+                write_volatile(vector as *mut u32, offset >> 2);
 
                 // TODO: clear cache
             }
@@ -99,14 +102,10 @@ pub(crate) fn init() {
 
         // Wait for the SCP firmware to boot.
         if scpi::scpi_wait_ready() {
-            unsafe {
-                SCPI_AVAILABLE = true;
-            }
+            set_scpi_available(true);
         }
     } else {
-        unsafe {
-            SCPI_AVAILABLE = false;
-        }
+        set_scpi_available(false);
     }
 }
 

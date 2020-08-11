@@ -2,7 +2,7 @@
 pub const SCR_RES1_BITS: u64 = (1 << 4) | (1 << 5);
 pub const SCR_TWEDEL_SHIFT: u64 = 30;
 pub const SCR_TWEDEL_MASK: u64 = 0xf;
-pub const SCR_TWEDEn_BIT: u64 = 1 << 29;
+pub const SCR_TWEDEN_BIT: u64 = 1 << 29;
 pub const SCR_ECVEN_BIT: u64 = 1 << 28;
 pub const SCR_FGTEN_BIT: u64 = 1 << 27;
 pub const SCR_ATA_BIT: u64 = 1 << 26;
@@ -57,7 +57,7 @@ pub const SCTLR_ITD_BIT: u64 = 1 << 7;
 pub const SCTLR_SED_BIT: u64 = 1 << 8;
 pub const SCTLR_UMA_BIT: u64 = 1 << 9;
 pub const SCTLR_I_BIT: u64 = 1 << 12;
-pub const SCTLR_EnDB_BIT: u64 = 1 << 13;
+pub const SCTLR_ENDB_BIT: u64 = 1 << 13;
 pub const SCTLR_DZE_BIT: u64 = 1 << 14;
 pub const SCTLR_UCT_BIT: u64 = 1 << 15;
 pub const SCTLR_NTWI_BIT: u64 = 1 << 16;
@@ -68,9 +68,9 @@ pub const SCTLR_IESB_BIT: u64 = 1 << 21;
 pub const SCTLR_E0E_BIT: u64 = 1 << 24;
 pub const SCTLR_EE_BIT: u64 = 1 << 25;
 pub const SCTLR_UCI_BIT: u64 = 1 << 26;
-pub const SCTLR_EnDA_BIT: u64 = 1 << 27;
-pub const SCTLR_EnIB_BIT: u64 = 1 << 30;
-pub const SCTLR_EnIA_BIT: u64 = 1 << 31;
+pub const SCTLR_ENDA_BIT: u64 = 1 << 27;
+pub const SCTLR_ENIB_BIT: u64 = 1 << 30;
+pub const SCTLR_ENIA_BIT: u64 = 1 << 31;
 pub const SCTLR_BT0_BIT: u64 = 1 << 35;
 pub const SCTLR_BT1_BIT: u64 = 1 << 36;
 pub const SCTLR_BT_BIT: u64 = 1 << 36;
@@ -210,36 +210,42 @@ pub fn get_sctlr_el2() -> u64 {
     sctlr_el2
 }
 
+/// sev
 pub fn send_event() {
     unsafe {
         asm!("sev");
     }
 }
 
+/// sevl
 pub fn send_event_local() {
     unsafe {
         asm!("sevl");
     }
 }
 
+/// wfe
 pub fn wait_event() {
     unsafe {
         asm!("wfe");
     }
 }
 
+/// dmb st
 pub fn dmb_st() {
     unsafe {
         asm!("dmb st");
     }
 }
 
+/// dmb ld
 pub fn dmb_ld() {
     unsafe {
         asm!("dmb ld");
     }
 }
 
+/// dmb sy
 pub fn dmb_sy() {
     unsafe {
         asm!("dmb sy");

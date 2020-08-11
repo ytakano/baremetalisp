@@ -1,7 +1,6 @@
-use core::intrinsics::{copy, volatile_store};
+use core::ptr::{copy, write_volatile};
 
 use crate::aarch64::cpu;
-use crate::aarch64::mmu;
 use crate::driver::memory::CSS_SCP_COM_SHARED_MEM_BASE;
 use crate::driver::mhu;
 
@@ -188,7 +187,7 @@ pub fn scpi_set_css_power_state(
 
     // Populate the command payload
     unsafe {
-        volatile_store(SCPI_CMD_PAYLOAD_AP_TO_SCP as *mut u32, state);
+        write_volatile(SCPI_CMD_PAYLOAD_AP_TO_SCP as *mut u32, state);
     }
     scpi_secure_message_send(size_of::<u32>()); // sizeof state
 

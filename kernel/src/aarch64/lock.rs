@@ -1,16 +1,17 @@
 use super::cpu;
 use crate::driver::topology::MAX_CPUS_PER_CLUSTER;
 
-use core::intrinsics::volatile_load;
-
-pub struct LockVar {
-    var: u64,
-}
+use core::ptr::{read_volatile, write_volatile};
 
 /// ```
 /// let var = LockVar::new(); // create lock variable
 /// var.lock();               // acquire lock
 /// ```
+#[derive(Copy, Clone)]
+pub struct LockVar {
+    var: u64,
+}
+
 impl LockVar {
     pub const fn new() -> LockVar {
         LockVar { var: 0 }
@@ -27,7 +28,7 @@ pub struct SpinLock<'a> {
 
 impl<'a> SpinLock<'a> {
     fn new(n: &'a mut u64) -> SpinLock<'a> {
-        if 0 == unsafe { volatile_load(n) } {
+        if 0 == unsafe { read_volatile(n) } {
             if test_and_set_no_release(n) {
                 return SpinLock { lock: n };
             }
@@ -37,7 +38,7 @@ impl<'a> SpinLock<'a> {
             cpu::send_event_local();
             loop {
                 cpu::wait_event();
-                if 0 == unsafe { volatile_load(n) } {
+                if 0 == unsafe { read_volatile(n) } {
                     break;
                 }
             }
@@ -87,7 +88,9 @@ pub struct BakeryLock<'a> {
 impl<'a> BakeryLock<'a> {
     fn new(t: &'a mut BakeryTicket) -> BakeryLock<'a> {
         let core = cpu::get_affinity_lv0() as usize;
-        t.entering[core] = true;
+        unsafe {
+            write_volatile(&mut t.entering[core], true);
+        }
         cpu::dmb_sy();
         let mut max = 0;
         for v in &t.number {
@@ -95,14 +98,19 @@ impl<'a> BakeryLock<'a> {
                 max = *v;
             }
         }
-        t.number[core] = 1 + max;
-        t.entering[core] = false;
+        unsafe {
+            write_volatile(&mut t.number[core], 1 + max);
+            write_volatile(&mut t.entering[core], false);
+        }
         cpu::dmb_sy();
 
         for i in 0..(MAX_CPUS_PER_CLUSTER as usize) {
-            while t.entering[i] {}
+            while unsafe { read_volatile(&t.entering[i]) } {}
 
-            while t.number[i] != 0 && (t.number[i], i) < (t.number[core], core) {}
+            let mut n = unsafe { read_volatile(&t.number[i]) };
+            while n != 0 && (n, i) < (unsafe { read_volatile(&t.number[core]) }, core) {
+                n = unsafe { read_volatile(&t.number[i]) };
+            }
         }
 
         BakeryLock { ticket: t }

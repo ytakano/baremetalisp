@@ -1,17 +1,16 @@
-use core::intrinsics::volatile_load;
-use core::intrinsics::volatile_store;
+use core::ptr::{read_volatile, write_volatile};
 
 pub fn bit_clear32(ptr: *mut u32, n: u32) {
     unsafe {
-        let v = volatile_load(ptr);
-        volatile_store(ptr, v & !(1 << n));
+        let v = read_volatile(ptr);
+        write_volatile(ptr, v & !(1 << n));
     }
 }
 
 pub fn bit_set32(ptr: *mut u32, n: u32) {
     unsafe {
-        let v = volatile_load(ptr);
-        volatile_store(ptr, v | (1 << n));
+        let v = read_volatile(ptr);
+        write_volatile(ptr, v | (1 << n));
     }
 }
 

@@ -4,8 +4,9 @@ mod setup;
 
 use core::mem::size_of;
 
-use crate::aarch64::cpu;
+use crate::aarch64::{cpu, lock};
 use crate::driver;
+
 use ep_info::{Aapcs64Params, EntryPointInfo, ParamHeader};
 
 type PsciResult = driver::psci::PsciResult;
@@ -54,6 +55,46 @@ pub const SMC_TYPE_YIELD: u32 = 0;
 // Various flags passed to SMC handlers
 const SMC_FROM_SECURE: usize = 0 << 0;
 const SMC_FROM_NON_SECURE: usize = 1 << 0;
+
+/// Structure used to store per-cpu information relevant to the PSCI service.
+/// It is populated in the per-cpu data array. In return we get a guarantee that
+/// this information will not reside on a cache line shared with another cpu.
+#[derive(Copy, Clone)]
+pub(crate) struct PsciCpuData {
+    // State as seen by PSCI Affinity Info API
+    pub(crate) aff_info_state: AffInfoState,
+
+    // Highest power level which takes part in a power management
+    // operation.
+    pub(crate) target_pwrlvl: usize,
+
+    // The local power state of this CPU
+    pub(crate) local_state: u8,
+}
+
+// These are the states reported by the PSCI_AFFINITY_INFO API for the specified
+// CPU. The definitions of these states can be found in Section 5.7.1 in the
+// PSCI specification (ARM DEN 0022C).
+#[derive(Copy, Clone)]
+pub(crate) enum AffInfoState {
+    StateOn = 0,
+    StateOff,
+    StateOnPending,
+}
+
+pub(crate) static mut PSCI_CPU_DATA: [PsciCpuData; driver::topology::CORE_COUNT] = [PsciCpuData {
+    aff_info_state: AffInfoState::StateOff,
+    target_pwrlvl: 0,
+    local_state: 0,
+};
+    driver::topology::CORE_COUNT];
+
+static mut PSCI_LOCK: [lock::LockVar; driver::topology::CORE_COUNT] =
+    [lock::LockVar::new(); driver::topology::CORE_COUNT];
+
+pub(crate) fn psci_lock(idx: usize) -> lock::SpinLock<'static> {
+    unsafe { PSCI_LOCK[idx].lock() }
+}
 
 /// This function does the architectural setup and takes the warm boot
 /// entry-point `mailbox_ep` as an argument. The function also initializes the

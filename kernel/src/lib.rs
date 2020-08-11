@@ -1,4 +1,3 @@
-#![feature(core_intrinsics)]
 #![feature(lang_items)]
 #![feature(start)]
 #![feature(llvm_asm)]

@@ -42,9 +42,9 @@ pub struct Context {
 //------------------------------------------------------------------------------
 
 pub fn get_esr_el3() -> u32 {
-    let esr;
-    unsafe { llvm_asm!("mrs $0, esr_el3" : "=r"(esr)) };
-    esr
+    let esr: u64;
+    unsafe { asm!("mrs {}, esr_el3", lateout(reg) esr) };
+    esr as u32
 }
 
 // from the current EL using the current SP0
@@ -135,9 +135,9 @@ pub fn lower_el_aarch32_serror_el3(_ctx: *mut Context) {}
 //------------------------------------------------------------------------------
 
 pub fn get_esr_el2() -> u32 {
-    let esr;
-    unsafe { llvm_asm!("mrs $0, esr_el2" : "=r"(esr)) };
-    esr
+    let esr: u64;
+    unsafe { asm!("mrs {}, esr_el2", lateout(reg) esr) };
+    esr as u32
 }
 
 // from the current EL using the current SP0
@@ -228,9 +228,9 @@ pub fn lower_el_aarch32_serror_el2(_ctx: *mut Context) {}
 //------------------------------------------------------------------------------
 
 pub fn get_esr_el1() -> u32 {
-    let esr;
-    unsafe { llvm_asm!("mrs $0, esr_el1" : "=r"(esr)) };
-    esr
+    let esr: u64;
+    unsafe { asm!("mrs {}, esr_el1", lateout(reg) esr) };
+    esr as u32
 }
 
 // from the current EL using the current SP0

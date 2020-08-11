@@ -1,5 +1,4 @@
-use core::intrinsics::volatile_load;
-use core::intrinsics::volatile_store;
+use core::ptr::{read_volatile, write_volatile};
 
 use core::slice;
 
@@ -64,24 +63,24 @@ pub fn call(ptr: *mut u32, ch: u8) -> bool {
 
     // wait until we can write to the mailbox
     unsafe { asm!("nop;") };
-    while unsafe { volatile_load(MBOX0_STATUS) } & MBOX_FULL > 0 {
+    while unsafe { read_volatile(MBOX0_STATUS) } & MBOX_FULL > 0 {
         unsafe { asm!("nop;") };
     }
 
     // write the address of our message to the mailbox with channel identifier
-    unsafe { volatile_store(MBOX0_WRITE, r) };
+    unsafe { write_volatile(MBOX0_WRITE, r) };
 
     // now wait for the response
     let ptr1 = ((ptr as u64) + 4) as *mut u32;
     loop {
         // is there a response?
         unsafe { asm!("nop;") };
-        while unsafe { volatile_load(MBOX0_STATUS) } & MBOX_EMPTY > 0 {
+        while unsafe { read_volatile(MBOX0_STATUS) } & MBOX_EMPTY > 0 {
             unsafe { asm!("nop;") };
         }
 
-        if r == unsafe { volatile_load(MBOX0_READ) } {
-            return unsafe { volatile_load(ptr1) } == MBOX_RESPONSE;
+        if r == unsafe { read_volatile(MBOX0_READ) } {
+            return unsafe { read_volatile(ptr1) } == MBOX_RESPONSE;
         }
     }
 }

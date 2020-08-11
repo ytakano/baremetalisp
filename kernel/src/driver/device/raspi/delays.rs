@@ -1,4 +1,4 @@
-use core::intrinsics::volatile_load;
+use core::ptr::read_volatile;
 
 use super::memory::*;
 
@@ -11,14 +11,14 @@ pub fn get_system_timer() -> u64 {
     let mut lo: u32;
 
     unsafe {
-        hi = volatile_load(SYSTMR_HI);
-        lo = volatile_load(SYSTMR_LO);
+        hi = read_volatile(SYSTMR_HI);
+        lo = read_volatile(SYSTMR_LO);
     }
 
-    if hi != unsafe { volatile_load(SYSTMR_HI) } {
+    if hi != unsafe { read_volatile(SYSTMR_HI) } {
         unsafe {
-            hi = volatile_load(SYSTMR_HI);
-            lo = volatile_load(SYSTMR_LO);
+            hi = read_volatile(SYSTMR_HI);
+            lo = read_volatile(SYSTMR_LO);
         }
     }
 
@@ -31,6 +31,6 @@ pub fn wait_microsec_st(n: u32) {
     // we must check if it's non-zero, because qemu does not emulate
     // system timer, and returning constant zero would mean infinite loop
     if t > 0 {
-        while get_system_timer() < t + n as u64 { }
+        while get_system_timer() < t + n as u64 {}
     }
 }

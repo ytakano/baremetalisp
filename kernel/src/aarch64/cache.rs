@@ -1,7 +1,10 @@
 use super::cpu;
 use super::mmu::PAGESIZE;
 
-pub fn clean(addr: usize, size: usize) {
+/// clean cache.
+/// dc cmvac
+pub fn clean<T>(obj: &mut T, size: usize) {
+    let addr = obj as *mut T as usize;
     let mut base = addr & !(PAGESIZE as usize - 1);
 
     while base < addr + size {
@@ -14,7 +17,10 @@ pub fn clean(addr: usize, size: usize) {
     cpu::dmb_sy();
 }
 
-pub fn clean_invalidate(addr: usize, size: usize) {
+/// flush cache
+/// dc cimvac
+pub fn clean_invalidate<T>(obj: &mut T, size: usize) {
+    let addr = obj as *mut T as usize;
     let mut base = addr & !(PAGESIZE as usize - 1);
 
     while base < addr + size {
@@ -27,7 +33,10 @@ pub fn clean_invalidate(addr: usize, size: usize) {
     cpu::dmb_sy();
 }
 
-pub fn invalidate(addr: usize, size: usize) {
+/// invalidate cache
+/// dc imvac
+pub fn invalidate<T>(obj: &mut T, size: usize) {
+    let addr = obj as *mut T as usize;
     let mut base = addr & !(PAGESIZE as usize - 1);
 
     while base < addr + size {

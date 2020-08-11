@@ -1,5 +1,4 @@
-use core::intrinsics::volatile_load;
-use core::intrinsics::volatile_store;
+use core::ptr::{read_volatile, write_volatile};
 
 use super::memory::*;
 use crate::aarch64::delays;
@@ -17,23 +16,23 @@ const UART0_ICR: *mut u32 = (MMIO_BASE + 0x00201044) as *mut u32;
 /// Set baud rate and characteristics (8N1) and map to GPIO 14 (Tx) and 15 (Rx).
 /// 8N1 stands for "eight data bits, no parity, one stop bit".
 pub fn init(uart_clock: u64, baudrate: u64) {
-    unsafe { volatile_store(UART0_CR, 0) }; // turn off UART0
+    unsafe { write_volatile(UART0_CR, 0) }; // turn off UART0
 
     // map UART1 to GPIO pins
-    let mut r = unsafe { volatile_load(GPFSEL1) };
+    let mut r = unsafe { read_volatile(GPFSEL1) };
     r &= !((7 << 12) | (7 << 15)); // gpio14, gpio15
     r |= (4 << 12) | (4 << 15); // alt0
 
     // enable pins 14 and 15
     unsafe {
-        volatile_store(GPFSEL1, r);
-        volatile_store(GPPUD, 0);
+        write_volatile(GPFSEL1, r);
+        write_volatile(GPPUD, 0);
     }
 
     delays::wait_cycles(150);
 
     unsafe {
-        volatile_store(GPPUDCLK0, (1 << 14) | (1 << 15));
+        write_volatile(GPPUDCLK0, (1 << 14) | (1 << 15));
     }
 
     delays::wait_cycles(150);
@@ -43,12 +42,12 @@ pub fn init(uart_clock: u64, baudrate: u64) {
     let fbrd: u32 = ((bauddiv - ibrd * 1000) * 64 + 500) / 1000;
 
     unsafe {
-        volatile_store(GPPUDCLK0, 0); // flush GPIO setup
-        volatile_store(UART0_ICR, 0x7FF); // clear interrupts
-        volatile_store(UART0_IBRD, ibrd);
-        volatile_store(UART0_FBRD, fbrd);
-        volatile_store(UART0_LCRH, 0b11 << 5); // 8n1
-        volatile_store(UART0_CR, 0x301); // enable Tx, Rx, FIFO
+        write_volatile(GPPUDCLK0, 0); // flush GPIO setup
+        write_volatile(UART0_ICR, 0x7FF); // clear interrupts
+        write_volatile(UART0_IBRD, ibrd);
+        write_volatile(UART0_FBRD, fbrd);
+        write_volatile(UART0_LCRH, 0b11 << 5); // 8n1
+        write_volatile(UART0_CR, 0x301); // enable Tx, Rx, FIFO
     }
 }
 
@@ -56,27 +55,27 @@ pub fn init(uart_clock: u64, baudrate: u64) {
 pub fn send(c: u32) {
     // wait until we can send
     unsafe { asm!("nop;") };
-    while unsafe { volatile_load(UART0_FR) } & 0x20 != 0 {
+    while unsafe { read_volatile(UART0_FR) } & 0x20 != 0 {
         unsafe { asm!("nop;") };
     }
 
     // write the character to the buffer
     unsafe {
-        volatile_store(UART0_DR, c);
+        write_volatile(UART0_DR, c);
     }
 }
 
 pub fn recv() -> u32 {
     // wait until something is in the buffer
     unsafe { asm!("nop;") };
-    while unsafe { volatile_load(UART0_FR) } & 0x10 != 0 {
+    while unsafe { read_volatile(UART0_FR) } & 0x10 != 0 {
         unsafe { asm!("nop;") };
     }
 
     // write the character to the buffer
     let c;
     unsafe {
-        c = volatile_load(UART0_DR);
+        c = read_volatile(UART0_DR);
     }
     c as u32
 }
