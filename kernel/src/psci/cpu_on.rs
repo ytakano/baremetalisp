@@ -1,5 +1,6 @@
 use super::ep_info::EntryPointInfo;
 use super::*;
+use crate::aarch64;
 use crate::driver;
 
 /// This function checks whether a cpu which has been requested to be turned on
@@ -20,7 +21,7 @@ fn cpu_on_validate_state(aff_state: &AffInfoState) -> PsciResult {
 ///
 /// The state of all the relevant power domains are changed after calling the
 /// platform handler as it can return error.
-pub(crate) fn psci_cpu_on_start(target_cpu: usize, _ep: EntryPointInfo) -> PsciResult {
+pub(crate) fn psci_cpu_on_start(target_cpu: usize, ep: EntryPointInfo) -> PsciResult {
     let idx;
     match driver::topology::core_pos_by_mpidr(target_cpu) {
         Some(c) => {
@@ -75,9 +76,8 @@ pub(crate) fn psci_cpu_on_start(target_cpu: usize, _ep: EntryPointInfo) -> PsciR
         }
     }
 
-    // TODO:
     // Store the re-entry information for the non-secure world. */
-    // cm_init_context_by_index(target_idx, ep);
+    aarch64::context::init_context(idx, ep);
 
     // Perform generic, architecture and platform specific handling.
     // Plat. management: Give the platform the current state

@@ -1,4 +1,11 @@
+use crate::driver::topology::CORE_COUNT;
+use crate::psci::ep_info::EntryPointInfo;
+
+static mut CPU_CONTEXT_SECURE: [CPUContext; CORE_COUNT] = [CPUContext::new(); CORE_COUNT];
+static mut CPU_CONTEXT_NON_SECURE: [CPUContext; CORE_COUNT] = [CPUContext::new(); CORE_COUNT];
+
 /// General Purpose Registers
+#[derive(Copy, Clone)]
 #[repr(C)]
 pub struct GpRegs {
     pub x0: u64,
@@ -79,6 +86,7 @@ impl GpRegs {
 }
 
 /// System Registers of EL1 and EL0
+#[derive(Copy, Clone)]
 pub struct EL1SysRegs {
     pub sctlr_el1: u64,
     pub actlr_el1: u64,
@@ -155,6 +163,7 @@ impl EL1SysRegs {
 }
 
 /// Floating Point Registers
+#[derive(Copy, Clone)]
 pub struct FPRegs {
     fp_q0: [u8; 16],
     fp_q1: [u8; 16],
@@ -234,3 +243,72 @@ impl FPRegs {
         }
     }
 }
+
+#[derive(Copy, Clone)]
+pub struct EL3State {
+    pub scr_el3: u64,
+    pub esr_el3: u64,
+    pub runtime_sp: u64,
+    pub spsr_el3: u64,
+    pub elr_el3: u64,
+    pub pmcr_el3: u64,
+}
+
+impl EL3State {
+    pub const fn new() -> EL3State {
+        EL3State {
+            scr_el3: 0,
+            esr_el3: 0,
+            runtime_sp: 0,
+            spsr_el3: 0,
+            elr_el3: 0,
+            pmcr_el3: 0,
+        }
+    }
+}
+
+/// Top-level context structure which is used by EL3 firmware to
+/// preserve the state of a core at EL1 in one of the two security
+/// states and save enough EL3 meta data to be able to return to that
+/// EL and security state. The context management library will be used
+/// to ensure that SP_EL3 always points to an instance of this
+/// structure at exception entry and exit. Each instance will
+/// correspond to either the secure or the non-secure state.
+#[derive(Copy, Clone)]
+pub struct CPUContext {
+    gpregx_ctx: GpRegs,
+    el3state_ctx: EL3State,
+    el1_sysregs_ctx: EL1SysRegs,
+    fpregs_ctx: FPRegs,
+}
+
+impl CPUContext {
+    pub const fn new() -> CPUContext {
+        CPUContext {
+            gpregx_ctx: GpRegs::new(),
+            el3state_ctx: EL3State::new(),
+            el1_sysregs_ctx: EL1SysRegs::new(),
+            fpregs_ctx: FPRegs::new(),
+        }
+    }
+}
+
+// The following function initializes the cpu_context 'ctx' for
+// first use, and sets the initial entrypoint state as specified by the
+// entry_point_info structure.
+//
+// The security state to initialize is determined by the SECURE attribute
+// of the entry_point_info.
+//
+// The EE and ST attributes are used to configure the endianness and secure
+// timer availability for the new execution context.
+//
+// To prepare the register state for entry call cm_prepare_el3_exit() and
+// el3_exit(). For Secure-EL1 cm_prepare_el3_exit() is equivalent to
+// cm_e1_sysreg_context_restore().
+pub fn setup_context(ctx: &mut CPUContext, ep: EntryPointInfo) {}
+
+// The following function initializes the cpu_context for the current CPU
+// for first use, and sets the initial entrypoint state as specified by the
+// entry_point_info structure.
+pub fn init_context(idx: usize, ep: EntryPointInfo) {}

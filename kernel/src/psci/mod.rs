@@ -1,5 +1,5 @@
 mod cpu_on;
-mod ep_info;
+pub mod ep_info;
 mod setup;
 
 use core::mem::size_of;
