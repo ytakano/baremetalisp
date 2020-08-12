@@ -1,10 +1,6 @@
 use super::ep_info::EntryPointInfo;
-use super::{psci_lock, AffInfoState, PsciResult, PSCI_CPU_DATA};
-use crate::aarch64::cache;
+use super::*;
 use crate::driver;
-
-use core::mem::size_of;
-use core::ptr::read_volatile;
 
 /// This function checks whether a cpu which has been requested to be turned on
 /// is OFF to begin with.
@@ -52,11 +48,8 @@ pub(crate) fn psci_cpu_on_start(target_cpu: usize, _ep: EntryPointInfo) -> PsciR
     // In this case the cache maintenace that was performed as part of the
     // target CPUs shutdown was not seen by the current CPU's cluster. And
     // so the cache may contain stale data for the target CPU.
-    cache::clean_invalidate(
-        unsafe { &mut PSCI_CPU_DATA[idx].aff_info_state },
-        size_of::<AffInfoState>(),
-    );
-    let state = unsafe { read_volatile(&PSCI_CPU_DATA[idx].aff_info_state) };
+    flush_cache_cpu_state(idx);
+    let state = get_cpu_state(idx);
     match cpu_on_validate_state(&state) {
         PsciResult::PsciESuccess => (),
         err => {
@@ -64,5 +57,41 @@ pub(crate) fn psci_cpu_on_start(target_cpu: usize, _ep: EntryPointInfo) -> PsciR
         }
     }
 
-    PsciResult::PsciENotSupported
+    // Set the Affinity info state of the target cpu to ON_PENDING.
+    // Flush aff_info_state as it will be accessed with caches
+    // turned OFF.
+    set_cpu_state(idx, AffInfoState::StateOnPending);
+    flush_cache_cpu_state(idx);
+
+    // The cache line invalidation by the target CPU after setting the
+    // state to OFF (see psci_do_cpu_off()), could cause the update to
+    // aff_info_state to be invalidated. Retry the update if the target
+    // CPU aff_info_state is not ON_PENDING.
+    match get_cpu_state(idx) {
+        AffInfoState::StateOnPending => (),
+        _ => {
+            set_cpu_state(idx, AffInfoState::StateOnPending);
+            flush_cache_cpu_state(idx);
+        }
+    }
+
+    // TODO:
+    // Store the re-entry information for the non-secure world. */
+    // cm_init_context_by_index(target_idx, ep);
+
+    // Perform generic, architecture and platform specific handling.
+    // Plat. management: Give the platform the current state
+    // of the target cpu to allow it to perform the necessary
+    // steps to power on.
+    let rc = driver::psci::pwr_domain_on(target_cpu);
+    match &rc {
+        PsciResult::PsciESuccess => (),
+        _ => {
+            // Restore the state on error.
+            set_cpu_state(idx, AffInfoState::StateOff);
+            flush_cache_cpu_state(idx);
+        }
+    }
+
+    rc
 }

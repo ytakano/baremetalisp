@@ -1,5 +1,5 @@
 use crate::aarch64;
-use crate::aarch64::exception::Context;
+use crate::aarch64::context::GpRegs;
 
 pub fn el3_to_el1() {
     let addr = aarch64::mmu::get_memory_map();
@@ -39,7 +39,7 @@ const MASK_RESERVED: u32 = 0x00ff0000;
 const MASK_FUNC: u32 = 0x0000ffff;
 
 /// secure monitor call
-pub fn handle_smc64(ctx: &Context) {
+pub fn handle_smc64(ctx: &GpRegs) {
     // TODO: save contexts more
 
     let w0: u32 = ctx.x0 as u32;

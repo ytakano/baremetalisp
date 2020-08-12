@@ -3,8 +3,9 @@ mod ep_info;
 mod setup;
 
 use core::mem::size_of;
+use core::ptr::{read_volatile, write_volatile};
 
-use crate::aarch64::{cpu, lock};
+use crate::aarch64::{cache, cpu, lock};
 use crate::driver;
 
 use ep_info::{Aapcs64Params, EntryPointInfo, ParamHeader};
@@ -82,7 +83,7 @@ pub(crate) enum AffInfoState {
     StateOnPending,
 }
 
-pub(crate) static mut PSCI_CPU_DATA: [PsciCpuData; driver::topology::CORE_COUNT] = [PsciCpuData {
+static mut PSCI_CPU_DATA: [PsciCpuData; driver::topology::CORE_COUNT] = [PsciCpuData {
     aff_info_state: AffInfoState::StateOff,
     target_pwrlvl: 0,
     local_state: 0,
@@ -94,6 +95,21 @@ static mut PSCI_LOCK: [lock::LockVar; driver::topology::CORE_COUNT] =
 
 pub(crate) fn psci_lock(idx: usize) -> lock::SpinLock<'static> {
     unsafe { PSCI_LOCK[idx].lock() }
+}
+
+pub(crate) fn flush_cache_cpu_state(idx: usize) {
+    cache::clean_invalidate(
+        unsafe { &mut PSCI_CPU_DATA[idx].aff_info_state },
+        size_of::<AffInfoState>(),
+    );
+}
+
+pub(crate) fn get_cpu_state(idx: usize) -> AffInfoState {
+    unsafe { read_volatile(&PSCI_CPU_DATA[idx].aff_info_state) }
+}
+
+pub(crate) fn set_cpu_state(idx: usize, state: AffInfoState) {
+    unsafe { write_volatile(&mut PSCI_CPU_DATA[idx].aff_info_state, state) }
 }
 
 /// This function does the architectural setup and takes the warm boot
