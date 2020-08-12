@@ -1,4 +1,4 @@
-/// General Purpose Registors
+/// General Purpose Registers
 #[repr(C)]
 pub struct GpRegs {
     pub x0: u64,
@@ -115,7 +115,7 @@ pub struct EL1SysRegs {
     pub cntv_ctl_el0: u64,
     pub cntv_cval_el0: u64,
     pub cntkctl_el1: u64,
-    // MTE regs (from )
+    // MTE regs (from Armv 8.5)
     // tfsr0_el1: u64,
     // tfsr_el1: u64,
     // rgsr_el1: u64,
@@ -150,6 +150,87 @@ impl EL1SysRegs {
             cntv_ctl_el0: 0,
             cntv_cval_el0: 0,
             cntkctl_el1: 0,
+        }
+    }
+}
+
+/// Floating Point Registers
+pub struct FPRegs {
+    fp_q0: [u8; 16],
+    fp_q1: [u8; 16],
+    fp_q2: [u8; 16],
+    fp_q3: [u8; 16],
+    fp_q4: [u8; 16],
+    fp_q5: [u8; 16],
+    fp_q6: [u8; 16],
+    fp_q7: [u8; 16],
+    fp_q8: [u8; 16],
+    fp_q9: [u8; 16],
+    fp_q10: [u8; 16],
+    fp_q11: [u8; 16],
+    fp_q12: [u8; 16],
+    fp_q13: [u8; 16],
+    fp_q14: [u8; 16],
+    fp_q15: [u8; 16],
+    fp_q16: [u8; 16],
+    fp_q17: [u8; 16],
+    fp_q18: [u8; 16],
+    fp_q19: [u8; 16],
+    fp_q20: [u8; 16],
+    fp_q21: [u8; 16],
+    fp_q22: [u8; 16],
+    fp_q23: [u8; 16],
+    fp_q24: [u8; 16],
+    fp_q25: [u8; 16],
+    fp_q26: [u8; 16],
+    fp_q27: [u8; 16],
+    fp_q28: [u8; 16],
+    fp_q29: [u8; 16],
+    fp_q30: [u8; 16],
+    fp_q31: [u8; 16],
+    // for AArch32
+    // fpexc32_el2: [u8; 16],
+    fp_fpsr: u64,
+    fp_fpcr: u64,
+}
+
+impl FPRegs {
+    pub const fn new() -> FPRegs {
+        FPRegs {
+            fp_q0: [0; 16],
+            fp_q1: [0; 16],
+            fp_q2: [0; 16],
+            fp_q3: [0; 16],
+            fp_q4: [0; 16],
+            fp_q5: [0; 16],
+            fp_q6: [0; 16],
+            fp_q7: [0; 16],
+            fp_q8: [0; 16],
+            fp_q9: [0; 16],
+            fp_q10: [0; 16],
+            fp_q11: [0; 16],
+            fp_q12: [0; 16],
+            fp_q13: [0; 16],
+            fp_q14: [0; 16],
+            fp_q15: [0; 16],
+            fp_q16: [0; 16],
+            fp_q17: [0; 16],
+            fp_q18: [0; 16],
+            fp_q19: [0; 16],
+            fp_q20: [0; 16],
+            fp_q21: [0; 16],
+            fp_q22: [0; 16],
+            fp_q23: [0; 16],
+            fp_q24: [0; 16],
+            fp_q25: [0; 16],
+            fp_q26: [0; 16],
+            fp_q27: [0; 16],
+            fp_q28: [0; 16],
+            fp_q29: [0; 16],
+            fp_q30: [0; 16],
+            fp_q31: [0; 16],
+            fp_fpsr: 0,
+            fp_fpcr: 0,
         }
     }
 }
