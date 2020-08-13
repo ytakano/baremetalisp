@@ -1,20 +1,22 @@
+use crate::aarch64::cpu;
+
 // Security state of the image.
-pub const EP_SECURITY_MASK: usize = 0x1;
-pub const EP_SECURITY_SHIFT: usize = 0;
-pub const EP_SECURE: usize = 0x0;
-pub const EP_NON_SECURE: usize = 0x1;
+pub const EP_SECURITY_MASK: u32 = 0x1;
+pub const EP_SECURITY_SHIFT: u32 = 0;
+pub const EP_SECURE: u32 = 0x0;
+pub const EP_NON_SECURE: u32 = 0x1;
 
 // Endianness of the image.
-pub const EP_EE_MASK: usize = 0x2;
-pub const EP_EE_SHIFT: usize = 1;
-pub const EP_EE_LITTLE: usize = 0x0;
-pub const EP_EE_BIG: usize = 0x2;
+pub const EP_EE_MASK: u32 = 0x2;
+pub const EP_EE_SHIFT: u32 = 1;
+pub const EP_EE_LITTLE: u32 = 0x0;
+pub const EP_EE_BIG: u32 = 0x2;
 
 // Enable or disable access to the secure timer from secure images.
-pub const EP_ST_MASK: usize = 0x4;
-pub const EP_ST_SHIFT: usize = 2;
-pub const EP_ST_DISABLE: usize = 0x0;
-pub const EP_ST_ENABLE: usize = 0x4;
+pub const EP_ST_MASK: u32 = 0x4;
+pub const EP_ST_SHIFT: u32 = 2;
+pub const EP_ST_DISABLE: u32 = 0x0;
+pub const EP_ST_ENABLE: u32 = 0x4;
 
 // Param header types
 pub const PARAM_EP: u8 = 0x01;
@@ -85,11 +87,37 @@ impl Aapcs64Params {
 pub struct EntryPointInfo {
     pub h: ParamHeader,
     pub pc: usize,
-    pub spsr: u32,
+    pub spsr: u64,
 
     // AArch64
     pub args: Aapcs64Params,
     // AArch32
     // pub lr_svc: usize,
     // pub args: Aapcs32Params,
+}
+
+impl EntryPointInfo {
+    pub fn is_secure(&self) -> bool {
+        (self.h.attr & EP_SECURITY_MASK) == EP_SECURE
+    }
+
+    pub fn is_mode_rw64(&self) -> bool {
+        ((self.spsr >> cpu::MODE_RW_SHIFT) & cpu::MODE_RW_MASK) == cpu::MODE_RW_64
+    }
+
+    pub fn is_st_enable(&self) -> bool {
+        (self.h.attr & EP_ST_MASK) == EP_ST_ENABLE
+    }
+
+    pub fn get_el(&self) -> u64 {
+        (self.spsr >> cpu::MODE_EL_SHIFT) & cpu::MODE_EL_MASK
+    }
+
+    pub fn get_m32(&self) -> u64 {
+        (self.spsr >> cpu::MODE32_SHIFT) & cpu::MODE32_MASK
+    }
+
+    pub fn is_big_endian(&self) -> bool {
+        (self.h.attr & EP_EE_MASK) == EP_EE_BIG
+    }
 }

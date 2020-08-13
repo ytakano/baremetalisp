@@ -52,7 +52,7 @@ pub const SCTLR_A_BIT: u64 = 1 << 1;
 pub const SCTLR_C_BIT: u64 = 1 << 2;
 pub const SCTLR_SA_BIT: u64 = 1 << 3;
 pub const SCTLR_SA0_BIT: u64 = 1 << 4;
-pub const SCTLR_CP15BEN_BI: u64 = 1 << 5;
+pub const SCTLR_CP15BEN_BIT: u64 = 1 << 5;
 pub const SCTLR_ITD_BIT: u64 = 1 << 7;
 pub const SCTLR_SED_BIT: u64 = 1 << 8;
 pub const SCTLR_UMA_BIT: u64 = 1 << 9;
@@ -143,6 +143,96 @@ pub const DISABLE_ALL_EXCEPTIONS: u64 = DAIF_FIQ_BIT | DAIF_IRQ_BIT | DAIF_ABT_B
 
 pub const DISABLE_INTERRUPTS: u64 = DAIF_FIQ_BIT | DAIF_IRQ_BIT;
 
+// ID_AA64PFR0_EL1 definitions
+pub const ID_AA64PFR0_EL0_SHIFT: u64 = 0;
+pub const ID_AA64PFR0_EL1_SHIFT: u64 = 4;
+pub const ID_AA64PFR0_EL2_SHIFT: u64 = 8;
+pub const ID_AA64PFR0_EL3_SHIFT: u64 = 12;
+pub const ID_AA64PFR0_AMU_SHIFT: u64 = 44;
+pub const ID_AA64PFR0_AMU_MASK: u64 = 0xf;
+pub const ID_AA64PFR0_ELX_MASK: u64 = 0xf;
+pub const ID_AA64PFR0_GIC_SHIFT: u64 = 24;
+pub const ID_AA64PFR0_GIC_WIDTH: u64 = 4;
+pub const ID_AA64PFR0_GIC_MASK: u64 = 0xf;
+pub const ID_AA64PFR0_SVE_SHIFT: u64 = 32;
+pub const ID_AA64PFR0_SVE_MASK: u64 = 0xf;
+pub const ID_AA64PFR0_SEL2_SHIFT: u64 = 36;
+pub const ID_AA64PFR0_SEL2_MASK: u64 = 0xf;
+pub const ID_AA64PFR0_MPAM_SHIFT: u64 = 40;
+pub const ID_AA64PFR0_MPAM_MASK: u64 = 0xf;
+pub const ID_AA64PFR0_DIT_SHIFT: u64 = 48;
+pub const ID_AA64PFR0_DIT_MASK: u64 = 0xf;
+pub const ID_AA64PFR0_DIT_LENGTH: u64 = 4;
+pub const ID_AA64PFR0_DIT_SUPPORTED: u64 = 1;
+pub const ID_AA64PFR0_CSV2_SHIFT: u64 = 56;
+pub const ID_AA64PFR0_CSV2_MASK: u64 = 0xf;
+pub const ID_AA64PFR0_CSV2_LENGTH: u64 = 4;
+
+// ID_AA64PFR1_EL1 definitions
+pub const ID_AA64PFR1_EL1_SSBS_SHIFT: u64 = 4;
+pub const ID_AA64PFR1_EL1_SSBS_MASK: u64 = 0xf;
+
+pub const SSBS_UNAVAILABLE: u64 = 0; // No architectural SSBS support
+
+pub const ID_AA64PFR1_EL1_BT_SHIFT: u64 = 0;
+pub const ID_AA64PFR1_EL1_BT_MASK: u64 = 0xf;
+
+pub const BTI_IMPLEMENTED: u64 = 1; // The BTI mechanism is implemented
+
+pub const ID_AA64PFR1_EL1_MTE_SHIFT: u64 = 8;
+pub const ID_AA64PFR1_EL1_MTE_MASK: u64 = 0xf;
+
+pub const MTE_UNIMPLEMENTED: u64 = 0;
+pub const MTE_IMPLEMENTED_EL0: u64 = 1; // MTE is only implemented at EL0
+pub const MTE_IMPLEMENTED_ELX: u64 = 2; // MTE is implemented at all ELs
+
+pub const ID_AA64PFR1_MPAM_FRAC_SHIFT: u64 = 16;
+pub const ID_AA64PFR1_MPAM_FRAC_MASK: u64 = 0xf;
+
+// ID_AA64MMFR0_EL1 definitions
+pub const ID_AA64MMFR0_EL1_PARANGE_SHIFT: u64 = 0;
+pub const ID_AA64MMFR0_EL1_PARANGE_MASK: u64 = 0xf;
+
+pub const PARANGE_0000: u64 = 32;
+pub const PARANGE_0001: u64 = 36;
+pub const PARANGE_0010: u64 = 40;
+pub const PARANGE_0011: u64 = 42;
+pub const PARANGE_0100: u64 = 44;
+pub const PARANGE_0101: u64 = 48;
+pub const PARANGE_0110: u64 = 52;
+
+pub const ID_AA64MMFR0_EL1_ECV_SHIFT: u64 = 60;
+pub const ID_AA64MMFR0_EL1_ECV_MASK: u64 = 0xf;
+pub const ID_AA64MMFR0_EL1_ECV_NOT_SUPPORTED: u64 = 0x0;
+pub const ID_AA64MMFR0_EL1_ECV_SUPPORTED: u64 = 0x1;
+pub const ID_AA64MMFR0_EL1_ECV_SELF_SYNCH: u64 = 0x2;
+
+pub const ID_AA64MMFR0_EL1_FGT_SHIFT: u64 = 56;
+pub const ID_AA64MMFR0_EL1_FGT_MASK: u64 = 0xf;
+pub const ID_AA64MMFR0_EL1_FGT_SUPPORTED: u64 = 0x1;
+pub const ID_AA64MMFR0_EL1_FGT_NOT_SUPPORTED: u64 = 0x0;
+
+pub const ID_AA64MMFR0_EL1_TGRAN4_SHIFT: u64 = 28;
+pub const ID_AA64MMFR0_EL1_TGRAN4_MASK: u64 = 0xf;
+pub const ID_AA64MMFR0_EL1_TGRAN4_SUPPORTED: u64 = 0x0;
+pub const ID_AA64MMFR0_EL1_TGRAN4_NOT_SUPPORTED: u64 = 0xf;
+
+pub const ID_AA64MMFR0_EL1_TGRAN64_SHIFT: u64 = 24;
+pub const ID_AA64MMFR0_EL1_TGRAN64_MASK: u64 = 0xf;
+pub const ID_AA64MMFR0_EL1_TGRAN64_SUPPORTED: u64 = 0x0;
+pub const ID_AA64MMFR0_EL1_TGRAN64_NOT_SUPPORTED: u64 = 0xf;
+
+pub const ID_AA64MMFR0_EL1_TGRAN16_SHIFT: u64 = 20;
+pub const ID_AA64MMFR0_EL1_TGRAN16_MASK: u64 = 0xf;
+pub const ID_AA64MMFR0_EL1_TGRAN16_SUPPORTED: u64 = 0x1;
+pub const ID_AA64MMFR0_EL1_TGRAN16_NOT_SUPPORTED: u64 = 0x0;
+
+// ID_AA64MMFR1_EL1 definitions
+pub const ID_AA64MMFR1_EL1_TWED_SHIFT: u64 = 32;
+pub const ID_AA64MMFR1_EL1_TWED_MASK: u64 = 0xf;
+pub const ID_AA64MMFR1_EL1_TWED_SUPPORTED: u64 = 0x1;
+pub const ID_AA64MMFR1_EL1_TWED_NOT_SUPPORTED: u64 = 0x0;
+
 pub fn spsr64(el: u64, sp: u64, daif: u64) -> u64 {
     ((MODE_RW_64 << MODE_RW_SHIFT)
         | (((el) & MODE_EL_MASK) << MODE_EL_SHIFT)
@@ -208,6 +298,56 @@ pub fn get_sctlr_el2() -> u64 {
         asm!("mrs {}, sctlr_el2", lateout(reg) sctlr_el2);
     }
     sctlr_el2
+}
+
+pub fn get_actlr_el1() -> u64 {
+    let actlr_el1;
+    unsafe {
+        asm!("mrs {}, actlr_el1", lateout(reg) actlr_el1);
+    }
+    actlr_el1
+}
+
+pub fn get_id_aa64pfr1_el1() -> u64 {
+    let id_aa64pfr1_el1;
+    unsafe {
+        asm!("mrs {}, id_aa64pfr1_el1", lateout(reg) id_aa64pfr1_el1);
+    }
+    id_aa64pfr1_el1
+}
+
+pub fn get_id_aa64mmfr0_el1() -> u64 {
+    let id_aa64mmfr0_el1;
+    unsafe {
+        asm!("mrs {}, id_aa64mmfr0_el1", lateout(reg) id_aa64mmfr0_el1);
+    }
+    id_aa64mmfr0_el1
+}
+
+pub fn get_id_aa64mmfr1_el1() -> u64 {
+    let id_aa64mmfr1_el1;
+    unsafe {
+        asm!("mrs {}, id_aa64mmfr1_el1", lateout(reg) id_aa64mmfr1_el1);
+    }
+    id_aa64mmfr1_el1
+}
+
+pub fn get_armv8_5_mte_support() -> u64 {
+    (get_id_aa64pfr1_el1() >> ID_AA64PFR1_EL1_MTE_SHIFT) & ID_AA64PFR1_EL1_MTE_MASK
+}
+
+pub fn is_armv8_6_twed_present() -> bool {
+    ((get_id_aa64mmfr1_el1() >> ID_AA64MMFR1_EL1_TWED_SHIFT) & ID_AA64MMFR1_EL1_TWED_MASK)
+        == ID_AA64MMFR1_EL1_TWED_SUPPORTED
+}
+
+pub fn is_armv8_6_fgt_present() -> bool {
+    ((get_id_aa64mmfr0_el1() >> ID_AA64MMFR0_EL1_FGT_SHIFT) & ID_AA64MMFR0_EL1_FGT_MASK)
+        == ID_AA64MMFR0_EL1_FGT_SUPPORTED
+}
+
+pub fn get_armv8_6_ecv_support() -> u64 {
+    (get_id_aa64mmfr0_el1() >> ID_AA64MMFR0_EL1_ECV_SHIFT) & ID_AA64MMFR0_EL1_ECV_MASK
 }
 
 /// sev

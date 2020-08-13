@@ -1,5 +1,9 @@
 #[cfg(feature = "pine64")]
 use super::device::allwinner::psci;
+
+#[cfg(any(feature = "raspi3", feature = "raspi4"))]
+use super::device::raspi::psci;
+
 //use super::uart;
 
 pub enum PsciResult {

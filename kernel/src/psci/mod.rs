@@ -279,7 +279,7 @@ fn psci_get_ns_ep_info(entrypoint: usize, context_id: usize) -> Result<EntryPoin
     let ep = EntryPointInfo {
         h: headr,
         pc: entrypoint,
-        spsr: spsr as u32,
+        spsr: spsr,
         args: args,
     };
 

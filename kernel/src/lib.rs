@@ -15,10 +15,8 @@ mod el1;
 mod el2;
 mod el3;
 mod pager;
-mod slab;
-
-#[cfg(feature = "pine64")]
 mod psci;
+mod slab;
 
 #[macro_use]
 extern crate alloc;
