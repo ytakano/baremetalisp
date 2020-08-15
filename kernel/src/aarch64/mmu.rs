@@ -190,6 +190,30 @@ impl Addr {
     }
 
     fn print(&self) {
+        driver::uart::puts("rom_start          = 0x");
+        driver::uart::hex(self.rom_start as u64);
+        driver::uart::puts("\n");
+
+        driver::uart::puts("rom_end            = 0x");
+        driver::uart::hex(self.rom_end as u64);
+        driver::uart::puts("\n");
+
+        driver::uart::puts("sram_start         = 0x");
+        driver::uart::hex(self.sram_start as u64);
+        driver::uart::puts("\n");
+
+        driver::uart::puts("sram_end           = 0x");
+        driver::uart::hex(self.sram_end as u64);
+        driver::uart::puts("\n");
+
+        driver::uart::puts("DEVICE_MEM_START   = 0x");
+        driver::uart::hex(DEVICE_MEM_START as u64);
+        driver::uart::puts("\n");
+
+        driver::uart::puts("DEVICE_MEM_END     = 0x");
+        driver::uart::hex(DEVICE_MEM_END as u64);
+        driver::uart::puts("\n");
+
         let addr = unsafe { &__ram_start as *const u64 as u64 };
         driver::uart::puts("__ram_start        = 0x");
         driver::uart::hex(addr);

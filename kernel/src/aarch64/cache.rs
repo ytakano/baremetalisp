@@ -10,7 +10,7 @@ pub fn clean<T>(obj: &mut T, size: usize) {
     while base < addr + size {
         base += PAGESIZE as usize;
         unsafe {
-            asm!("dc cmvac, {}", in(reg) base);
+            asm!("dc cvac, {}", in(reg) base);
         }
     }
 
@@ -26,7 +26,7 @@ pub fn clean_invalidate<T>(obj: &mut T, size: usize) {
     while base < addr + size {
         base += PAGESIZE as usize;
         unsafe {
-            asm!("dc cimvac, {}", in(reg) base);
+            asm!("dc civac, {}", in(reg) base);
         }
     }
 
@@ -42,7 +42,7 @@ pub fn invalidate<T>(obj: &mut T, size: usize) {
     while base < addr + size {
         base += PAGESIZE as usize;
         unsafe {
-            asm!("dc imvac, {}", in(reg) base);
+            asm!("dc ivac, {}", in(reg) base);
         }
     }
 
