@@ -2,7 +2,9 @@ use core::slice;
 
 use super::cpu;
 use crate::driver;
-use crate::driver::memory::{DEVICE_MEM_END, DEVICE_MEM_START};
+use crate::driver::memory::{
+    DEVICE_MEM_END, DEVICE_MEM_START, ROM_END, ROM_START, SRAM_END, SRAM_START,
+};
 
 const NUM_CPU: u64 = driver::topology::CORE_COUNT as u64;
 
@@ -35,6 +37,10 @@ static mut MEMORY_MAP: Addr = Addr {
     tt_el1_ttbr0_end: 0,
     tt_el1_ttbr1_start: 0,
     tt_el1_ttbr1_end: 0,
+    rom_start: 0,
+    rom_end: 0,
+    sram_start: 0,
+    sram_end: 0,
     stack_size: 0,
     stack_el1_end: 0,
     stack_el1_start: 0,
@@ -124,6 +130,10 @@ pub struct Addr {
     pub tt_el1_ttbr0_end: u64,
     pub tt_el1_ttbr1_start: u64,
     pub tt_el1_ttbr1_end: u64,
+    pub rom_start: u64,
+    pub rom_end: u64,
+    pub sram_start: u64,
+    pub sram_end: u64,
 
     pub stack_size: u64,
 
@@ -169,6 +179,14 @@ impl Addr {
         // heap memory for EL0
         self.el0_heap_start = self.stack_el0_start;
         self.el0_heap_end = self.el0_heap_start + PAGESIZE * 1024; // 64MiB
+
+        // ROM
+        self.rom_start = ROM_START;
+        self.rom_end = ROM_END;
+
+        // SRAM
+        self.sram_start = SRAM_START;
+        self.sram_end = SRAM_END;
     }
 
     fn print(&self) {
@@ -468,6 +486,26 @@ fn update_sctlr(sctlr: u64) -> u64 {
 
 fn init_firm(addr: &Addr) -> TTable {
     let mut table = TTable::new(addr.tt_firm_start, FIRM_LV2_TABLE_NUM, FIRM_LV3_TABLE_NUM);
+
+    // map ROM
+    if addr.rom_start != addr.rom_end {
+        let mut rom_start = addr.rom_start;
+        let flag = FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_R_N | FLAG_L3_ATTR_MEM | 0b11;
+        while rom_start < addr.rom_end {
+            table.map(rom_start, rom_start, flag);
+            rom_start += PAGESIZE;
+        }
+    }
+
+    // map SRAM
+    if addr.sram_start != addr.sram_end {
+        let mut sram_start = addr.sram_start;
+        let flag = FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_MEM | 0b11;
+        while sram_start < addr.sram_end {
+            table.map(sram_start, sram_start, flag);
+            sram_start += PAGESIZE;
+        }
+    }
 
     // map .init and .text section
     let mut ram_start = unsafe { &__ram_start as *const u64 as u64 };

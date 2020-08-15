@@ -5,6 +5,7 @@ use super::memory::{
 };
 use crate::bits::{bit_clear32, bit_set32};
 use crate::driver::arm::scpi;
+use crate::driver::uart;
 
 const CPUCFG_DBG_REG0: *mut u32 = (SUNXI_CPUCFG_BASE + 0x0020) as *mut u32;
 const SCP_FIRMWARE_MAGIC: u32 = 0xb4400012;
@@ -74,6 +75,7 @@ fn or1k_vec_addr(n: u32) -> u32 {
 
 pub(crate) fn init() {
     // Program all CPU entry points
+    uart::puts("init 1\n");
     let start = _start as *const () as u64;
     for i in 0..4 {
         let addr_lo = cpucfg_rvbar_lo_reg(i);
@@ -83,6 +85,7 @@ pub(crate) fn init() {
             write_volatile(addr_hi, (start >> 32) as u32);
         }
     }
+    uart::puts("init 2\n");
 
     // Check for a valid SCP firmware, and boot the SCP if found.
     let scp_base = SUNXI_SCP_BASE as *mut u32;
@@ -105,6 +108,7 @@ pub(crate) fn init() {
             set_scpi_available(true);
         }
     } else {
+        uart::puts("init 3\n");
         set_scpi_available(false);
     }
 }

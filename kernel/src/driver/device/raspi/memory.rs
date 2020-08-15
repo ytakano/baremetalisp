@@ -20,6 +20,11 @@ mod raspi {
 }
 //-----------------------------------------------------------------------------
 
+pub const SRAM_START: u64 = 0;
+pub const SRAM_END: u64 = 0;
+pub const ROM_START: u64 = 0;
+pub const ROM_END: u64 = 0;
+
 pub const MMIO_BASE: u32 = raspi::MMIO_BASE;
 pub const DEVICE_MEM_START: u64 = raspi::DEVICE_MEM_START;
 pub const DEVICE_MEM_END: u64 = raspi::DEVICE_MEM_END;

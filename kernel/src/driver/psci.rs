@@ -23,10 +23,6 @@ pub enum PsciResult {
 // for the CPU.
 pub type PsciPowerState = [u8; psci::PLAT_MAX_PWR_LVL + 1];
 
-pub fn init() {
-    psci::init();
-}
-
 pub fn cpu_standby(cpu_state: u8) {
     psci::cpu_standby(cpu_state);
 }

@@ -25,23 +25,21 @@ use core::panic::PanicInfo;
 
 /// initialization for the master CPU
 fn init_master() {
-    driver::init();
-
-    #[cfg(feature = "pine64")]
-    driver::psci::pwr_domain_on(1); // wake up CPU #1
-
-    aarch64::delays::wait_microsec(1000000); // wait 1 sec
+    driver::early_init();
 
     match aarch64::mmu::init() {
         Some(_) => (),
         None => {
-            driver::uart::puts("Error: failed to initialize MMU\n");
-            aarch64::delays::forever();
+            panic!("failed to initialize MMU");
         }
     };
+    driver::init();
 
     boot::run();
-    aarch64::cpu::start_non_primary();
+
+    // examples
+    // driver::psci::pwr_domain_on(1); // wake up CPU #1 (Pine64)
+    // aarch64::cpu::start_non_primary(); // wake up non-primary CPUs (Raspi)
 
     match aarch64::cpu::get_current_el() {
         3 => {
@@ -59,7 +57,7 @@ fn init_master() {
 
 /// initialization for slave CPUs
 fn init_slave() -> ! {
-    //aarch64::mmu::set_regs();
+    aarch64::mmu::set_regs();
     driver::uart::puts("initialized slaves\n");
     aarch64::delays::forever()
 }
