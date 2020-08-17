@@ -1,7 +1,7 @@
 use core::ptr::{read_volatile, write_volatile};
 
 use super::memory::*;
-use crate::aarch64::delays;
+use crate::driver::delays;
 
 const UART0_DR: *mut u32 = (MMIO_BASE + 0x00201000) as *mut u32;
 const UART0_FR: *mut u32 = (MMIO_BASE + 0x00201018) as *mut u32;

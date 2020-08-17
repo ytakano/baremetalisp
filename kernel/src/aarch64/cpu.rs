@@ -250,6 +250,14 @@ pub fn spsr32(mode: u64, isa: u64, endian: u64, aif: u64) -> u64 {
         & (!(SPSR_SSBS_BIT_AARCH32))
 }
 
+pub fn get_cntpct_el0() -> u64 {
+    let cntpct_el0;
+    unsafe {
+        asm!("mrs {}, cntpct_el0", lateout(reg) cntpct_el0);
+    }
+    cntpct_el0
+}
+
 pub fn get_affinity_lv0() -> u64 {
     let mpidr: u64;
     unsafe {

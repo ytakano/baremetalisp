@@ -1,4 +1,5 @@
 pub(crate) mod cpu;
+pub(crate) mod defs;
 pub(crate) mod mbox;
 pub(crate) mod memory;
 pub(crate) mod mhu;

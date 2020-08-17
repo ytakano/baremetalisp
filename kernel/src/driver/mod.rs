@@ -1,4 +1,6 @@
 mod arm;
+mod defs;
+pub mod delays;
 mod device;
 pub mod memory;
 pub mod psci;
@@ -11,6 +13,7 @@ mod mhu;
 
 /// Initlize UART0 for serial console with 115200 8n1,
 pub fn early_init() {
+    delays::init();
     uart::init();
 
     //rand::init();

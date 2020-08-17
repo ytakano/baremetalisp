@@ -59,7 +59,7 @@ fn init_master() {
 fn init_slave() -> ! {
     aarch64::mmu::set_regs();
     driver::uart::puts("initialized slaves\n");
-    aarch64::delays::forever()
+    driver::delays::forever()
 }
 
 #[no_mangle]
@@ -72,7 +72,7 @@ pub fn entry() -> ! {
         init_slave();
     }
 
-    aarch64::delays::forever()
+    driver::delays::forever()
 }
 
 #[lang = "eh_personality"]
@@ -94,10 +94,10 @@ fn panic(info: &PanicInfo) -> ! {
         driver::uart::puts("\n");
     }
 
-    aarch64::delays::forever();
+    driver::delays::forever();
 }
 
 #[no_mangle]
 pub fn abort() -> ! {
-    aarch64::delays::forever();
+    driver::delays::forever();
 }

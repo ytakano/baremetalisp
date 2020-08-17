@@ -1,9 +1,9 @@
 use core::ptr::{read_volatile, write_volatile};
 
 use super::memory::SUNXI_MSGBOX_BASE;
-use crate::aarch64::delays::wait_microsec;
 use crate::aarch64::lock;
 use crate::bits::genmask32;
+use crate::driver::delays::wait_microsec;
 
 static mut LOCK: lock::BakeryTicket = lock::BakeryTicket::new();
 

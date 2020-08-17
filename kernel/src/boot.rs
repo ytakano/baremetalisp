@@ -30,15 +30,17 @@ fn print_el() {
 }
 
 fn print_fortune() {
-    /*
     driver::uart::puts("[Fortune     ] ");
-    let cnt = driver::delays::get_system_timer() as usize;
-    let fortune = ["大吉", "吉", "吉", "吉", "吉", "中吉", "中吉", "中吉",
-                   "中吉", "小吉", "小吉", "小吉", "末吉", "末吉", "末吉", "凶"];
+    // TODU: use
+    //    let cnt = driver::delays::get_system_timer() as usize;
+    let cnt = aarch64::cpu::get_cntpct_el0() as usize;
+    let fortune = [
+        "大吉", "吉", "吉", "吉", "吉", "中吉", "中吉", "中吉", "中吉", "小吉", "小吉", "小吉",
+        "末吉", "末吉", "末吉", "凶",
+    ];
     driver::uart::puts("⛩  ");
     driver::uart::puts(fortune[cnt & 0xF]);
     driver::uart::puts(" ⛩\n");
-    */
 }
 
 /// print splash message

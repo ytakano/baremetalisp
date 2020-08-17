@@ -1,4 +1,5 @@
 use crate::aarch64;
+use crate::driver::delays;
 
 #[no_mangle]
 pub fn el1_entry() -> ! {
@@ -21,5 +22,5 @@ pub fn el1_entry() -> ! {
         );
     }
 
-    aarch64::delays::forever()
+    delays::forever()
 }

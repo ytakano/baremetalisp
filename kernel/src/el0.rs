@@ -1,5 +1,5 @@
-use crate::aarch64::{cpu, delays, mmu};
-use crate::driver::uart;
+use crate::aarch64::{cpu, mmu};
+use crate::driver::{delays, uart};
 use crate::slab;
 
 use alloc::boxed::Box;

@@ -5,3 +5,5 @@ pub mod raspi;
 // Pine64, Allwineer sunxi
 #[cfg(feature = "pine64")]
 pub mod allwinner;
+
+pub mod generic;

@@ -1,8 +1,8 @@
 use core::ptr::{read_volatile, write_volatile};
 
-use super::delays;
 use super::mbox;
 use super::memory::*;
+use crate::driver::delays;
 
 const PM_RSTC: *mut u32 = (MMIO_BASE + 0x0010001c) as *mut u32;
 const PM_RSTS: *mut u32 = (MMIO_BASE + 0x00100020) as *mut u32;
