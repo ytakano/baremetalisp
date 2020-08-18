@@ -2,7 +2,8 @@ use core::ptr::{read_volatile, write_volatile};
 
 use super::memory;
 use super::psci;
-use crate::driver::uart;
+use crate::driver::arm::gic;
+//use crate::driver::uart;
 
 const SUNXI_SOC_A64: u32 = 0x1689;
 const SUNXI_SOC_H5: u32 = 0x1718;
@@ -41,5 +42,16 @@ fn sunxi_read_soc_id() -> SoCID {
 }
 
 pub fn platform_setup() {
+    // Configure the interrupt controller
+    let driver_data = gic::v2::GICv2DriverData::new_gicd_gicc(
+        memory::SUNXI_GICD_BASE as usize,
+        memory::SUNXI_GICC_BASE as usize,
+    );
+    gic::v2::driver_init(&driver_data);
+    gic::v2::distif_init();
+    // TODO:
+    // pcpu_distif_init();
+    // cpuif_enable();
+
     psci::init();
 }

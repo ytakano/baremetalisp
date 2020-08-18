@@ -2,7 +2,7 @@ use super::cpu;
 use super::mmu::PAGESIZE;
 
 /// clean cache.
-/// dc cmvac
+/// dc cvac
 pub fn clean<T>(obj: &mut T, size: usize) {
     let addr = obj as *mut T as usize;
     let mut base = addr & !(PAGESIZE as usize - 1);
@@ -18,7 +18,7 @@ pub fn clean<T>(obj: &mut T, size: usize) {
 }
 
 /// flush cache
-/// dc cimvac
+/// dc civac
 pub fn clean_invalidate<T>(obj: &mut T, size: usize) {
     let addr = obj as *mut T as usize;
     let mut base = addr & !(PAGESIZE as usize - 1);
@@ -34,7 +34,7 @@ pub fn clean_invalidate<T>(obj: &mut T, size: usize) {
 }
 
 /// invalidate cache
-/// dc imvac
+/// dc ivac
 pub fn invalidate<T>(obj: &mut T, size: usize) {
     let addr = obj as *mut T as usize;
     let mut base = addr & !(PAGESIZE as usize - 1);
