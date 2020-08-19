@@ -143,6 +143,14 @@ pub(crate) fn gicd_write_isenabler(base: usize, id: u32, val: u32) {
     unsafe { write_volatile(ptr, val) }
 }
 
+/// Accessor to write the GIC Distributor ICENABLER corresponding to the
+/// interrupt `id`, 32 interrupt IDs at a time.
+pub(crate) fn gicd_write_icenabler(base: usize, id: u32, val: u32) {
+    let n = id >> ICENABLER_SHIFT;
+    let ptr = (base + GICD_ICENABLER + (n << 2) as usize) as *mut u32;
+    unsafe { write_volatile(ptr, val) }
+}
+
 // GIC Distributor functions for accessing the GIC registers
 // corresponding to a single interrupt ID. These functions use bitwise
 // operations or appropriate register accesses to modify or return

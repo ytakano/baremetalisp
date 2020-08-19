@@ -540,6 +540,21 @@ fn init_firm(addr: &Addr) -> TTable {
         ram_start += PAGESIZE;
     }
 
+    // map .data
+    let mut data_start = unsafe { &__data_start as *const u64 as u64 };
+    let bss_start = unsafe { &__bss_start as *const u64 as u64 };
+    let flag = FLAG_L3_XN
+        | FLAG_L3_PXN
+        | FLAG_L3_AF
+        | FLAG_L3_ISH
+        | FLAG_L3_SH_RW_RW
+        | FLAG_L3_ATTR_MEM
+        | 0b11;
+    while data_start < bss_start {
+        table.map(data_start, data_start, flag);
+        data_start += PAGESIZE;
+    }
+
     // map .bss section
     let mut bss_start = unsafe { &__bss_start as *const u64 as u64 };
     let end = unsafe { &__stack_firm_end as *const u64 as u64 };
@@ -730,6 +745,21 @@ fn init_el1(addr: &Addr) -> (TTable, TTable) {
     while ram_start < data_start {
         table0.map(ram_start, ram_start, flag);
         ram_start += PAGESIZE;
+    }
+
+    // map .data
+    let mut data_start = unsafe { &__data_start as *const u64 as u64 };
+    let bss_start = unsafe { &__bss_start as *const u64 as u64 };
+    let flag = FLAG_L3_XN
+        | FLAG_L3_PXN
+        | FLAG_L3_AF
+        | FLAG_L3_ISH
+        | FLAG_L3_SH_RW_RW
+        | FLAG_L3_ATTR_MEM
+        | 0b11;
+    while data_start < bss_start {
+        table0.map(data_start, data_start, flag);
+        data_start += PAGESIZE;
     }
 
     // map .bss section
