@@ -53,26 +53,8 @@
 
 .section .init, "x"
 .global _start
-.global el2_setup
-
-// #define NOEL3
-
-#ifdef raspi4
-#define BCM2711 1
-#define GIC     1
-#endif
 
 #define BIT(x) (1 << (x))
-
-#if BCM2711
-#define LOCAL_CONTROL       0xff800000
-#define LOCAL_PRESCALER     0xff800008
-#else
-#define LOCAL_CONTROL       0x40000000
-#define LOCAL_PRESCALER     0x40000008
-#endif
-#define GIC_DISTB           0xff841000
-#define GIC_CPUB            0xff842000
 
 #define OSC_FREQ            24000000
 
@@ -86,15 +68,6 @@
 
 #define CPUECTLR_EL1        S3_1_C15_C2_1
 #define CPUECTLR_EL1_SMPEN  BIT(6)
-
-#define L2CTLR_EL1          S3_1_C11_C0_2
-
-
-#define GICC_CTRLR          0x0
-#define GICC_PMR            0x4
-#define IT_NR               0x8 // Number of interrupt enable registers (256 total irqs)
-#define GICD_CTRLR          0x0
-#define GICD_IGROUPR        0x80
 
 _start:
     /* Set up CNTFRQ_EL0 */
@@ -166,7 +139,6 @@ _start:
     msr     sctlr_el2, x0
 
     msr     hcr_el2, xzr
-
 
     ldr     x1, =exception_vector_el3
     msr     vbar_el3, x1
