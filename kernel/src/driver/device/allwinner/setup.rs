@@ -1,6 +1,7 @@
 use core::ptr::write_volatile;
 
 use super::memory;
+use super::power;
 use super::psci;
 use super::security;
 use super::{read_soc_id, SoCID};
@@ -8,6 +9,10 @@ use crate::driver::arm::gic;
 //use crate::driver::uart;
 
 pub fn platform_setup() {
+    // TODO
+    // get device tree
+    // see https://github.com/ARM-software/arm-trusted-firmware/blob/007be5ecd14542a5da8533c14293faa1c44c3a7e/plat/allwinner/common/sunxi_bl31_setup.c#L137-L147
+
     // Configure the interrupt controller
     let driver_data = gic::v2::GICv2DriverData::new_gicd_gicc(
         memory::SUNXI_GICD_BASE as usize,
@@ -50,6 +55,8 @@ pub fn platform_setup() {
         }
         _ => (),
     }
+
+    power::init();
 
     psci::init();
 }

@@ -44,6 +44,10 @@ pub(crate) fn init() {
             }
 
             set_pmic(PMICType::AXP803RSB);
+
+            // TODO
+            // axp_setup_regulators(fdt);
+            // see https://github.com/ARM-software/arm-trusted-firmware/blob/007be5ecd14542a5da8533c14293faa1c44c3a7e/plat/allwinner/sun50i_a64/sunxi_power.c#L157
         }
         _ => {
             panic!("incompatible SoC ID");
