@@ -1,5 +1,6 @@
 use core::ptr::{read_volatile, write_volatile};
 
+use super::rsb;
 use super::{init_platform_r_twi, read_soc_id, SoCID};
 
 static mut PMIC: PMICType = PMICType::UNKNOWN;
@@ -22,11 +23,6 @@ fn set_pmic(pmic: PMICType) {
     }
 }
 
-fn rsb_init() -> bool {
-    // TODO
-    false
-}
-
 pub(crate) fn init() {
     match read_soc_id() {
         SoCID::H5 => {
@@ -38,7 +34,7 @@ pub(crate) fn init() {
                 return;
             }
 
-            if !rsb_init() {
+            if !rsb::init() {
                 set_pmic(PMICType::GenericA64);
                 return;
             }

@@ -2,6 +2,7 @@ use core::ptr::{read_volatile, write_volatile};
 
 use crate::bits;
 
+pub(crate) mod axp;
 pub(crate) mod cpu;
 pub(crate) mod defs;
 pub(crate) mod mbox;
@@ -9,6 +10,7 @@ pub(crate) mod memory;
 pub(crate) mod mhu;
 pub(crate) mod power;
 pub(crate) mod psci;
+pub(crate) mod rsb;
 pub(crate) mod security;
 pub(crate) mod setup;
 pub(crate) mod topology;
