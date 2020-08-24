@@ -133,7 +133,10 @@ pub(crate) fn set_cpu_state(idx: usize, state: AffInfoState) {
 /// ------------------------------------------------
 /// |   CPU 0   |   CPU 1   |   CPU 2   |   CPU 3  |
 /// ------------------------------------------------
-pub fn init() {}
+pub fn init() {
+    // Populate the power domain arrays using the platform topology map
+    setup::populate_power_domain_tree(driver::topology::POWER_DOMAIN_TREE_DESC);
+}
 
 fn is_caller_non_secure(f: usize) -> bool {
     f & SMC_FROM_NON_SECURE != 0

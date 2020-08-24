@@ -250,93 +250,79 @@ pub fn spsr32(mode: u64, isa: u64, endian: u64, aif: u64) -> u64 {
         & (!(SPSR_SSBS_BIT_AARCH32))
 }
 
+pub fn set_cntfrq_el0(cntfrq: u64) {
+    unsafe { asm!("msr cntfrq_el0, {}", in(reg) cntfrq) };
+}
+
+pub fn get_cntfrq_el0() -> u64 {
+    let cntfrq_el0;
+    unsafe { asm!("mrs {}, cntfrq_el0", lateout(reg) cntfrq_el0) };
+    cntfrq_el0
+}
+
 pub fn get_cntpct_el0() -> u64 {
     let cntpct_el0;
-    unsafe {
-        asm!("mrs {}, cntpct_el0", lateout(reg) cntpct_el0);
-    }
+    unsafe { asm!("mrs {}, cntpct_el0", lateout(reg) cntpct_el0) };
     cntpct_el0
 }
 
 pub fn get_affinity_lv0() -> u64 {
     let mpidr: u64;
-    unsafe {
-        asm!("mrs {}, mpidr_el1", lateout(reg) mpidr);
-    }
-
+    unsafe { asm!("mrs {}, mpidr_el1", lateout(reg) mpidr) };
     mpidr & 0xFF
 }
 
 pub fn get_affinity_lv1() -> u64 {
     let mpidr: u64;
-    unsafe {
-        asm!("mrs {}, mpidr_el1", lateout(reg) mpidr);
-    }
-
+    unsafe { asm!("mrs {}, mpidr_el1", lateout(reg) mpidr) };
     (mpidr >> 8) & 0xFF
 }
 
 pub fn get_current_el() -> u32 {
     let el: u64;
-    unsafe {
-        asm!("mrs {}, CurrentEL", lateout(reg) el);
-    }
+    unsafe { asm!("mrs {}, CurrentEL", lateout(reg) el) };
     ((el >> 2) & 0x3) as u32
 }
 
 pub fn get_scr_el3() -> u64 {
     let scr_el3;
-    unsafe {
-        asm!("mrs {}, scr_el3", lateout(reg) scr_el3);
-    }
+    unsafe { asm!("mrs {}, scr_el3", lateout(reg) scr_el3) };
     scr_el3
 }
 
 pub fn get_sctlr_el1() -> u64 {
     let sctlr_el1;
-    unsafe {
-        asm!("mrs {}, sctlr_el1", lateout(reg) sctlr_el1);
-    }
+    unsafe { asm!("mrs {}, sctlr_el1", lateout(reg) sctlr_el1) };
     sctlr_el1
 }
 
 pub fn get_sctlr_el2() -> u64 {
     let sctlr_el2;
-    unsafe {
-        asm!("mrs {}, sctlr_el2", lateout(reg) sctlr_el2);
-    }
+    unsafe { asm!("mrs {}, sctlr_el2", lateout(reg) sctlr_el2) };
     sctlr_el2
 }
 
 pub fn get_actlr_el1() -> u64 {
     let actlr_el1;
-    unsafe {
-        asm!("mrs {}, actlr_el1", lateout(reg) actlr_el1);
-    }
+    unsafe { asm!("mrs {}, actlr_el1", lateout(reg) actlr_el1) };
     actlr_el1
 }
 
 pub fn get_id_aa64pfr1_el1() -> u64 {
     let id_aa64pfr1_el1;
-    unsafe {
-        asm!("mrs {}, id_aa64pfr1_el1", lateout(reg) id_aa64pfr1_el1);
-    }
+    unsafe { asm!("mrs {}, id_aa64pfr1_el1", lateout(reg) id_aa64pfr1_el1) };
     id_aa64pfr1_el1
 }
 
 pub fn get_id_aa64mmfr0_el1() -> u64 {
     let id_aa64mmfr0_el1;
-    unsafe {
-        asm!("mrs {}, id_aa64mmfr0_el1", lateout(reg) id_aa64mmfr0_el1);
-    }
+    unsafe { asm!("mrs {}, id_aa64mmfr0_el1", lateout(reg) id_aa64mmfr0_el1) };
     id_aa64mmfr0_el1
 }
 
 pub fn get_id_aa64mmfr1_el1() -> u64 {
     let id_aa64mmfr1_el1;
-    unsafe {
-        asm!("mrs {}, id_aa64mmfr1_el1", lateout(reg) id_aa64mmfr1_el1);
-    }
+    unsafe { asm!("mrs {}, id_aa64mmfr1_el1", lateout(reg) id_aa64mmfr1_el1) };
     id_aa64mmfr1_el1
 }
 
@@ -360,44 +346,32 @@ pub fn get_armv8_6_ecv_support() -> u64 {
 
 /// sev
 pub fn send_event() {
-    unsafe {
-        asm!("sev");
-    }
+    unsafe { asm!("sev") };
 }
 
 /// sevl
 pub fn send_event_local() {
-    unsafe {
-        asm!("sevl");
-    }
+    unsafe { asm!("sevl") };
 }
 
 /// wfe
 pub fn wait_event() {
-    unsafe {
-        asm!("wfe");
-    }
+    unsafe { asm!("wfe") };
 }
 
 /// dmb st
 pub fn dmb_st() {
-    unsafe {
-        asm!("dmb st");
-    }
+    unsafe { asm!("dmb st") };
 }
 
 /// dmb ld
 pub fn dmb_ld() {
-    unsafe {
-        asm!("dmb ld");
-    }
+    unsafe { asm!("dmb ld") };
 }
 
 /// dmb sy
 pub fn dmb_sy() {
-    unsafe {
-        asm!("dmb sy");
-    }
+    unsafe { asm!("dmb sy") };
 }
 
 pub fn start_non_primary() {

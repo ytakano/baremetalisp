@@ -6,7 +6,10 @@ use super::device::allwinner::topology;
 
 pub const MAX_CPUS_PER_CLUSTER: usize = topology::MAX_CPUS_PER_CLUSTER;
 pub const CLUSTER_COUNT: usize = topology::CLUSTER_COUNT;
-pub const CORE_COUNT: usize = topology::CLUSTER_COUNT * topology::MAX_CPUS_PER_CLUSTER;
+pub const CORE_COUNT: usize = topology::CORE_COUNT;
+pub const NUM_PWR_DOMAINS: usize = topology::NUM_PWR_DOMAINS;
+pub const NUM_NON_CPU_PWR_DOMAINS: usize = topology::NUM_PWR_DOMAINS - topology::CORE_COUNT;
+pub const POWER_DOMAIN_TREE_DESC: &'static [u8] = &topology::POWER_DOMAIN_TREE_DESC;
 
 pub fn core_pos_by_mpidr(mpidr: usize) -> Option<usize> {
     let core = mpidr & 0xFF;

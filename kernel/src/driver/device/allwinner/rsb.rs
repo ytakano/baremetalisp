@@ -35,21 +35,17 @@ fn wait_bit(desc: &str, offset: usize, mask: u32) -> bool {
     let mut tries = MAX_TRIES;
     loop {
         let reg = unsafe { read_volatile(ptr) };
-        tries -= 1;
-        if tries == 0 {
-            if reg & mask == 0 {
-                return true;
-            } else {
-                // timed out
-                uart::puts("error: ");
-                uart::puts(desc);
-                uart::puts(": timed out\n");
-                return false;
-            }
-        }
-
         if reg & mask == 0 {
             return true;
+        }
+
+        tries -= 1;
+        if tries == 0 {
+            // timed out
+            uart::puts("error: ");
+            uart::puts(desc);
+            uart::puts(": timed out\n");
+            return false;
         }
     }
 }
