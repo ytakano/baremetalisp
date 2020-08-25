@@ -1,5 +1,5 @@
 use super::cpu;
-use crate::driver::topology::MAX_CPUS_PER_CLUSTER;
+use crate::driver::topology::{core_pos, CORE_COUNT};
 
 use core::ptr::{read_volatile, write_volatile};
 
@@ -64,15 +64,15 @@ impl<'a> Drop for SpinLock<'a> {
 /// ticket.lock();                    // acquire lock
 /// ```
 pub struct BakeryTicket {
-    entering: [bool; MAX_CPUS_PER_CLUSTER as usize],
-    number: [usize; MAX_CPUS_PER_CLUSTER as usize],
+    entering: [bool; CORE_COUNT as usize],
+    number: [usize; CORE_COUNT as usize],
 }
 
 impl BakeryTicket {
     pub const fn new() -> BakeryTicket {
         BakeryTicket {
-            entering: [false; MAX_CPUS_PER_CLUSTER as usize],
-            number: [0; MAX_CPUS_PER_CLUSTER as usize],
+            entering: [false; CORE_COUNT as usize],
+            number: [0; CORE_COUNT as usize],
         }
     }
 
@@ -87,7 +87,7 @@ pub struct BakeryLock<'a> {
 
 impl<'a> BakeryLock<'a> {
     fn new(t: &'a mut BakeryTicket) -> BakeryLock<'a> {
-        let core = cpu::get_affinity_lv0() as usize;
+        let core = core_pos() as usize;
         unsafe {
             write_volatile(&mut t.entering[core], true);
         }
@@ -104,7 +104,7 @@ impl<'a> BakeryLock<'a> {
         }
         cpu::dmb_sy();
 
-        for i in 0..(MAX_CPUS_PER_CLUSTER as usize) {
+        for i in 0..(CORE_COUNT as usize) {
             while unsafe { read_volatile(&t.entering[i]) } {}
 
             let mut n = unsafe { read_volatile(&t.number[i]) };
@@ -119,7 +119,7 @@ impl<'a> BakeryLock<'a> {
 
 impl<'a> Drop for BakeryLock<'a> {
     fn drop(&mut self) {
-        let core = cpu::get_affinity_lv0() as usize;
+        let core = core_pos() as usize;
         self.ticket.number[core] = 0;
     }
 }

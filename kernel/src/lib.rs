@@ -66,7 +66,7 @@ fn init_slave() -> ! {
 pub fn entry() -> ! {
     aarch64::mmu::init_memory_map();
 
-    if aarch64::cpu::get_affinity_lv0() == 0 {
+    if driver::topology::core_pos() == 0 {
         init_master();
     } else {
         init_slave();

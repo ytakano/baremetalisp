@@ -932,7 +932,7 @@ fn set_reg_el1(ttbr0: usize, ttbr1: usize) {
 
 pub fn get_no_cache<T>() -> &'static mut T {
     let addr = get_memory_map();
-    let addr = addr.no_cache_start + PAGESIZE * cpu::get_affinity_lv0();
+    let addr = addr.no_cache_start + PAGESIZE * driver::topology::core_pos() as u64;
     unsafe {
         let addr = addr as *mut u64 as usize;
         (addr as *mut T).as_mut().unwrap()

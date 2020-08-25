@@ -266,6 +266,12 @@ pub fn get_cntpct_el0() -> u64 {
     cntpct_el0
 }
 
+pub fn get_mpidr_el1() -> u64 {
+    let mpidr: u64;
+    unsafe { asm!("mrs {}, mpidr_el1", lateout(reg) mpidr) };
+    mpidr
+}
+
 pub fn get_affinity_lv0() -> u64 {
     let mpidr: u64;
     unsafe { asm!("mrs {}, mpidr_el1", lateout(reg) mpidr) };

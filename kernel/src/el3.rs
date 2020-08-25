@@ -1,9 +1,10 @@
 use crate::aarch64;
 use crate::aarch64::context::GpRegs;
+use crate::driver::topology;
 
 pub fn el3_to_el1() {
     let addr = aarch64::mmu::get_memory_map();
-    let aff = aarch64::cpu::get_affinity_lv0();
+    let aff = topology::core_pos() as u64;
     let stack = addr.stack_el1_start - addr.stack_size * aff + aarch64::mmu::EL1_ADDR_OFFSET;
 
     unsafe {

@@ -4,6 +4,8 @@ use super::device::raspi::topology;
 #[cfg(feature = "pine64")]
 use super::device::allwinner::topology;
 
+use crate::aarch64::cpu;
+
 pub const MAX_CPUS_PER_CLUSTER: usize = topology::MAX_CPUS_PER_CLUSTER;
 pub const CLUSTER_COUNT: usize = topology::CLUSTER_COUNT;
 pub const CORE_COUNT: usize = topology::CORE_COUNT;
@@ -22,4 +24,9 @@ pub fn core_pos_by_mpidr(mpidr: usize) -> Option<usize> {
     } else {
         Some(core)
     }
+}
+
+pub fn core_pos() -> usize {
+    let mpidr = cpu::get_mpidr_el1();
+    core_pos_by_mpidr(mpidr as usize).unwrap()
 }

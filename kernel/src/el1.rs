@@ -1,10 +1,10 @@
 use crate::aarch64;
-use crate::driver::delays;
+use crate::driver::{delays, topology};
 
 #[no_mangle]
 pub fn el1_entry() -> ! {
     let addr = aarch64::mmu::get_memory_map();
-    let aff = aarch64::cpu::get_affinity_lv0();
+    let aff = topology::core_pos() as u64;
     let stack = addr.stack_el0_start - addr.stack_size * aff;
 
     unsafe {
