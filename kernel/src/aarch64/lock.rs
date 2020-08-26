@@ -7,7 +7,6 @@ use core::ptr::{read_volatile, write_volatile};
 /// let var = LockVar::new(); // create lock variable
 /// var.lock();               // acquire lock
 /// ```
-#[derive(Copy, Clone)]
 pub struct LockVar {
     var: u64,
 }

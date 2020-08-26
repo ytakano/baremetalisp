@@ -1,5 +1,7 @@
+use super::data;
+use super::data::AffInfoState;
 use super::ep_info::EntryPointInfo;
-use super::*;
+use super::PsciResult;
 use crate::aarch64;
 use crate::driver;
 
@@ -33,7 +35,7 @@ pub(crate) fn psci_cpu_on_start(target_cpu: usize, ep: EntryPointInfo) -> PsciRe
     }
 
     // Protect against multiple CPUs trying to turn ON the same target CPU
-    psci_lock(idx);
+    data::cpu_lock(idx);
 
     // Generic management: Ensure that the cpu is off to be
     // turned on.
@@ -49,8 +51,8 @@ pub(crate) fn psci_cpu_on_start(target_cpu: usize, ep: EntryPointInfo) -> PsciRe
     // In this case the cache maintenace that was performed as part of the
     // target CPUs shutdown was not seen by the current CPU's cluster. And
     // so the cache may contain stale data for the target CPU.
-    flush_cache_cpu_state(idx);
-    let state = get_cpu_state(idx);
+    data::flush_cache_cpu_state(idx);
+    let state = data::get_cpu_state(idx);
     match cpu_on_validate_state(&state) {
         PsciResult::PsciESuccess => (),
         err => {
@@ -61,18 +63,18 @@ pub(crate) fn psci_cpu_on_start(target_cpu: usize, ep: EntryPointInfo) -> PsciRe
     // Set the Affinity info state of the target cpu to ON_PENDING.
     // Flush aff_info_state as it will be accessed with caches
     // turned OFF.
-    set_cpu_state(idx, AffInfoState::StateOnPending);
-    flush_cache_cpu_state(idx);
+    data::set_cpu_state(idx, AffInfoState::StateOnPending);
+    data::flush_cache_cpu_state(idx);
 
     // The cache line invalidation by the target CPU after setting the
     // state to OFF (see psci_do_cpu_off()), could cause the update to
     // aff_info_state to be invalidated. Retry the update if the target
     // CPU aff_info_state is not ON_PENDING.
-    match get_cpu_state(idx) {
+    match data::get_cpu_state(idx) {
         AffInfoState::StateOnPending => (),
         _ => {
-            set_cpu_state(idx, AffInfoState::StateOnPending);
-            flush_cache_cpu_state(idx);
+            data::set_cpu_state(idx, AffInfoState::StateOnPending);
+            data::flush_cache_cpu_state(idx);
         }
     }
 
@@ -88,8 +90,8 @@ pub(crate) fn psci_cpu_on_start(target_cpu: usize, ep: EntryPointInfo) -> PsciRe
         PsciResult::PsciESuccess => (),
         _ => {
             // Restore the state on error.
-            set_cpu_state(idx, AffInfoState::StateOff);
-            flush_cache_cpu_state(idx);
+            data::set_cpu_state(idx, AffInfoState::StateOff);
+            data::flush_cache_cpu_state(idx);
         }
     }
 
