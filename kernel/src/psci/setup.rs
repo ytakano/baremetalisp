@@ -44,7 +44,7 @@ pub(crate) fn populate_power_domain_tree(topology: &[u8]) -> u32 {
     //   parent_node_index.
     // - Index of first free entry in psci_non_cpu_pd_nodes[] or
     //   psci_cpu_pd_nodes[] i.e. node_index depending upon the level.
-    while level >= data::PSCI_CPU_PWR_LVL {
+    loop {
         let mut num_nodes_at_next_lvl = 0;
 
         // For each entry (parent node) at this level in the plat_array:
@@ -67,6 +67,11 @@ pub(crate) fn populate_power_domain_tree(topology: &[u8]) -> u32 {
         }
 
         num_nodes_at_lvl = num_nodes_at_next_lvl;
+
+        if level == data::PSCI_CPU_PWR_LVL {
+            break;
+        }
+
         level -= 1;
 
         // Reset the index for the cpu power domain array

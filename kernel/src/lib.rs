@@ -34,6 +34,7 @@ fn init_master() {
         }
     };
     driver::init();
+    psci::init();
 
     boot::run();
 
