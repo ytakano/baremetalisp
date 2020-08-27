@@ -3,7 +3,19 @@ use core::mem::transmute;
 use core::ptr::{read_volatile, write_volatile};
 
 use crate::aarch64::{cache, lock};
+use crate::driver::defs;
 use crate::driver::topology;
+
+pub(crate) const INVALID_MPIDR: u64 = !0;
+pub(crate) const INVALID_PWR_LVL: u8 = defs::MAX_PWR_LVL + 1;
+
+// This is the power level corresponding to a CPU
+pub(crate) const PSCI_CPU_PWR_LVL: u8 = 0;
+
+// The maximum power level supported by PSCI. Since PSCI CPU_SUSPEND
+// uses the old power_state parameter format which has 2 bits to specify the
+// power level, this constant is defined to be 3.
+pub(crate) const PSCI_MAX_PWR_LVL: u8 = 3;
 
 /// The following two data structures implement the power domain tree. The tree
 /// is used to track the state of all the nodes i.e. power domain instances
@@ -32,7 +44,7 @@ pub(crate) struct NonCpuPwrDomainNode {
 }
 
 pub(crate) struct CpuPwrDomainNode {
-    mpidr: usize,
+    mpidr: u64,
 
     // Index of the parent power domain node.
     // TODO: Figure out whether to whether using pointer is more efficient.
@@ -54,7 +66,7 @@ struct PsciCpuData {
 
     // Highest power level which takes part in a power management
     // operation.
-    target_pwrlvl: usize,
+    target_pwrlvl: u8,
 
     // The local power state of this CPU
     local_state: u8,
@@ -78,6 +90,7 @@ pub(crate) enum AffInfoState {
     StateOnPending,
 }
 
+def_static!(NON_CPU_PD_NODES: [NonCpuPwrDomainNode; topology::NUM_NON_CPU_PWR_DOMAINS]);
 def_static!(CPU_PD_NODES: [CpuPwrDomainNode; topology::CORE_COUNT]);
 def_static!(PSCI_CPU_DATA: [PsciCpuData; topology::CORE_COUNT]);
 def_static!(PSCI_LOCKS: [lock::LockVar; topology::NUM_NON_CPU_PWR_DOMAINS]);
@@ -97,10 +110,50 @@ pub(crate) fn flush_cache_cpu_state(idx: usize) {
     );
 }
 
-pub(crate) fn get_cpu_state(idx: usize) -> AffInfoState {
+pub(crate) fn get_cpu_aff_info_state(idx: usize) -> AffInfoState {
     unsafe { read_volatile(&PSCI_CPU_DATA[idx].aff_info_state) }
 }
 
-pub(crate) fn set_cpu_state(idx: usize, state: AffInfoState) {
+pub(crate) fn set_cpu_aff_info_state(idx: usize, state: AffInfoState) {
     unsafe { write_volatile(&mut PSCI_CPU_DATA[idx].aff_info_state, state) }
+}
+
+pub(crate) fn get_cpu_target_pwrlvl(idx: usize) -> u8 {
+    unsafe { read_volatile(&PSCI_CPU_DATA[idx].target_pwrlvl) }
+}
+
+pub(crate) fn set_cpu_target_pwrlvl(idx: usize, target_pwrlvl: u8) {
+    unsafe { write_volatile(&mut PSCI_CPU_DATA[idx].target_pwrlvl, target_pwrlvl) }
+}
+
+pub(crate) fn get_cpu_local_state(idx: usize) -> u8 {
+    unsafe { read_volatile(&PSCI_CPU_DATA[idx].local_state) }
+}
+
+pub(crate) fn set_cpu_local_state(idx: usize, local_state: u8) {
+    unsafe { write_volatile(&mut PSCI_CPU_DATA[idx].local_state, local_state) }
+}
+
+pub(crate) fn set_non_cpu_pd_level(idx: usize, level: u8) {
+    unsafe { write_volatile(&mut NON_CPU_PD_NODES[idx].level, level) };
+}
+
+pub(crate) fn set_non_cpu_pd_parent_node(idx: usize, parent_node: usize) {
+    unsafe { write_volatile(&mut NON_CPU_PD_NODES[idx].parent_node, parent_node) };
+}
+
+pub(crate) fn set_non_cpu_pd_local_state(idx: usize, local_state: u8) {
+    unsafe { write_volatile(&mut NON_CPU_PD_NODES[idx].local_state, local_state) };
+}
+
+pub(crate) fn set_non_cpu_pd_lock_index(idx: usize, lock_index: usize) {
+    unsafe { write_volatile(&mut NON_CPU_PD_NODES[idx].lock_index, lock_index) };
+}
+
+pub(crate) fn set_cpu_pd_parent_node(idx: usize, parent_node: usize) {
+    unsafe { write_volatile(&mut CPU_PD_NODES[idx].parent_node, parent_node) };
+}
+
+pub(crate) fn set_cpu_pd_mpidr(idx: usize, mpidr: u64) {
+    unsafe { write_volatile(&mut CPU_PD_NODES[idx].mpidr, mpidr) };
 }

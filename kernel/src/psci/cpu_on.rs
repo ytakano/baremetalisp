@@ -52,7 +52,7 @@ pub(crate) fn psci_cpu_on_start(target_cpu: usize, ep: EntryPointInfo) -> PsciRe
     // target CPUs shutdown was not seen by the current CPU's cluster. And
     // so the cache may contain stale data for the target CPU.
     data::flush_cache_cpu_state(idx);
-    let state = data::get_cpu_state(idx);
+    let state = data::get_cpu_aff_info_state(idx);
     match cpu_on_validate_state(&state) {
         PsciResult::PsciESuccess => (),
         err => {
@@ -63,17 +63,17 @@ pub(crate) fn psci_cpu_on_start(target_cpu: usize, ep: EntryPointInfo) -> PsciRe
     // Set the Affinity info state of the target cpu to ON_PENDING.
     // Flush aff_info_state as it will be accessed with caches
     // turned OFF.
-    data::set_cpu_state(idx, AffInfoState::StateOnPending);
+    data::set_cpu_aff_info_state(idx, AffInfoState::StateOnPending);
     data::flush_cache_cpu_state(idx);
 
     // The cache line invalidation by the target CPU after setting the
     // state to OFF (see psci_do_cpu_off()), could cause the update to
     // aff_info_state to be invalidated. Retry the update if the target
     // CPU aff_info_state is not ON_PENDING.
-    match data::get_cpu_state(idx) {
+    match data::get_cpu_aff_info_state(idx) {
         AffInfoState::StateOnPending => (),
         _ => {
-            data::set_cpu_state(idx, AffInfoState::StateOnPending);
+            data::set_cpu_aff_info_state(idx, AffInfoState::StateOnPending);
             data::flush_cache_cpu_state(idx);
         }
     }
@@ -90,7 +90,7 @@ pub(crate) fn psci_cpu_on_start(target_cpu: usize, ep: EntryPointInfo) -> PsciRe
         PsciResult::PsciESuccess => (),
         _ => {
             // Restore the state on error.
-            data::set_cpu_state(idx, AffInfoState::StateOff);
+            data::set_cpu_aff_info_state(idx, AffInfoState::StateOff);
             data::flush_cache_cpu_state(idx);
         }
     }
