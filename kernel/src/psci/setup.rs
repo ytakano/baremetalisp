@@ -1,5 +1,6 @@
 use super::data;
 use crate::driver::defs;
+use crate::driver::topology;
 
 /// Function which initializes the 'psci_non_cpu_pd_nodes' or the
 /// 'psci_cpu_pd_nodes' corresponding to the power level.
@@ -81,4 +82,48 @@ pub(crate) fn populate_power_domain_tree(topology: &[u8]) -> u32 {
     }
 
     n
+}
+
+/// PSCI helper function to get the parent nodes corresponding to a cpu_index.
+fn get_parent_pwr_domain_nodes(cpu_idx: usize) -> [usize; defs::MAX_PWR_LVL as usize] {
+    let mut parent_node = data::get_cpu_pd_parent_node(cpu_idx);
+    let mut node_index = [0; defs::MAX_PWR_LVL as usize];
+
+    for n in node_index.iter_mut() {
+        *n = parent_node;
+        parent_node = data::get_cpu_pd_parent_node(parent_node);
+    }
+
+    node_index
+}
+
+/// This functions updates cpu_start_idx and ncpus field for each of the node in
+/// psci_non_cpu_pd_nodes[]. It does so by comparing the parent nodes of each of
+/// the CPUs and check whether they match with the parent of the previous
+/// CPU. The basic assumption for this work is that children of the same parent
+/// are allocated adjacent indices. The platform should ensure this though proper
+/// mapping of the CPUs to indices via plat_core_pos_by_mpidr() and
+/// plat_my_core_pos() APIs.
+pub(crate) fn update_pwrlvl_limits() {
+    let mut nodes_idx = [0; defs::MAX_PWR_LVL as usize];
+    for cpu_idx in 0..topology::CORE_COUNT {
+        let parents = get_parent_pwr_domain_nodes(cpu_idx);
+        for j in (0..defs::MAX_PWR_LVL as usize).rev() {
+            if parents[j] != nodes_idx[j] {
+                nodes_idx[j] = parents[j];
+                data::set_non_cpu_pd_cpu_start_idx(nodes_idx[j], cpu_idx);
+            }
+            let ncpus = data::get_non_cpu_pd_ncpus(nodes_idx[j]);
+            data::set_non_cpu_pd_ncpus(nodes_idx[j], ncpus);
+        }
+    }
+}
+
+/// This function initializes the psci_req_local_pwr_states.
+pub(crate) fn init_req_local_pwr_states() {
+    for pwrlvl in 0..(defs::MAX_PWR_LVL as usize) {
+        for core in 0..topology::CORE_COUNT {
+            data::set_req_local_pwr_state(pwrlvl, core, defs::MAX_OFF_STATE);
+        }
+    }
 }

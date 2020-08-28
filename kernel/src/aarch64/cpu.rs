@@ -233,6 +233,8 @@ pub const ID_AA64MMFR1_EL1_TWED_MASK: u64 = 0xf;
 pub const ID_AA64MMFR1_EL1_TWED_SUPPORTED: u64 = 0x1;
 pub const ID_AA64MMFR1_EL1_TWED_NOT_SUPPORTED: u64 = 0x0;
 
+pub const MPIDR_AFFINITY_MASK: u64 = 0xff00ffffff;
+
 pub fn spsr64(el: u64, sp: u64, daif: u64) -> u64 {
     ((MODE_RW_64 << MODE_RW_SHIFT)
         | (((el) & MODE_EL_MASK) << MODE_EL_SHIFT)

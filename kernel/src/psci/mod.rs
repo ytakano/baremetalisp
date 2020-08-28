@@ -7,6 +7,7 @@ use core::mem::size_of;
 
 use crate::aarch64::cpu;
 use crate::driver;
+use crate::driver::topology;
 
 use ep_info::{Aapcs64Params, EntryPointInfo, ParamHeader};
 
@@ -81,6 +82,17 @@ const SMC_FROM_NON_SECURE: usize = 1 << 0;
 pub fn init() {
     // Populate the power domain arrays using the platform topology map
     setup::populate_power_domain_tree(driver::topology::POWER_DOMAIN_TREE_DESC);
+
+    // Update the CPU limits for each node in psci_non_cpu_pd_nodes */
+    setup::update_pwrlvl_limits();
+
+    // Populate the mpidr field of cpu node for this CPU
+    data::set_cpu_pd_mpidr(
+        topology::core_pos(),
+        cpu::get_mpidr_el1() & cpu::MPIDR_AFFINITY_MASK,
+    );
+
+    setup::init_req_local_pwr_states();
 }
 
 fn is_caller_non_secure(f: usize) -> bool {

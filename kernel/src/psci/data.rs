@@ -95,6 +95,9 @@ def_static!(CPU_PD_NODES: [CpuPwrDomainNode; topology::CORE_COUNT]);
 def_static!(PSCI_CPU_DATA: [PsciCpuData; topology::CORE_COUNT]);
 def_static!(PSCI_LOCKS: [lock::LockVar; topology::NUM_NON_CPU_PWR_DOMAINS]);
 
+static mut REQ_LOCAL_PWR_STATES: [u8; defs::MAX_PWR_LVL as usize * topology::CORE_COUNT] =
+    [0; defs::MAX_PWR_LVL as usize * topology::CORE_COUNT];
+
 pub(crate) fn non_pd_lock(idx: usize) -> lock::SpinLock<'static> {
     unsafe { PSCI_LOCKS[idx].lock() }
 }
@@ -134,6 +137,10 @@ pub(crate) fn set_cpu_local_state(idx: usize, local_state: u8) {
     unsafe { write_volatile(&mut PSCI_CPU_DATA[idx].local_state, local_state) }
 }
 
+pub(crate) fn set_non_cpu_pd_cpu_start_idx(idx: usize, cpu_start_idx: usize) {
+    unsafe { write_volatile(&mut NON_CPU_PD_NODES[idx].cpu_start_idx, cpu_start_idx) }
+}
+
 pub(crate) fn set_non_cpu_pd_level(idx: usize, level: u8) {
     unsafe { write_volatile(&mut NON_CPU_PD_NODES[idx].level, level) };
 }
@@ -150,10 +157,27 @@ pub(crate) fn set_non_cpu_pd_lock_index(idx: usize, lock_index: usize) {
     unsafe { write_volatile(&mut NON_CPU_PD_NODES[idx].lock_index, lock_index) };
 }
 
+pub(crate) fn get_non_cpu_pd_ncpus(idx: usize) -> usize {
+    unsafe { read_volatile(&NON_CPU_PD_NODES[idx].ncpus) }
+}
+
+pub(crate) fn set_non_cpu_pd_ncpus(idx: usize, ncpus: usize) {
+    unsafe { write_volatile(&mut NON_CPU_PD_NODES[idx].ncpus, ncpus) }
+}
+
 pub(crate) fn set_cpu_pd_parent_node(idx: usize, parent_node: usize) {
     unsafe { write_volatile(&mut CPU_PD_NODES[idx].parent_node, parent_node) };
 }
 
+pub(crate) fn get_cpu_pd_parent_node(idx: usize) -> usize {
+    unsafe { read_volatile(&mut CPU_PD_NODES[idx].parent_node) }
+}
+
 pub(crate) fn set_cpu_pd_mpidr(idx: usize, mpidr: u64) {
     unsafe { write_volatile(&mut CPU_PD_NODES[idx].mpidr, mpidr) };
+}
+
+pub(crate) fn set_req_local_pwr_state(pwrlvl: usize, core: usize, state: u8) {
+    let idx = topology::CORE_COUNT * pwrlvl + core;
+    unsafe { write_volatile(&mut REQ_LOCAL_PWR_STATES[idx], state) }
 }
