@@ -17,6 +17,9 @@ pub(crate) const PSCI_CPU_PWR_LVL: u8 = 0;
 // power level, this constant is defined to be 3.
 pub(crate) const PSCI_MAX_PWR_LVL: u8 = 3;
 
+// The local state macro used to represent RUN state.
+pub(crate) const PSCI_LOCAL_STATE_RUN: u8 = 0;
+
 /// The following two data structures implement the power domain tree. The tree
 /// is used to track the state of all the nodes i.e. power domain instances
 /// described by the platform. The tree consists of nodes that describe CPU power
@@ -149,6 +152,10 @@ pub(crate) fn set_non_cpu_pd_parent_node(idx: usize, parent_node: usize) {
     unsafe { write_volatile(&mut NON_CPU_PD_NODES[idx].parent_node, parent_node) };
 }
 
+pub(crate) fn get_non_cpu_pd_parent_node(idx: usize) -> usize {
+    unsafe { read_volatile(&mut NON_CPU_PD_NODES[idx].parent_node) }
+}
+
 pub(crate) fn set_non_cpu_pd_local_state(idx: usize, local_state: u8) {
     unsafe { write_volatile(&mut NON_CPU_PD_NODES[idx].local_state, local_state) };
 }
@@ -177,7 +184,15 @@ pub(crate) fn set_cpu_pd_mpidr(idx: usize, mpidr: u64) {
     unsafe { write_volatile(&mut CPU_PD_NODES[idx].mpidr, mpidr) };
 }
 
+/// Helper function to update the requested local power state array. This array
+/// does not store the requested state for the CPU power level. Hence an
+/// assertion is added to prevent us from accessing the CPU power level.
 pub(crate) fn set_req_local_pwr_state(pwrlvl: usize, core: usize, state: u8) {
-    let idx = topology::CORE_COUNT * pwrlvl + core;
-    unsafe { write_volatile(&mut REQ_LOCAL_PWR_STATES[idx], state) }
+    if pwrlvl > PSCI_CPU_PWR_LVL as usize
+        && pwrlvl <= defs::MAX_PWR_LVL as usize
+        && core < topology::CORE_COUNT
+    {
+        let idx = topology::CORE_COUNT * (pwrlvl - 1) + core;
+        unsafe { write_volatile(&mut REQ_LOCAL_PWR_STATES[idx], state) }
+    }
 }

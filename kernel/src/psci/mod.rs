@@ -93,6 +93,10 @@ pub fn init() {
     );
 
     setup::init_req_local_pwr_states();
+
+    // Set the requested and target state of this CPU and all the higher
+    // power domain levels for this CPU to run.
+    setup::set_pwr_domains_to_run();
 }
 
 fn is_caller_non_secure(f: usize) -> bool {

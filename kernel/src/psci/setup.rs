@@ -121,9 +121,29 @@ pub(crate) fn update_pwrlvl_limits() {
 
 /// This function initializes the psci_req_local_pwr_states.
 pub(crate) fn init_req_local_pwr_states() {
-    for pwrlvl in 0..(defs::MAX_PWR_LVL as usize) {
+    for pwrlvl in 1..(defs::MAX_PWR_LVL as usize + 1) {
         for core in 0..topology::CORE_COUNT {
             data::set_req_local_pwr_state(pwrlvl, core, defs::MAX_OFF_STATE);
         }
     }
+}
+
+/// This function is invoked post CPU power up and initialization. It sets the
+/// affinity info state, target power state and requested power state for the
+/// current CPU and all its ancestor power domains to RUN.
+pub(crate) fn set_pwr_domains_to_run() {
+    let cpu_idx = topology::core_pos();
+    let mut parent_idx = data::get_cpu_pd_parent_node(cpu_idx);
+
+    // Reset the local_state to RUN for the non cpu power domains.
+    for lvl in (data::PSCI_CPU_PWR_LVL + 1)..(defs::MAX_PWR_LVL + 1) {
+        data::set_non_cpu_pd_local_state(parent_idx, data::PSCI_LOCAL_STATE_RUN);
+        data::set_req_local_pwr_state(lvl as usize, cpu_idx, data::PSCI_LOCAL_STATE_RUN);
+        parent_idx = data::get_non_cpu_pd_parent_node(parent_idx);
+    }
+
+    // Set the affinity info state to ON
+    data::set_cpu_aff_info_state(cpu_idx, data::AffInfoState::StateOn);
+
+    data::set_cpu_local_state(cpu_idx, data::PSCI_LOCAL_STATE_RUN);
 }
