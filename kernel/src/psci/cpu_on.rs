@@ -78,7 +78,7 @@ pub(crate) fn psci_cpu_on_start(target_cpu: usize, ep: EntryPointInfo) -> PsciRe
         }
     }
 
-    // Store the re-entry information for the non-secure world. */
+    // Store the re-entry information for the non-secure world.
     aarch64::context::init_context(idx, ep);
 
     // Perform generic, architecture and platform specific handling.

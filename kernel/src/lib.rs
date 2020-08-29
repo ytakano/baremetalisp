@@ -23,6 +23,11 @@ extern crate alloc;
 
 use core::panic::PanicInfo;
 
+#[no_mangle]
+pub fn ns_entry() -> ! {
+    driver::delays::forever();
+}
+
 /// initialization for the master CPU
 fn init_master() {
     driver::early_init();
@@ -35,6 +40,7 @@ fn init_master() {
     };
     driver::init();
     psci::init();
+    aarch64::context::init_secure();
 
     boot::run();
 

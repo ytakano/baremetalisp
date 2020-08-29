@@ -5,7 +5,7 @@ mod setup;
 
 use core::mem::size_of;
 
-use crate::aarch64::cpu;
+use crate::aarch64::{context, cpu};
 use crate::driver;
 use crate::driver::topology;
 
@@ -58,6 +58,10 @@ pub const SMC_TYPE_YIELD: u32 = 0;
 const SMC_FROM_SECURE: usize = 0 << 0;
 const SMC_FROM_NON_SECURE: usize = 1 << 0;
 
+extern "C" {
+    fn ns_entry();
+}
+
 /// This function does the architectural setup and takes the warm boot
 /// entry-point `mailbox_ep` as an argument. The function also initializes the
 /// power domain topology tree by querying the platform. The power domain nodes
@@ -97,6 +101,21 @@ pub fn init() {
     // Set the requested and target state of this CPU and all the higher
     // power domain levels for this CPU to run.
     setup::set_pwr_domains_to_run();
+
+    // setup normal world's context
+    let ep;
+    let ptr = ns_entry as *const () as usize;
+    match psci_validate_entry_point(ptr, 0) {
+        Ok(e) => {
+            ep = e;
+        }
+        Err(_) => {
+            return;
+        }
+    }
+
+    // Store the re-entry information for the non-secure world.
+    context::init_context(topology::core_pos(), ep);
 }
 
 fn is_caller_non_secure(f: usize) -> bool {

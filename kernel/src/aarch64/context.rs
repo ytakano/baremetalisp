@@ -1,11 +1,18 @@
 use super::cpu;
+use crate::driver::topology;
 use crate::driver::topology::CORE_COUNT;
-use crate::psci::ep_info::EntryPointInfo;
+use crate::psci::ep_info;
+use crate::psci::ep_info::{EntryPointInfo, ParamHeader};
 
+use core::mem::size_of;
 use core::ptr::{copy_nonoverlapping, write_volatile};
 
 static mut CPU_CONTEXT_SECURE: [CPUContext; CORE_COUNT] = [CPUContext::new(); CORE_COUNT];
 static mut CPU_CONTEXT_NON_SECURE: [CPUContext; CORE_COUNT] = [CPUContext::new(); CORE_COUNT];
+
+extern "C" {
+    fn el1_entry();
+}
 
 /// General Purpose Registers
 #[derive(Copy, Clone)]
@@ -309,7 +316,7 @@ impl CPUContext {
 // To prepare the register state for entry call cm_prepare_el3_exit() and
 // el3_exit(). For Secure-EL1 cm_prepare_el3_exit() is equivalent to
 // cm_e1_sysreg_context_restore().
-pub fn setup_context(ctx: &mut CPUContext, ep: EntryPointInfo) {
+fn setup_context(ctx: &mut CPUContext, ep: EntryPointInfo) {
     let is_secure = ep.is_secure();
 
     // Clear any residual register values from the context
@@ -488,6 +495,26 @@ pub fn init_context(idx: usize, ep: EntryPointInfo) {
         unsafe { &mut CPU_CONTEXT_NON_SECURE[idx] }
     };
     setup_context(ctx, ep);
+}
+
+pub fn init_secure() {
+    // setup secure world's context
+    let headr = ParamHeader {
+        htype: ep_info::PARAM_EP,
+        version: ep_info::PARAM_VERSION_1,
+        size: size_of::<ParamHeader>() as u16,
+        attr: 0,
+    };
+    let ptr = el1_entry as *const () as usize;
+    let ep = EntryPointInfo {
+        h: headr,
+        pc: ptr,
+        spsr: cpu::spsr64(cpu::MODE_EL1, cpu::MODE_SP_EL0, cpu::DISABLE_ALL_EXCEPTIONS),
+        args: ep_info::Aapcs64Params::new(),
+    };
+
+    // Store the re-entry information for the secure world.
+    init_context(topology::core_pos(), ep);
 }
 
 #[cfg(feature = "ERRATA_A75_764081")]
