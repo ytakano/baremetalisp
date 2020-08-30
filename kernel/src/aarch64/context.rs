@@ -509,7 +509,7 @@ pub fn init_secure() {
     let ep = EntryPointInfo {
         h: headr,
         pc: ptr,
-        spsr: cpu::spsr64(cpu::MODE_EL1, cpu::MODE_SP_EL0, cpu::DISABLE_ALL_EXCEPTIONS),
+        spsr: cpu::spsr64(cpu::EL::EL1h, cpu::DISABLE_ALL_EXCEPTIONS),
         args: ep_info::Aapcs64Params::new(),
     };
 
@@ -525,4 +525,189 @@ fn errata_a75_764081(sctlr: u64) -> u64 {
 #[cfg(not(feature = "ERRATA_A75_764081"))]
 fn errata_a75_764081(sctlr: u64) -> u64 {
     sctlr
+}
+
+/// Prepare the CPU system registers for first entry into normal world
+///
+/// If execution is requested to EL2 or hyp mode, SCTLR_EL2 is initialized
+/// If execution is requested to non-secure EL1 or svc mode, and the CPU supports
+/// EL2 then EL2 is disabled by configuring all necessary EL2 registers.
+/// For all entries, the EL1 registers are initialized from the cpu_context
+pub fn init_non_secure() {
+    let idx = topology::core_pos();
+    let ctx = unsafe { &CPU_CONTEXT_NON_SECURE[idx] };
+
+    let scr_el3 = ctx.el3state_ctx.scr_el3;
+    if scr_el3 & cpu::SCR_HCE_BIT != 0 {
+        // hypervisor call is enabled
+
+        // Use SCTLR_EL1.EE value to initialise sctlr_el2
+        let sctlr = (ctx.el1_sysregs_ctx.sctlr_el1 & cpu::SCTLR_EE_BIT) | cpu::SCTLR_EL2_RES1;
+
+        // If workaround of errata 764081 for Cortex-A75 is used
+        // then set SCTLR_EL2.IESB to enable Implicit Error
+        // Synchronization Barrier.
+        let sctlr_el2 = errata_a75_764081(sctlr);
+
+        cpu::set_sctlr_el2(sctlr_el2);
+    } else {
+        // EL2 present but unused, need to disable safely.
+        // SCTLR_EL2 can be ignored in this case.
+
+        // For Armv8.3 pointer authentication feature, disable
+        // traps to EL2 when accessing key registers or using
+        // pointer authentication instructions from lower ELs.
+        let hcr_el2 = cpu::HCR_API_BIT
+            | cpu::HCR_APK_BIT
+            | if scr_el3 & cpu::SCR_RW_BIT != 0 {
+                // Set EL2 register width appropriately: Set HCR_EL2
+                // field to match SCR_EL3.RW.
+                cpu::HCR_RW_BIT
+            } else {
+                0
+            };
+
+        cpu::set_hcr_el2(hcr_el2);
+
+        // Initialise CPTR_EL2 setting all fields rather than
+        // relying on the hw. All fields have architecturally
+        // UNKNOWN reset values.
+        //
+        // CPTR_EL2.TCPAC: Set to zero so that Non-secure EL1
+        //  accesses to the CPACR_EL1 or CPACR from both
+        //  Execution states do not trap to EL2.
+        //
+        // CPTR_EL2.TTA: Set to zero so that Non-secure System
+        //  register accesses to the trace registers from both
+        //  Execution states do not trap to EL2.
+        //
+        // CPTR_EL2.TFP: Set to zero so that Non-secure accesses
+        //  to SIMD and floating-point functionality from both
+        //  Execution states do not trap to EL2.
+        cpu::set_cptr_el2(
+            cpu::CPTR_EL2_RESET_VAL
+                & !(cpu::CPTR_EL2_TCPAC_BIT | cpu::CPTR_EL2_TTA_BIT | cpu::CPTR_EL2_TFP_BIT),
+        );
+
+        // Initialise CNTHCTL_EL2. All fields are
+        // architecturally UNKNOWN on reset and are set to zero
+        // except for field(s) listed below.
+        //
+        // CNTHCTL_EL2.EL1PCEN: Set to one to disable traps to
+        //  Hyp mode of Non-secure EL0 and EL1 accesses to the
+        //  physical timer registers.
+        //
+        // CNTHCTL_EL2.EL1PCTEN: Set to one to disable traps to
+        //  Hyp mode of  Non-secure EL0 and EL1 accesses to the
+        //  physical counter registers.
+        cpu::set_cnthctl_el2(cpu::CNTHCTL_RESET_VAL | cpu::EL1PCEN_BIT | cpu::EL1PCTEN_BIT);
+
+        // Initialise CNTVOFF_EL2 to zero as it resets to an
+        // architecturally UNKNOWN value.
+        cpu::set_cntvoff_el2(0);
+
+        // Set VPIDR_EL2 and VMPIDR_EL2 to match MIDR_EL1 and
+        // MPIDR_EL1 respectively.
+        cpu::set_vpidr_el2(cpu::get_midr_el1());
+        cpu::set_vmpidr_el2(cpu::get_mpidr_el1());
+
+        // Initialise VTTBR_EL2. All fields are architecturally
+        // UNKNOWN on reset.
+        //
+        // VTTBR_EL2.VMID: Set to zero. Even though EL1&0 stage
+        //  2 address translation is disabled, cache maintenance
+        //  operations depend on the VMID.
+        //
+        // VTTBR_EL2.BADDR: Set to zero as EL1&0 stage 2 address
+        //  translation is disabled.
+        cpu::set_vttbr_el2(
+            cpu::VTTBR_RESET_VAL
+                & !((cpu::VTTBR_VMID_MASK << cpu::VTTBR_VMID_SHIFT)
+                    | (cpu::VTTBR_BADDR_MASK << cpu::VTTBR_BADDR_SHIFT)),
+        );
+
+        // Initialise MDCR_EL2, setting all fields rather than
+        // relying on hw. Some fields are architecturally
+        // UNKNOWN on reset.
+        //
+        // MDCR_EL2.HLP: Set to one so that event counter
+        //  overflow, that is recorded in PMOVSCLR_EL0[0-30],
+        //  occurs on the increment that changes
+        //  PMEVCNTR<n>_EL0[63] from 1 to 0, when ARMv8.5-PMU is
+        //  implemented. This bit is RES0 in versions of the
+        //  architecture earlier than ARMv8.5, setting it to 1
+        //  doesn't have any effect on them.
+        //
+        // MDCR_EL2.TTRF: Set to zero so that access to Trace
+        //  Filter Control register TRFCR_EL1 at EL1 is not
+        //  trapped to EL2. This bit is RES0 in versions of
+        //  the architecture earlier than ARMv8.4.
+        //
+        // MDCR_EL2.HPMD: Set to one so that event counting is
+        //  prohibited at EL2. This bit is RES0 in versions of
+        //  the architecture earlier than ARMv8.1, setting it
+        //  to 1 doesn't have any effect on them.
+        //
+        // MDCR_EL2.TPMS: Set to zero so that accesses to
+        //  Statistical Profiling control registers from EL1
+        //  do not trap to EL2. This bit is RES0 when SPE is
+        //  not implemented.
+        //
+        // MDCR_EL2.TDRA: Set to zero so that Non-secure EL0 and
+        //  EL1 System register accesses to the Debug ROM
+        //  registers are not trapped to EL2.
+        //
+        // MDCR_EL2.TDOSA: Set to zero so that Non-secure EL1
+        //  System register accesses to the powerdown debug
+        //  registers are not trapped to EL2.
+        //
+        // MDCR_EL2.TDA: Set to zero so that System register
+        //  accesses to the debug registers do not trap to EL2.
+        //
+        // MDCR_EL2.TDE: Set to zero so that debug exceptions
+        //  are not routed to EL2.
+        //
+        // MDCR_EL2.HPME: Set to zero to disable EL2 Performance
+        //  Monitors.
+        //
+        // MDCR_EL2.TPM: Set to zero so that Non-secure EL0 and
+        //  EL1 accesses to all Performance Monitors registers
+        //  are not trapped to EL2.
+        //
+        // MDCR_EL2.TPMCR: Set to zero so that Non-secure EL0
+        //  and EL1 accesses to the PMCR_EL0 or PMCR are not
+        //  trapped to EL2.
+        //
+        // MDCR_EL2.HPMN: Set to value of PMCR_EL0.N which is the
+        //  architecturally-defined reset value.
+        let mdcr_el2 = ((cpu::MDCR_EL2_RESET_VAL | cpu::MDCR_EL2_HLP | cpu::MDCR_EL2_HPMD)
+            | ((cpu::get_pmcr_el0() & cpu::PMCR_EL0_N_BITS) >> cpu::PMCR_EL0_N_SHIFT))
+            & !(cpu::MDCR_EL2_TTRF
+                | cpu::MDCR_EL2_TPMS
+                | cpu::MDCR_EL2_TDRA_BIT
+                | cpu::MDCR_EL2_TDOSA_BIT
+                | cpu::MDCR_EL2_TDA_BIT
+                | cpu::MDCR_EL2_TDE_BIT
+                | cpu::MDCR_EL2_HPME_BIT
+                | cpu::MDCR_EL2_TPM_BIT
+                | cpu::MDCR_EL2_TPMCR_BIT);
+        cpu::set_mdcr_el2(mdcr_el2);
+
+        // Initialise HSTR_EL2. All fields are architecturally
+        // UNKNOWN on reset.
+        //
+        // HSTR_EL2.T<n>: Set all these fields to zero so that
+        //  Non-secure EL0 or EL1 accesses to System registers
+        //  do not trap to EL2.
+        cpu::set_hstr_el2(cpu::HSTR_EL2_RESET_VAL & !cpu::HSTR_EL2_T_MASK);
+
+        // Initialise CNTHP_CTL_EL2. All fields are
+        // architecturally UNKNOWN on reset.
+        //
+        // CNTHP_CTL_EL2:ENABLE: Set to zero to disable the EL2
+        //  physical timer and prevent timer interrupts.
+        cpu::set_cnthp_ctl_el2(cpu::CNTHP_CTL_RESET_VAL & !cpu::CNTHP_CTL_ENABLE_BIT);
+    }
+    // TODO
+    // enable_extensions_nonsecure(el2_unused);
 }

@@ -132,11 +132,6 @@ _start:
     /* Set up CNTVOFF_el2 */
     msr     CNTVOFF_el2, xzr
 
-    /* Enable FP/SIMD */
-    /* All set bits below are res1; bit 10 (TFP) is set to 0 */
-    mov     x0, #(1 << 8)
-    msr     CPTR_EL3, x0
-
     /* Set up SCR */
     mov     x0, #SCR_VAL
     msr     SCR_EL3, x0
@@ -153,10 +148,6 @@ _start:
     // enable FP/SIMD on EL2
     // mov     x0, #(0x32FF)
     // msr     CPTR_EL2, x0
-
-    // enable FP/SIMD on EL1
-    mov     x0, #(0b110011 << 16)
-    msr     CPACR_EL1, x0
 
 #endif // raspi4
 

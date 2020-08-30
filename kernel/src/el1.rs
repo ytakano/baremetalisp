@@ -3,6 +3,8 @@ use crate::driver::{delays, topology};
 
 #[no_mangle]
 pub fn el1_entry() -> ! {
+    aarch64::cpu::init_cpacr_el1();
+
     let addr = aarch64::mmu::get_memory_map();
     let aff = topology::core_pos() as u64;
     let stack = addr.stack_el0_start - addr.stack_size * aff;

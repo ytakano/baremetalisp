@@ -229,12 +229,12 @@ fn psci_get_ns_ep_info(entrypoint: usize, context_id: usize) -> Result<EntryPoin
         }
 
         let mode = if (ns_scr_el3 & cpu::SCR_HCE_BIT) != 0 {
-            cpu::MODE_EL2
+            cpu::EL::EL2h
         } else {
-            cpu::MODE_EL1
+            cpu::EL::EL1h
         };
 
-        cpu::spsr64(mode, cpu::MODE_SP_ELX, cpu::DISABLE_ALL_EXCEPTIONS)
+        cpu::spsr64(mode, cpu::DISABLE_ALL_EXCEPTIONS)
     } else {
         let mode = if (ns_scr_el3 & cpu::SCR_HCE_BIT) != 0 {
             cpu::MODE32_HYP

@@ -23,6 +23,17 @@ extern crate alloc;
 
 use core::panic::PanicInfo;
 
+pub fn print_msg(key: &str, val: &str) {
+    driver::uart::puts("[");
+    driver::uart::puts(key);
+    for _ in key.len()..12 {
+        driver::uart::puts(" ");
+    }
+    driver::uart::puts("] ");
+    driver::uart::puts(val);
+    driver::uart::puts("\n");
+}
+
 #[no_mangle]
 pub fn ns_entry() -> ! {
     driver::delays::forever();
@@ -30,6 +41,10 @@ pub fn ns_entry() -> ! {
 
 /// initialization for the master CPU
 fn init_master() {
+    if aarch64::cpu::get_current_el() == 3 {
+        aarch64::cpu::init_cptr_el3();
+    }
+
     driver::early_init();
 
     match aarch64::mmu::init() {
@@ -39,10 +54,6 @@ fn init_master() {
         }
     };
     driver::init();
-    psci::init();
-    aarch64::context::init_secure();
-
-    boot::run();
 
     // examples
     // driver::psci::pwr_domain_on(1); // wake up CPU #1 (Pine64)
@@ -50,14 +61,20 @@ fn init_master() {
 
     match aarch64::cpu::get_current_el() {
         3 => {
+            psci::init();
+            aarch64::context::init_secure();
+            print_msg("PSCI", "enabled");
+            boot::run();
             el3::el3_to_el1();
         }
         2 => {
-            driver::uart::puts("Warning: execution level is not EL3\n");
+            print_msg("Warning", "execution level is not EL3");
+            print_msg("PSCI", "disabled");
+            boot::run();
             el2::el2_to_el1();
         }
         _ => {
-            driver::uart::puts("Error: execution level is not EL3\n");
+            panic!("execution level is not EL3");
         }
     }
 }

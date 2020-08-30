@@ -1,5 +1,6 @@
 use super::aarch64;
 use super::driver;
+use super::print_msg;
 
 pub fn run() {
     print_el();
@@ -14,13 +15,12 @@ fn print_el() {
     driver::uart::decimal(el as u64);
     driver::uart::puts("\n");
 
-    driver::uart::puts("[MMU         ] ");
     match aarch64::mmu::enabled() {
         Some(m) => {
             if m {
-                driver::uart::puts("true\n");
+                print_msg("MMU", "enabled");
             } else {
-                driver::uart::puts("false\n");
+                print_msg("MMU", "disabled");
             }
         }
         None => {
@@ -31,9 +31,7 @@ fn print_el() {
 
 fn print_fortune() {
     driver::uart::puts("[Fortune     ] ");
-    // TODU: use
-    //    let cnt = driver::delays::get_system_timer() as usize;
-    let cnt = aarch64::cpu::get_cntpct_el0() as usize;
+    let cnt = driver::delays::get_timer_value() as usize;
     let fortune = [
         "大吉", "吉", "吉", "吉", "吉", "中吉", "中吉", "中吉", "中吉", "小吉", "小吉", "小吉",
         "末吉", "末吉", "末吉", "凶",
