@@ -1,6 +1,12 @@
 use crate::aarch64;
 use crate::driver::{delays, topology};
 
+#[cfg(not(feature = "raspi3"))]
+use crate::aarch64::syscall;
+
+#[cfg(feature = "raspi3")]
+use crate::driver::uart;
+
 #[no_mangle]
 pub fn el1_entry() -> ! {
     aarch64::cpu::init_cpacr_el1();
@@ -25,4 +31,14 @@ pub fn el1_entry() -> ! {
     }
 
     delays::forever()
+}
+
+#[cfg(not(feature = "raspi3"))]
+pub fn sys_switch() {
+    syscall::smc::to_normal();
+}
+
+#[cfg(feature = "raspi3")]
+pub fn sys_switch() {
+    uart::puts("sys_switch is not supported for Qemu (Raspi3)\n")
 }

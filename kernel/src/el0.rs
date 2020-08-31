@@ -1,4 +1,4 @@
-use crate::aarch64::{cpu, mmu};
+use crate::aarch64::{cpu, mmu, syscall};
 use crate::driver::{delays, uart};
 use crate::slab;
 
@@ -100,6 +100,8 @@ fn repl_uart(ctx: &blisp::semantics::Context) -> ! {
 
 #[no_mangle]
 pub fn el0_entry() -> ! {
+    syscall::svc::switch();
+
     let addr = mmu::get_memory_map();
 
     // initialize memory allocator

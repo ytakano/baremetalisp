@@ -502,6 +502,24 @@ pub fn get_armv8_6_ecv_support() -> u64 {
     (get_id_aa64mmfr0_el1() >> ID_AA64MMFR0_EL1_ECV_SHIFT) & ID_AA64MMFR0_EL1_ECV_MASK
 }
 
+pub fn get_esr_el3() -> u64 {
+    let esr: u64;
+    unsafe { asm!("mrs {}, esr_el3", lateout(reg) esr) };
+    esr
+}
+
+pub fn get_esr_el2() -> u64 {
+    let esr: u64;
+    unsafe { asm!("mrs {}, esr_el2", lateout(reg) esr) };
+    esr
+}
+
+pub fn get_esr_el1() -> u64 {
+    let esr: u64;
+    unsafe { asm!("mrs {}, esr_el1", lateout(reg) esr) };
+    esr
+}
+
 /// sev
 pub fn send_event() {
     unsafe { asm!("sev") };

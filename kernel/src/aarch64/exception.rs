@@ -1,14 +1,19 @@
 use super::context::GpRegs;
+use super::cpu;
+use super::syscall;
 use crate::driver;
-use crate::el3;
+
+const ESR_EL1_EC_MASK: u64 = 0b111111 << 26;
+const ESR_EL1_EC_SVC32: u64 = 0b010001 << 26;
+const ESR_EL1_EC_SVC64: u64 = 0b010101 << 26;
+const ESR_LE1_EC_DATA: u64 = 0b100100 << 26;
+const ESR_LE1_EC_DATA_KERN: u64 = 0b100101 << 26;
+
+const ESR_EL3_EC_MASK: u64 = 0b111111 << 26;
+const ESR_EL3_EC_SMC32: u64 = 0b010011 << 26;
+const ESR_EL3_EC_SMC64: u64 = 0b010111 << 26;
 
 //------------------------------------------------------------------------------
-
-pub fn get_esr_el3() -> u32 {
-    let esr: u64;
-    unsafe { asm!("mrs {}, esr_el3", lateout(reg) esr) };
-    esr as u32
-}
 
 // from the current EL using the current SP0
 #[no_mangle]
@@ -40,7 +45,7 @@ pub fn curr_el_spx_sync_el3(ctx: *mut GpRegs) {
     driver::uart::puts("\nSPSR = 0x");
     driver::uart::hex(r.spsr as u64);
     driver::uart::puts("\nESR = 0x");
-    driver::uart::hex(get_esr_el3() as u64);
+    driver::uart::hex(cpu::get_esr_el3());
     driver::uart::puts("\n");
 }
 
@@ -62,15 +67,20 @@ pub fn curr_el_spx_serror_el3(ctx: *mut GpRegs) {
     driver::uart::puts("\nSPSR = 0x");
     driver::uart::hex(r.spsr as u64);
     driver::uart::puts("\nESR = 0x");
-    driver::uart::hex(get_esr_el3() as u64);
+    driver::uart::hex(cpu::get_esr_el3() as u64);
     driver::uart::puts("\n");
 }
 
 // from lower EL (AArch64)
 #[no_mangle]
 pub fn lower_el_aarch64_sync_el3(ctx: *mut GpRegs) {
-    // secure monitor call
-    el3::handle_smc64(unsafe { &*ctx });
+    let r = unsafe { &*ctx };
+    let esr = cpu::get_esr_el3();
+    if esr & ESR_EL3_EC_MASK == ESR_EL3_EC_SMC64 {
+        syscall::smc::handle64(esr & 0xff, r);
+    } else {
+        panic!("unexpected exception from EL1 to EL3");
+    }
 }
 
 #[no_mangle]
@@ -96,12 +106,6 @@ pub fn lower_el_aarch32_fiq_el3(_ctx: *mut GpRegs) {}
 pub fn lower_el_aarch32_serror_el3(_ctx: *mut GpRegs) {}
 
 //------------------------------------------------------------------------------
-
-pub fn get_esr_el2() -> u32 {
-    let esr: u64;
-    unsafe { asm!("mrs {}, esr_el2", lateout(reg) esr) };
-    esr as u32
-}
 
 // from the current EL using the current SP0
 #[no_mangle]
@@ -132,7 +136,7 @@ pub fn curr_el_spx_sync_el2(ctx: *mut GpRegs) {
     driver::uart::puts("\nSPSR = 0x");
     driver::uart::hex(r.spsr as u64);
     driver::uart::puts("\nESR = 0x");
-    driver::uart::hex(get_esr_el2() as u64);
+    driver::uart::hex(cpu::get_esr_el2() as u64);
     driver::uart::puts("\n");
 }
 
@@ -160,7 +164,7 @@ pub fn lower_el_aarch64_sync_el2(ctx: *mut GpRegs) {
     driver::uart::puts("\nSPSR = 0x");
     driver::uart::hex(r.spsr as u64);
     driver::uart::puts("\nESR = 0x");
-    driver::uart::hex(get_esr_el2() as u64);
+    driver::uart::hex(cpu::get_esr_el2() as u64);
     driver::uart::puts("\n");
 }
 
@@ -189,12 +193,6 @@ pub fn lower_el_aarch32_fiq_el2(_ctx: *mut GpRegs) {}
 pub fn lower_el_aarch32_serror_el2(_ctx: *mut GpRegs) {}
 
 //------------------------------------------------------------------------------
-
-pub fn get_esr_el1() -> u32 {
-    let esr: u64;
-    unsafe { asm!("mrs {}, esr_el1", lateout(reg) esr) };
-    esr as u32
-}
 
 // from the current EL using the current SP0
 #[no_mangle]
@@ -225,7 +223,7 @@ pub fn curr_el_spx_sync_el1(ctx: *mut GpRegs) {
     driver::uart::puts("\nSPSR = 0x");
     driver::uart::hex(r.spsr as u64);
     driver::uart::puts("\nESR = 0x");
-    driver::uart::hex(get_esr_el1() as u64);
+    driver::uart::hex(cpu::get_esr_el1() as u64);
     driver::uart::puts("\n");
 }
 
@@ -248,13 +246,12 @@ pub fn curr_el_spx_serror_el1(_ctx: *mut GpRegs) {
 #[no_mangle]
 pub fn lower_el_aarch64_sync_el1(ctx: *mut GpRegs) {
     let r = unsafe { &*ctx };
-    driver::uart::puts("EL1 exception: lower EL Sync\nELR  = 0x");
-    driver::uart::hex(r.elr);
-    driver::uart::puts("\nSPSR = 0x");
-    driver::uart::hex(r.spsr as u64);
-    driver::uart::puts("\nESR  = 0x");
-    driver::uart::hex(get_esr_el1() as u64);
-    driver::uart::puts("\n");
+    let esr = cpu::get_esr_el1();
+    if esr & ESR_EL1_EC_MASK == ESR_EL1_EC_SVC64 {
+        syscall::svc::handle64(esr & 0xff, r);
+    } else {
+        panic!("unexpected exception from EL0 to EL1");
+    }
 }
 
 #[no_mangle]

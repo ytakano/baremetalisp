@@ -87,10 +87,10 @@
 #define SCR_RES1_4          BIT(4)
 #define SCR_NS              BIT(0)
 
-#if (defined raspi3) || (defined NOEL3)
-    #define SCR_VAL (SCR_RW | SCR_HCE | SCR_RES1_5 | SCR_RES1_4)
+#ifdef NOEL3
+    #define SCR_VAL (SCR_RW | SCR_HCE | SCR_SMD | SCR_RES1_5 | SCR_RES1_4)
 #else
-    #define SCR_VAL (SCR_RW | SCR_SMD | SCR_RES1_5 | SCR_RES1_4)
+    #define SCR_VAL (SCR_RW | SCR_RES1_5 | SCR_RES1_4)
 #endif
 
 #define CPUECTLR_EL1        S3_1_C15_C2_1
@@ -301,8 +301,6 @@ exception_restore_context:
     ldp     x28, x29, [sp, #16 * 14]
 
     add     sp,  sp,  #16 * 17
-
-    b       .L5 // hung-up temporary
 
     eret
 

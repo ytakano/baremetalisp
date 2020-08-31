@@ -1,6 +1,7 @@
 use crate::aarch64;
 use crate::aarch64::context::GpRegs;
 use crate::driver::topology;
+use crate::driver::uart;
 
 pub fn el3_to_el1() {
     let addr = aarch64::mmu::get_memory_map();
@@ -38,6 +39,10 @@ const SMC64: u32 = 0x40000000;
 const MASK_SERVICE: u32 = 0x3f000000;
 const MASK_RESERVED: u32 = 0x00ff0000;
 const MASK_FUNC: u32 = 0x0000ffff;
+
+pub fn smc_to_normal(_ctx: &GpRegs) {
+    uart::puts("smc_to_normal is not yet implemented\n");
+}
 
 /// secure monitor call
 pub fn handle_smc64(ctx: &GpRegs) {

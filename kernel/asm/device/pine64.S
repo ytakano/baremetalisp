@@ -59,12 +59,12 @@
 #define OSC_FREQ            24000000
 
 #define SCR_RW              BIT(10)
-#define SCR_HCE             BIT(8)
-#define SCR_SMD             BIT(7)
+#define SCR_HCE             BIT(8) // enable hyper visor call
+#define SCR_SMD             BIT(7) // disable secure monitor call
 #define SCR_RES1_5          BIT(5)
 #define SCR_RES1_4          BIT(4)
 #define SCR_NS              BIT(0)
-#define SCR_VAL (SCR_RW | SCR_SMD | SCR_RES1_5 | SCR_RES1_4)
+#define SCR_VAL (SCR_RW | SCR_RES1_5 | SCR_RES1_4)
 
 #define CPUECTLR_EL1        S3_1_C15_C2_1
 #define CPUECTLR_EL1_SMPEN  BIT(6)
@@ -210,8 +210,6 @@ exception_restore_context:
     ldp     x28, x29, [sp, #16 * 14]
 
     add     sp,  sp,  #16 * 17
-
-    b       .L5 // hung-up temporary
 
     eret
 
