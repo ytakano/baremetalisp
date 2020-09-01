@@ -93,7 +93,7 @@ pub fn init() {
     // Populate the mpidr field of cpu node for this CPU
     data::set_cpu_pd_mpidr(
         topology::core_pos(),
-        cpu::get_mpidr_el1() & cpu::MPIDR_AFFINITY_MASK,
+        cpu::mpidr_el1::get() & cpu::MPIDR_AFFINITY_MASK,
     );
 
     setup::init_req_local_pwr_states();
@@ -202,11 +202,11 @@ fn psci_validate_entry_point(
 /// PSCI entrypoint on power on/resume and returns it.
 /// (for AArch64)
 fn psci_get_ns_ep_info(entrypoint: usize, context_id: usize) -> Result<EntryPointInfo, PsciResult> {
-    let ns_scr_el3 = cpu::get_scr_el3();
+    let ns_scr_el3 = cpu::scr_el3::get();
     let sctlr = if (ns_scr_el3 & cpu::SCR_HCE_BIT) != 0 {
-        cpu::get_sctlr_el2()
+        cpu::sctlr_el2::get()
     } else {
-        cpu::get_sctlr_el1()
+        cpu::sctlr_el1::get()
     };
 
     let ee;

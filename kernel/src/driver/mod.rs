@@ -17,7 +17,7 @@ use crate::aarch64::cpu;
 pub fn early_init() {
     // Program the counter frequency
     if cpu::get_current_el() == 3 {
-        cpu::set_cntfrq_el0(defs::SYSCNT_FRQ as u64);
+        cpu::cntfrq_el0::set(defs::SYSCNT_FRQ as u64);
     }
 
     delays::init();

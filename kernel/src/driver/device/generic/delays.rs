@@ -29,7 +29,7 @@ pub fn init() {
 }
 
 pub fn get_timer_value() -> u64 {
-    !cpu::get_cntpct_el0()
+    !cpu::cntpct_el0::get()
 }
 
 fn div_round_up(val: u64, div: u64) -> u64 {

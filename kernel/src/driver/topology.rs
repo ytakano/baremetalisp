@@ -28,6 +28,6 @@ pub fn core_pos_by_mpidr(mpidr: usize) -> Option<usize> {
 
 /// get my core index
 pub fn core_pos() -> usize {
-    let mpidr = cpu::get_mpidr_el1();
+    let mpidr = cpu::mpidr_el1::get();
     core_pos_by_mpidr(mpidr as usize).unwrap()
 }

@@ -174,7 +174,10 @@ _start:
     str     w2,       [sp, #16 * 16]
 
     // x0 is the first argument for the function called through `\handler`.
-    mov     x0,  sp
+    mov     x0, sp
+
+    // x1 is the second argument for the function called through `\handler`.
+    add     x1, sp, #16 * 17
 
     // Call `\handler`.
     bl      \handler

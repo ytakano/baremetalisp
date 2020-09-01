@@ -346,27 +346,72 @@ pub fn init_cpacr_el1() {
     unsafe { asm!("msr CPACR_EL1, {}", in(reg) val) }
 }
 
-pub fn set_cntfrq_el0(cntfrq: u64) {
-    unsafe { asm!("msr cntfrq_el0, {}", in(reg) cntfrq) };
+macro_rules! sysreg {
+    ($x:ident) => {
+        pub mod $x {
+            pub fn get() -> u64 {
+                let v: u64;
+                unsafe { asm!(concat!("mrs {}, ", stringify!($x)), lateout(reg) v) };
+                v
+            }
+
+            pub fn set(v: u64) {
+                unsafe { asm!(concat!("msr ", stringify!($x), ", {}"), in(reg) v) };
+            }
+        }
+    }
 }
 
-pub fn get_cntfrq_el0() -> u64 {
-    let cntfrq_el0;
-    unsafe { asm!("mrs {}, cntfrq_el0", lateout(reg) cntfrq_el0) };
-    cntfrq_el0
-}
+sysreg!(cntp_ctl_el0);
+sysreg!(cntp_cval_el0);
+sysreg!(cntv_ctl_el0);
+sysreg!(cntv_cval_el0);
+sysreg!(cntkctl_el1);
+sysreg!(cntfrq_el0);
+sysreg!(cntpct_el0);
+sysreg!(tpidr_el0);
+sysreg!(tpidrro_el0);
+sysreg!(pmcr_el0);
 
-pub fn get_cntpct_el0() -> u64 {
-    let cntpct_el0;
-    unsafe { asm!("mrs {}, cntpct_el0", lateout(reg) cntpct_el0) };
-    cntpct_el0
-}
+sysreg!(sctlr_el1);
+sysreg!(actlr_el1);
+sysreg!(cpacr_el1);
+sysreg!(csselr_el1);
+sysreg!(sp_el1);
+sysreg!(esr_el1);
+sysreg!(ttbr0_el1);
+sysreg!(ttbr1_el1);
+sysreg!(mair_el1);
+sysreg!(amair_el1);
+sysreg!(tcr_el1);
+sysreg!(tpidr_el1);
+sysreg!(par_el1);
+sysreg!(far_el1);
+sysreg!(afsr0_el1);
+sysreg!(afsr1_el1);
+sysreg!(contextidr_el1);
+sysreg!(vbar_el1);
+sysreg!(mpidr_el1);
+sysreg!(midr_el1);
+sysreg!(id_aa64pfr1_el1);
+sysreg!(id_aa64mmfr0_el1);
+sysreg!(id_aa64mmfr1_el1);
 
-pub fn get_mpidr_el1() -> u64 {
-    let mpidr: u64;
-    unsafe { asm!("mrs {}, mpidr_el1", lateout(reg) mpidr) };
-    mpidr
-}
+sysreg!(sctlr_el2);
+sysreg!(mdcr_el2);
+sysreg!(vpidr_el2);
+sysreg!(vmpidr_el2);
+sysreg!(vttbr_el2);
+sysreg!(hcr_el2);
+sysreg!(cptr_el2);
+sysreg!(cnthctl_el2);
+sysreg!(cntvoff_el2);
+sysreg!(hstr_el2);
+sysreg!(cnthp_ctl_el2);
+sysreg!(esr_el2);
+
+sysreg!(scr_el3);
+sysreg!(esr_el3);
 
 pub fn get_affinity_lv0() -> u64 {
     let mpidr: u64;
@@ -386,138 +431,22 @@ pub fn get_current_el() -> u32 {
     ((el >> 2) & 0x3) as u32
 }
 
-pub fn get_scr_el3() -> u64 {
-    let scr_el3;
-    unsafe { asm!("mrs {}, scr_el3", lateout(reg) scr_el3) };
-    scr_el3
-}
-
-pub fn get_sctlr_el1() -> u64 {
-    let sctlr_el1;
-    unsafe { asm!("mrs {}, sctlr_el1", lateout(reg) sctlr_el1) };
-    sctlr_el1
-}
-
-pub fn get_sctlr_el2() -> u64 {
-    let sctlr_el2;
-    unsafe { asm!("mrs {}, sctlr_el2", lateout(reg) sctlr_el2) };
-    sctlr_el2
-}
-
-pub fn get_pmcr_el0() -> u64 {
-    let pmcr_el0;
-    unsafe { asm!("mrs {}, pmcr_el0", lateout(reg) pmcr_el0) };
-    pmcr_el0
-}
-
-pub fn get_midr_el1() -> u64 {
-    let midr_el1;
-    unsafe { asm!("mrs {}, midr_el1", lateout(reg) midr_el1) };
-    midr_el1
-}
-
-pub fn set_mdcr_el2(mdcr_el2: u64) {
-    unsafe { asm!("msr mdcr_el2, {}", in(reg) mdcr_el2) };
-}
-
-pub fn set_vpidr_el2(vpidr_el2: u64) {
-    unsafe { asm!("msr vpidr_el2, {}", in(reg) vpidr_el2) };
-}
-
-pub fn set_vmpidr_el2(vmpidr_el2: u64) {
-    unsafe { asm!("msr vmpidr_el2, {}", in(reg) vmpidr_el2) };
-}
-
-pub fn set_vttbr_el2(vttbr_el2: u64) {
-    unsafe { asm!("msr vttbr_el2, {}", in(reg) vttbr_el2) };
-}
-
-pub fn set_sctlr_el2(sctlr_el2: u64) {
-    unsafe { asm!("msr sctlr_el2, {}", in(reg) sctlr_el2) };
-}
-
-pub fn set_hcr_el2(hcr_el2: u64) {
-    unsafe { asm!("msr hcr_el2, {}", in(reg) hcr_el2) };
-}
-
-pub fn set_cptr_el2(cptr_el2: u64) {
-    unsafe { asm!("msr cptr_el2, {}", in(reg) cptr_el2) };
-}
-
-pub fn set_cnthctl_el2(cnthctl_el2: u64) {
-    unsafe { asm!("msr cnthctl_el2, {}", in(reg) cnthctl_el2) };
-}
-
-pub fn set_cntvoff_el2(cntvoff_el2: u64) {
-    unsafe { asm!("msr cntvoff_el2, {}", in(reg) cntvoff_el2) };
-}
-
-pub fn set_hstr_el2(hstr_el2: u64) {
-    unsafe { asm!("msr hstr_el2, {}", in(reg) hstr_el2) };
-}
-
-pub fn set_cnthp_ctl_el2(cnthp_ctl_el2: u64) {
-    unsafe { asm!("msr cnthp_ctl_el2, {}", in(reg) cnthp_ctl_el2) };
-}
-
-pub fn get_actlr_el1() -> u64 {
-    let actlr_el1;
-    unsafe { asm!("mrs {}, actlr_el1", lateout(reg) actlr_el1) };
-    actlr_el1
-}
-
-pub fn get_id_aa64pfr1_el1() -> u64 {
-    let id_aa64pfr1_el1;
-    unsafe { asm!("mrs {}, id_aa64pfr1_el1", lateout(reg) id_aa64pfr1_el1) };
-    id_aa64pfr1_el1
-}
-
-pub fn get_id_aa64mmfr0_el1() -> u64 {
-    let id_aa64mmfr0_el1;
-    unsafe { asm!("mrs {}, id_aa64mmfr0_el1", lateout(reg) id_aa64mmfr0_el1) };
-    id_aa64mmfr0_el1
-}
-
-pub fn get_id_aa64mmfr1_el1() -> u64 {
-    let id_aa64mmfr1_el1;
-    unsafe { asm!("mrs {}, id_aa64mmfr1_el1", lateout(reg) id_aa64mmfr1_el1) };
-    id_aa64mmfr1_el1
-}
-
 pub fn get_armv8_5_mte_support() -> u64 {
-    (get_id_aa64pfr1_el1() >> ID_AA64PFR1_EL1_MTE_SHIFT) & ID_AA64PFR1_EL1_MTE_MASK
+    (id_aa64pfr1_el1::get() >> ID_AA64PFR1_EL1_MTE_SHIFT) & ID_AA64PFR1_EL1_MTE_MASK
 }
 
 pub fn is_armv8_6_twed_present() -> bool {
-    ((get_id_aa64mmfr1_el1() >> ID_AA64MMFR1_EL1_TWED_SHIFT) & ID_AA64MMFR1_EL1_TWED_MASK)
+    ((id_aa64mmfr1_el1::get() >> ID_AA64MMFR1_EL1_TWED_SHIFT) & ID_AA64MMFR1_EL1_TWED_MASK)
         == ID_AA64MMFR1_EL1_TWED_SUPPORTED
 }
 
 pub fn is_armv8_6_fgt_present() -> bool {
-    ((get_id_aa64mmfr0_el1() >> ID_AA64MMFR0_EL1_FGT_SHIFT) & ID_AA64MMFR0_EL1_FGT_MASK)
+    ((id_aa64mmfr0_el1::get() >> ID_AA64MMFR0_EL1_FGT_SHIFT) & ID_AA64MMFR0_EL1_FGT_MASK)
         == ID_AA64MMFR0_EL1_FGT_SUPPORTED
 }
 
 pub fn get_armv8_6_ecv_support() -> u64 {
-    (get_id_aa64mmfr0_el1() >> ID_AA64MMFR0_EL1_ECV_SHIFT) & ID_AA64MMFR0_EL1_ECV_MASK
-}
-
-pub fn get_esr_el3() -> u64 {
-    let esr: u64;
-    unsafe { asm!("mrs {}, esr_el3", lateout(reg) esr) };
-    esr
-}
-
-pub fn get_esr_el2() -> u64 {
-    let esr: u64;
-    unsafe { asm!("mrs {}, esr_el2", lateout(reg) esr) };
-    esr
-}
-
-pub fn get_esr_el1() -> u64 {
-    let esr: u64;
-    unsafe { asm!("mrs {}, esr_el1", lateout(reg) esr) };
-    esr
+    (id_aa64mmfr0_el1::get() >> ID_AA64MMFR0_EL1_ECV_SHIFT) & ID_AA64MMFR0_EL1_ECV_MASK
 }
 
 /// sev
@@ -564,4 +493,9 @@ pub fn start_non_primary() {
             );
         }
     }
+}
+
+pub fn is_secure() -> bool {
+    let scr = scr_el3::get();
+    scr & SCR_NS_BIT == 0
 }

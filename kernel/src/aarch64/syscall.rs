@@ -11,7 +11,7 @@ pub mod svc {
         unsafe { asm!("svc #1") }
     }
 
-    pub fn handle64(id: u64, _ctx: &context::GpRegs) {
+    pub fn handle64(id: u64, _ctx: &context::GpRegs, _sp: usize) {
         uart::puts("received sycall #");
         uart::decimal(id);
         uart::puts("\n");
@@ -38,13 +38,13 @@ pub mod smc {
         unsafe { asm!("smc #1") }
     }
 
-    pub fn handle64(id: u64, ctx: &context::GpRegs) {
+    pub fn handle64(id: u64, ctx: &context::GpRegs, sp: usize) {
         uart::puts("received SMC #");
         uart::decimal(id);
         uart::puts("\n");
 
         match id {
-            SMC_TO_NORMAL => el3::smc_to_normal(ctx),
+            SMC_TO_NORMAL => el3::smc_to_normal(ctx, sp),
             _ => (),
         }
     }

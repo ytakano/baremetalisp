@@ -331,7 +331,7 @@ fn setup_context(ctx: &mut CPUContext, ep: EntryPointInfo) {
     // The following fields are initially set to zero and then updated to
     // the required value depending on the state of the SPSR_EL3 and the
     // Security state and entrypoint attributes of the next EL.
-    let mut scr_el3 = cpu::get_scr_el3()
+    let mut scr_el3 = cpu::scr_el3::get()
         & !(cpu::SCR_NS_BIT
             | cpu::SCR_RW_BIT
             | cpu::SCR_FIQ_BIT
@@ -458,7 +458,7 @@ fn setup_context(ctx: &mut CPUContext, ep: EntryPointInfo) {
     // the value from the context to the actual register and can cause
     // problems for processor cores that don't expect certain bits to
     // be zero.
-    let actlr_el1 = cpu::get_actlr_el1();
+    let actlr_el1 = cpu::actlr_el1::get();
     unsafe {
         write_volatile(&mut ctx.el1_sysregs_ctx.actlr_el1, actlr_el1);
     }
@@ -527,13 +527,13 @@ fn errata_a75_764081(sctlr: u64) -> u64 {
     sctlr
 }
 
-/// Prepare the CPU system registers for first entry into normal world
+/// Prepare the EL2 system registers
 ///
 /// If execution is requested to EL2 or hyp mode, SCTLR_EL2 is initialized
 /// If execution is requested to non-secure EL1 or svc mode, and the CPU supports
 /// EL2 then EL2 is disabled by configuring all necessary EL2 registers.
 /// For all entries, the EL1 registers are initialized from the cpu_context
-pub fn init_non_secure() {
+pub fn init_el2_regs() {
     let idx = topology::core_pos();
     let ctx = unsafe { &CPU_CONTEXT_NON_SECURE[idx] };
 
@@ -549,7 +549,7 @@ pub fn init_non_secure() {
         // Synchronization Barrier.
         let sctlr_el2 = errata_a75_764081(sctlr);
 
-        cpu::set_sctlr_el2(sctlr_el2);
+        cpu::sctlr_el2::set(sctlr_el2);
     } else {
         // EL2 present but unused, need to disable safely.
         // SCTLR_EL2 can be ignored in this case.
@@ -567,7 +567,7 @@ pub fn init_non_secure() {
                 0
             };
 
-        cpu::set_hcr_el2(hcr_el2);
+        cpu::hcr_el2::set(hcr_el2);
 
         // Initialise CPTR_EL2 setting all fields rather than
         // relying on the hw. All fields have architecturally
@@ -584,7 +584,7 @@ pub fn init_non_secure() {
         // CPTR_EL2.TFP: Set to zero so that Non-secure accesses
         //  to SIMD and floating-point functionality from both
         //  Execution states do not trap to EL2.
-        cpu::set_cptr_el2(
+        cpu::cptr_el2::set(
             cpu::CPTR_EL2_RESET_VAL
                 & !(cpu::CPTR_EL2_TCPAC_BIT | cpu::CPTR_EL2_TTA_BIT | cpu::CPTR_EL2_TFP_BIT),
         );
@@ -600,16 +600,16 @@ pub fn init_non_secure() {
         // CNTHCTL_EL2.EL1PCTEN: Set to one to disable traps to
         //  Hyp mode of  Non-secure EL0 and EL1 accesses to the
         //  physical counter registers.
-        cpu::set_cnthctl_el2(cpu::CNTHCTL_RESET_VAL | cpu::EL1PCEN_BIT | cpu::EL1PCTEN_BIT);
+        cpu::cnthctl_el2::set(cpu::CNTHCTL_RESET_VAL | cpu::EL1PCEN_BIT | cpu::EL1PCTEN_BIT);
 
         // Initialise CNTVOFF_EL2 to zero as it resets to an
         // architecturally UNKNOWN value.
-        cpu::set_cntvoff_el2(0);
+        cpu::cntvoff_el2::set(0);
 
         // Set VPIDR_EL2 and VMPIDR_EL2 to match MIDR_EL1 and
         // MPIDR_EL1 respectively.
-        cpu::set_vpidr_el2(cpu::get_midr_el1());
-        cpu::set_vmpidr_el2(cpu::get_mpidr_el1());
+        cpu::vpidr_el2::set(cpu::midr_el1::get());
+        cpu::vmpidr_el2::set(cpu::mpidr_el1::get());
 
         // Initialise VTTBR_EL2. All fields are architecturally
         // UNKNOWN on reset.
@@ -620,7 +620,7 @@ pub fn init_non_secure() {
         //
         // VTTBR_EL2.BADDR: Set to zero as EL1&0 stage 2 address
         //  translation is disabled.
-        cpu::set_vttbr_el2(
+        cpu::vttbr_el2::set(
             cpu::VTTBR_RESET_VAL
                 & !((cpu::VTTBR_VMID_MASK << cpu::VTTBR_VMID_SHIFT)
                     | (cpu::VTTBR_BADDR_MASK << cpu::VTTBR_BADDR_SHIFT)),
@@ -681,7 +681,7 @@ pub fn init_non_secure() {
         // MDCR_EL2.HPMN: Set to value of PMCR_EL0.N which is the
         //  architecturally-defined reset value.
         let mdcr_el2 = ((cpu::MDCR_EL2_RESET_VAL | cpu::MDCR_EL2_HLP | cpu::MDCR_EL2_HPMD)
-            | ((cpu::get_pmcr_el0() & cpu::PMCR_EL0_N_BITS) >> cpu::PMCR_EL0_N_SHIFT))
+            | ((cpu::pmcr_el0::get() & cpu::PMCR_EL0_N_BITS) >> cpu::PMCR_EL0_N_SHIFT))
             & !(cpu::MDCR_EL2_TTRF
                 | cpu::MDCR_EL2_TPMS
                 | cpu::MDCR_EL2_TDRA_BIT
@@ -691,7 +691,7 @@ pub fn init_non_secure() {
                 | cpu::MDCR_EL2_HPME_BIT
                 | cpu::MDCR_EL2_TPM_BIT
                 | cpu::MDCR_EL2_TPMCR_BIT);
-        cpu::set_mdcr_el2(mdcr_el2);
+        cpu::mdcr_el2::set(mdcr_el2);
 
         // Initialise HSTR_EL2. All fields are architecturally
         // UNKNOWN on reset.
@@ -699,15 +699,77 @@ pub fn init_non_secure() {
         // HSTR_EL2.T<n>: Set all these fields to zero so that
         //  Non-secure EL0 or EL1 accesses to System registers
         //  do not trap to EL2.
-        cpu::set_hstr_el2(cpu::HSTR_EL2_RESET_VAL & !cpu::HSTR_EL2_T_MASK);
+        cpu::hstr_el2::set(cpu::HSTR_EL2_RESET_VAL & !cpu::HSTR_EL2_T_MASK);
 
         // Initialise CNTHP_CTL_EL2. All fields are
         // architecturally UNKNOWN on reset.
         //
         // CNTHP_CTL_EL2:ENABLE: Set to zero to disable the EL2
         //  physical timer and prevent timer interrupts.
-        cpu::set_cnthp_ctl_el2(cpu::CNTHP_CTL_RESET_VAL & !cpu::CNTHP_CTL_ENABLE_BIT);
+        cpu::cnthp_ctl_el2::set(cpu::CNTHP_CTL_RESET_VAL & !cpu::CNTHP_CTL_ENABLE_BIT);
     }
     // TODO
     // enable_extensions_nonsecure(el2_unused);
+}
+
+pub fn save_gpregs(regs: &GpRegs, is_secure: bool) {
+    let idx = topology::core_pos();
+    let ctx = if is_secure {
+        unsafe { &mut CPU_CONTEXT_SECURE[idx] }
+    } else {
+        unsafe { &mut CPU_CONTEXT_NON_SECURE[idx] }
+    };
+    unsafe { copy_nonoverlapping(regs, &mut ctx.gpregx_ctx, 1) };
+}
+
+pub fn save_sysregs(is_secure: bool) {
+    let idx = topology::core_pos();
+    let ctx = if is_secure {
+        unsafe { &mut CPU_CONTEXT_SECURE[idx] }
+    } else {
+        unsafe { &mut CPU_CONTEXT_NON_SECURE[idx] }
+    };
+
+    unsafe {
+        macro_rules! save_sysreg {
+            ($x:ident) => {
+                write_volatile(&mut ctx.el1_sysregs_ctx.$x, cpu::$x::get());
+            };
+        }
+
+        save_sysreg!(sctlr_el1);
+        save_sysreg!(actlr_el1);
+        save_sysreg!(cpacr_el1);
+        save_sysreg!(csselr_el1);
+        save_sysreg!(sp_el1);
+        save_sysreg!(esr_el1);
+        save_sysreg!(ttbr0_el1);
+        save_sysreg!(ttbr1_el1);
+        save_sysreg!(mair_el1);
+        save_sysreg!(amair_el1);
+        save_sysreg!(tcr_el1);
+        save_sysreg!(tpidr_el1);
+        save_sysreg!(tpidr_el0);
+        save_sysreg!(tpidrro_el0);
+        save_sysreg!(par_el1);
+        save_sysreg!(far_el1);
+        save_sysreg!(afsr0_el1);
+        save_sysreg!(afsr1_el1);
+        save_sysreg!(contextidr_el1);
+        save_sysreg!(vbar_el1);
+        save_sysreg!(cntp_ctl_el0);
+        save_sysreg!(cntp_cval_el0);
+        save_sysreg!(cntv_ctl_el0);
+        save_sysreg!(cntv_cval_el0);
+        save_sysreg!(cntkctl_el1);
+    }
+}
+
+pub fn restore_and_eret(is_secure: bool) {
+    let idx = topology::core_pos();
+    let ctx = if is_secure {
+        unsafe { &mut CPU_CONTEXT_SECURE[idx] }
+    } else {
+        unsafe { &mut CPU_CONTEXT_NON_SECURE[idx] }
+    };
 }

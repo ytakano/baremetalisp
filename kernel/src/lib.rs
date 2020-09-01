@@ -65,12 +65,14 @@ fn init_master() {
             aarch64::context::init_secure();
             print_msg("PSCI", "enabled");
             boot::run();
+            aarch64::context::init_el2_regs();
             el3::el3_to_el1();
         }
         2 => {
             print_msg("Warning", "execution level is not EL3");
             print_msg("PSCI", "disabled");
             boot::run();
+            aarch64::context::init_el2_regs();
             el2::el2_to_el1();
         }
         _ => {

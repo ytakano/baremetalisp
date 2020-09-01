@@ -267,6 +267,9 @@ setup_gic:
     // x0 is the first argument for the function called through `\handler`.
     mov     x0,  sp
 
+    // x1 is the second argument for the function called through `\handler`.
+    add     x1, sp, #16 * 17
+
     // Call `\handler`.
     bl      \handler
 

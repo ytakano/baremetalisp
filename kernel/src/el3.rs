@@ -1,5 +1,6 @@
 use crate::aarch64;
-use crate::aarch64::context::GpRegs;
+use crate::aarch64::context;
+use crate::aarch64::cpu;
 use crate::driver::topology;
 use crate::driver::uart;
 
@@ -40,12 +41,24 @@ const MASK_SERVICE: u32 = 0x3f000000;
 const MASK_RESERVED: u32 = 0x00ff0000;
 const MASK_FUNC: u32 = 0x0000ffff;
 
-pub fn smc_to_normal(_ctx: &GpRegs) {
+pub fn smc_to_normal(ctx: &context::GpRegs, _sp: usize) {
+    if !cpu::is_secure() {
+        return;
+    }
+
+    // TODO: save SIMD
+    context::save_sysregs(true); // save system registers
+    context::save_gpregs(ctx, true); // save general purpose registers
+
+    // TODO: restore context
+
+    // TODO: eret
+
     uart::puts("smc_to_normal is not yet implemented\n");
 }
 
 /// secure monitor call
-pub fn handle_smc64(ctx: &GpRegs) {
+pub fn handle_smc64(ctx: &context::GpRegs) {
     // TODO: save contexts more
 
     let w0: u32 = ctx.x0 as u32;
