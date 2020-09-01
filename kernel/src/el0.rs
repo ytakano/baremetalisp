@@ -100,7 +100,7 @@ fn repl_uart(ctx: &blisp::semantics::Context) -> ! {
 
 #[no_mangle]
 pub fn el0_entry() -> ! {
-    syscall::svc::switch();
+    syscall::svc::switch_world();
 
     let addr = mmu::get_memory_map();
 

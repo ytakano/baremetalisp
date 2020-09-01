@@ -4,10 +4,19 @@ use crate::aarch64::cpu;
 use crate::driver::topology;
 use crate::driver::uart;
 
+extern "C" {
+    fn el1_entry();
+}
+
 pub fn el3_to_el1() {
     let addr = aarch64::mmu::get_memory_map();
     let aff = topology::core_pos() as u64;
     let stack = addr.stack_el1_start - addr.stack_size * aff + aarch64::mmu::EL1_ADDR_OFFSET;
+    let entry = el1_entry as *const () as u64;
+
+    context::set_sp_el1(stack, true); // set stack pointer of EL1
+    context::set_elr(entry, true); // set entry point of EL1
+    context::restore_and_eret(true); // enter EL1
 
     unsafe {
         asm!(

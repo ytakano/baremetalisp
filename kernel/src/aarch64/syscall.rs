@@ -4,10 +4,10 @@ pub mod svc {
     use crate::driver::uart;
     use crate::el1;
 
-    pub const SYS_SWITCH: u64 = 1;
+    pub const SYS_SWITCH_WORLD: u64 = 1;
 
     /// switch to normal mode
-    pub fn switch() {
+    pub fn switch_world() {
         unsafe { asm!("svc #1") }
     }
 
@@ -17,7 +17,7 @@ pub mod svc {
         uart::puts("\n");
 
         match id {
-            SYS_SWITCH => el1::sys_switch(),
+            SYS_SWITCH_WORLD => el1::sys_switch(),
             _ => (),
         }
     }

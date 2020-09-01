@@ -287,7 +287,8 @@ impl EL3State {
 #[derive(Copy, Clone)]
 pub struct CPUContext {
     gpregx_ctx: GpRegs,
-    el3state_ctx: EL3State,
+    //el3state_ctx: EL3State,
+    scr_el3: u64,
     el1_sysregs_ctx: EL1SysRegs,
     fpregs_ctx: FPRegs,
 }
@@ -296,7 +297,7 @@ impl CPUContext {
     pub const fn new() -> CPUContext {
         CPUContext {
             gpregx_ctx: GpRegs::new(),
-            el3state_ctx: EL3State::new(),
+            scr_el3: 0,
             el1_sysregs_ctx: EL1SysRegs::new(),
             fpregs_ctx: FPRegs::new(),
         }
@@ -322,6 +323,10 @@ fn setup_context(ctx: &mut CPUContext, ep: EntryPointInfo) {
     // Clear any residual register values from the context
     unsafe {
         copy_nonoverlapping(&CPUContext::new(), ctx, 1);
+    }
+
+    if is_secure {
+        save_sysregs(true);
     }
 
     // SCR_EL3 was initialised during reset sequence in macro
@@ -441,6 +446,16 @@ fn setup_context(ctx: &mut CPUContext, ep: EntryPointInfo) {
     // SCTLR_EL1.IESB to enable Implicit Error Synchronization Barrier.
     sctlr_elx = errata_a75_764081(sctlr_elx);
 
+    if is_secure {
+        // enable MMU and cache
+        // do not trap WFE and WFI on EL0
+        sctlr_elx |= cpu::SCTLR_M_BIT
+            | cpu::SCTLR_C_BIT
+            | cpu::SCTLR_I_BIT
+            | cpu::SCTLR_NTWI_BIT
+            | cpu::SCTLR_NTWE_BIT;
+    }
+
     // Enable WFE trap delay in SCR_EL3 if supported and configured
     // (for Armv8.6)
     // see https://github.com/ARM-software/arm-trusted-firmware/blob/8f09da46e263cdb97f01edce449aa5b769cca2f5/lib/el3_runtime/aarch64/context_mgmt.c#L256-L272
@@ -466,9 +481,9 @@ fn setup_context(ctx: &mut CPUContext, ep: EntryPointInfo) {
     // Populate EL3 state so that we've the right context
     // before doing ERET
     unsafe {
-        write_volatile(&mut ctx.el3state_ctx.scr_el3, scr_el3);
-        write_volatile(&mut ctx.el3state_ctx.elr_el3, ep.pc as u64);
-        write_volatile(&mut ctx.el3state_ctx.spsr_el3, ep.spsr);
+        write_volatile(&mut ctx.scr_el3, scr_el3);
+        write_volatile(&mut ctx.gpregx_ctx.elr, ep.pc as u64);
+        write_volatile(&mut ctx.gpregx_ctx.spsr, ep.spsr as u32);
     }
 
     // Store the X0-X7 value from the entrypoint into the context
@@ -537,7 +552,7 @@ pub fn init_el2_regs() {
     let idx = topology::core_pos();
     let ctx = unsafe { &CPU_CONTEXT_NON_SECURE[idx] };
 
-    let scr_el3 = ctx.el3state_ctx.scr_el3;
+    let scr_el3 = ctx.scr_el3;
     if scr_el3 & cpu::SCR_HCE_BIT != 0 {
         // hypervisor call is enabled
 
@@ -765,6 +780,7 @@ pub fn save_sysregs(is_secure: bool) {
     }
 }
 
+/// switch from EL3 to EL2 or EL1
 pub fn restore_and_eret(is_secure: bool) {
     let idx = topology::core_pos();
     let ctx = if is_secure {
@@ -772,4 +788,104 @@ pub fn restore_and_eret(is_secure: bool) {
     } else {
         unsafe { &mut CPU_CONTEXT_NON_SECURE[idx] }
     };
+
+    unsafe {
+        asm!("ldp {0}, {1}, [{2}]
+              msr sctlr_el1, {0}
+              msr actlr_el1, {1}
+              ldp {0}, {1}, [{2}, #16]
+              msr cpacr_el1, {0}
+              msr csselr_el1, {1}
+              ldp {0}, {1}, [{2}, #16 * 2]
+              msr sp_el1, {0}
+              msr esr_el1, {1}
+              ldp {0}, {1}, [{2}, #16 * 3]
+              msr ttbr0_el1, {0}
+              msr ttbr1_el1, {1}
+              ldp {0}, {1}, [{2}, #16 * 4]
+              msr mair_el1, {0}
+              msr amair_el1, {1}
+              ldp {0}, {1}, [{2}, #16 * 5]
+              msr tcr_el1, {0}
+              msr tpidr_el1, {1}
+              ldp {0}, {1}, [{2}, #16 * 6]
+              msr tpidr_el0, {0}
+              msr tpidrro_el0, {1}
+              ldp {0}, {1}, [{2}, #16 * 7]
+              msr par_el1, {0}
+              msr far_el1, {1}
+              ldp {0}, {1}, [{2}, #16 * 8]
+              msr afsr0_el1, {0}
+              msr afsr1_el1, {1}
+              ldp {0}, {1}, [{2}, #16 * 9]
+              msr contextidr_el1, {0}
+              msr vbar_el1, {1}
+              ldp {0}, {1}, [{2}, #16 * 10]
+              msr cntp_ctl_el0, {0}
+              msr cntp_cval_el0, {1}
+              ldp {0}, {1}, [{2}, #16 * 11]
+              msr cntv_ctl_el0, {0}
+              msr cntv_cval_el0, {1}
+              ldr {0}, [{2}, #8 * 24]
+              msr cntkctl_el1, {0}
+
+              /*msr scr_el3, {3}*/
+
+              mov x30, {4}
+
+              ldp  x0,  x1, [x30]
+              ldp  x2,  x3, [x30, #16]
+              ldp  x4,  x5, [x30, #16 *  2]
+              ldp  x6,  x7, [x30, #16 *  3]
+              ldp  x8,  x9, [x30, #16 *  4]
+              ldp x10, x11, [x30, #16 *  5]
+              ldp x12, x13, [x30, #16 *  6]
+              ldp x14, x15, [x30, #16 *  7]
+              ldp x16, x17, [x30, #16 *  8]
+              ldp x18, x19, [x30, #16 *  9]
+              ldp x20, x21, [x30, #16 * 10]
+              ldp x22, x23, [x30, #16 * 11]
+              ldp x24, x25, [x30, #16 * 12]
+              ldp x26, x27, [x30, #16 * 13]
+
+              // restore ELR
+              ldr x28, [x30, #8 * 31]
+              msr elr_el3, x28
+
+              // restore SPSR
+              ldr x28, [x30, #8 * 32]
+              msr spsr_el3, x28
+
+              ldp x28, x29, [x30, #16 * 14]
+              ldr x30, [x30, #8 * 30]
+
+              eret",
+            out(reg) _,
+            out(reg) _,
+            in(reg) &ctx.el1_sysregs_ctx as *const EL1SysRegs as u64,
+            in(reg) ctx.scr_el3,
+            in(reg) &ctx.gpregx_ctx as *const GpRegs as u64);
+    }
+}
+
+pub fn set_sp_el1(sp: u64, is_secure: bool) {
+    let idx = topology::core_pos();
+    let ctx = if is_secure {
+        unsafe { &mut CPU_CONTEXT_SECURE[idx] }
+    } else {
+        unsafe { &mut CPU_CONTEXT_NON_SECURE[idx] }
+    };
+
+    unsafe { write_volatile(&mut ctx.el1_sysregs_ctx.sp_el1, sp) };
+}
+
+pub fn set_elr(elr: u64, is_secure: bool) {
+    let idx = topology::core_pos();
+    let ctx = if is_secure {
+        unsafe { &mut CPU_CONTEXT_SECURE[idx] }
+    } else {
+        unsafe { &mut CPU_CONTEXT_NON_SECURE[idx] }
+    };
+
+    unsafe { write_volatile(&mut ctx.gpregx_ctx.elr, elr) };
 }

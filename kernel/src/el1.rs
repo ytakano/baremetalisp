@@ -1,11 +1,9 @@
 use crate::aarch64;
+use crate::driver::uart;
 use crate::driver::{delays, topology};
 
 #[cfg(not(feature = "raspi3"))]
 use crate::aarch64::syscall;
-
-#[cfg(feature = "raspi3")]
-use crate::driver::uart;
 
 #[no_mangle]
 pub fn el1_entry() -> ! {
@@ -35,6 +33,7 @@ pub fn el1_entry() -> ! {
 
 #[cfg(not(feature = "raspi3"))]
 pub fn sys_switch() {
+    uart::puts("sys_switch\n");
     syscall::smc::to_normal();
 }
 

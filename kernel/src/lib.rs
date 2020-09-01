@@ -63,9 +63,9 @@ fn init_master() {
         3 => {
             psci::init();
             aarch64::context::init_secure();
+            aarch64::context::init_el2_regs();
             print_msg("PSCI", "enabled");
             boot::run();
-            aarch64::context::init_el2_regs();
             el3::el3_to_el1();
         }
         2 => {

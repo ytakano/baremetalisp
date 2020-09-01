@@ -135,7 +135,7 @@ _start:
     msr     vbar_el3, x1
 
     mrs     x1, scr_el3
-    orr     x1, x1, #0b1110 // EA, FIQ, IRQ
+    orr     x1, x1, #0b1000 // EA
     msr     scr_el3, x1
 
     msr     DAIFClr, #0x0f // enable all interrupt
