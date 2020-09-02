@@ -97,6 +97,7 @@ impl GpRegs {
 
 /// System Registers of EL1 and EL0
 #[derive(Copy, Clone)]
+#[repr(C)]
 pub struct EL1SysRegs {
     pub sctlr_el1: u64,
     pub actlr_el1: u64,
@@ -174,6 +175,7 @@ impl EL1SysRegs {
 
 /// Floating Point Registers
 #[derive(Copy, Clone)]
+#[repr(C)]
 pub struct FPRegs {
     fp_q0: [u8; 16],
     fp_q1: [u8; 16],
@@ -727,6 +729,41 @@ pub fn init_el2_regs() {
     // enable_extensions_nonsecure(el2_unused);
 }
 
+pub fn save_fpregs(is_secure: bool) {
+    let idx = topology::core_pos();
+    let ctx = if is_secure {
+        unsafe { &mut CPU_CONTEXT_SECURE[idx] }
+    } else {
+        unsafe { &mut CPU_CONTEXT_NON_SECURE[idx] }
+    };
+
+    unsafe {
+        asm!("stp  q0,  q1, [{0}]
+              stp  q2,  q3, [{0}, #32]
+              stp  q4,  q5, [{0}, #32 *  1]
+              stp  q6,  q7, [{0}, #32 *  2]
+              stp  q8,  q9, [{0}, #32 *  3]
+              stp q10, q11, [{0}, #32 *  4]
+              stp q12, q13, [{0}, #32 *  5]
+              stp q14, q15, [{0}, #32 *  6]
+              stp q16, q17, [{0}, #32 *  7]
+              stp q18, q19, [{0}, #32 *  8]
+              stp q20, q21, [{0}, #32 *  9]
+              stp q22, q23, [{0}, #32 * 10]
+              stp q24, q25, [{0}, #32 * 11]
+              stp q26, q27, [{0}, #32 * 12]
+              stp q28, q29, [{0}, #32 * 13]
+              stp q30, q31, [{0}, #32 * 14]
+              mrs {1}, fpsr
+              mrs {2}, fpcr
+              stp {1}, {2}, [{0}, #32 * 15]",
+            in(reg) &ctx.fpregs_ctx as *const FPRegs as u64,
+            out(reg) _,
+            out(reg) _,
+        );
+    }
+}
+
 pub fn save_gpregs(regs: &GpRegs, is_secure: bool) {
     let idx = topology::core_pos();
     let ctx = if is_secure {
@@ -829,6 +866,26 @@ pub fn restore_and_eret(sp: u64, is_secure: bool) {
               ldr {0}, [{2}, #8 * 24]
               msr cntkctl_el1, {0}
 
+              ldp  q0,  q1, [{6}]
+              ldp  q2,  q3, [{6}, #32]
+              ldp  q4,  q5, [{6}, #32 *  1]
+              ldp  q6,  q7, [{6}, #32 *  2]
+              ldp  q8,  q9, [{6}, #32 *  3]
+              ldp q10, q11, [{6}, #32 *  4]
+              ldp q12, q13, [{6}, #32 *  5]
+              ldp q14, q15, [{6}, #32 *  6]
+              ldp q16, q17, [{6}, #32 *  7]
+              ldp q18, q19, [{6}, #32 *  8]
+              ldp q20, q21, [{6}, #32 *  9]
+              ldp q22, q23, [{6}, #32 * 10]
+              ldp q24, q25, [{6}, #32 * 11]
+              ldp q26, q27, [{6}, #32 * 12]
+              ldp q28, q29, [{6}, #32 * 13]
+              ldp q30, q31, [{6}, #32 * 14]
+              ldp {0}, {1}, [{6}, #32 * 15]
+              msr fpsr, {0}
+              msr fpcr, {1}
+
               msr scr_el3, {3}
 
               mov sp, {5}
@@ -866,7 +923,8 @@ pub fn restore_and_eret(sp: u64, is_secure: bool) {
             in(reg) &ctx.el1_sysregs_ctx as *const EL1SysRegs as u64,
             in(reg) ctx.scr_el3,
             in(reg) &ctx.gpregx_ctx as *const GpRegs as u64,
-            in(reg) sp);
+            in(reg) sp,
+            in(reg) &ctx.fpregs_ctx as *const FPRegs as u64);
     }
 }
 

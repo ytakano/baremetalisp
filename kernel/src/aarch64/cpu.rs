@@ -366,13 +366,16 @@ sysreg!(cntp_ctl_el0);
 sysreg!(cntp_cval_el0);
 sysreg!(cntv_ctl_el0);
 sysreg!(cntv_cval_el0);
-sysreg!(cntkctl_el1);
 sysreg!(cntfrq_el0);
 sysreg!(cntpct_el0);
 sysreg!(tpidr_el0);
 sysreg!(tpidrro_el0);
 sysreg!(pmcr_el0);
+sysreg!(sp_el0);
 
+sysreg!(elr_el1);
+sysreg!(spsr_el1);
+sysreg!(cntkctl_el1);
 sysreg!(sctlr_el1);
 sysreg!(actlr_el1);
 sysreg!(cpacr_el1);
@@ -477,6 +480,10 @@ pub fn dmb_ld() {
 /// dmb sy
 pub fn dmb_sy() {
     unsafe { asm!("dmb sy") };
+}
+
+pub fn eret() {
+    unsafe { asm!("eret") };
 }
 
 pub fn start_non_primary() {

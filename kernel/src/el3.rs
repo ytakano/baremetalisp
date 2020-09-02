@@ -1,7 +1,6 @@
 use crate::aarch64::{context, cpu, mmu};
 use crate::driver::delays;
 use crate::driver::topology;
-use crate::driver::uart;
 
 extern "C" {
     fn el1_entry();
@@ -28,20 +27,16 @@ const MASK_SERVICE: u32 = 0x3f000000;
 const MASK_RESERVED: u32 = 0x00ff0000;
 const MASK_FUNC: u32 = 0x0000ffff;
 
-pub fn smc_to_normal(ctx: &context::GpRegs, _sp: usize) {
-    if !cpu::is_secure() {
+pub fn switch_world(ctx: &context::GpRegs, sp: usize, to_secure: bool) {
+    if cpu::is_secure() == to_secure {
         return;
     }
 
     // TODO: save SIMD
-    context::save_sysregs(true); // save system registers
-    context::save_gpregs(ctx, true); // save general purpose registers
-
-    // TODO: restore context
-
-    // TODO: eret
-
-    uart::puts("smc_to_normal is not yet implemented\n");
+    context::save_fpregs(!to_secure);
+    context::save_sysregs(!to_secure); // save system registers
+    context::save_gpregs(ctx, !to_secure); // save general purpose registers
+    context::restore_and_eret(sp as u64, to_secure);
 }
 
 /// secure monitor call

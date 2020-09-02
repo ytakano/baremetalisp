@@ -6,34 +6,9 @@ use alloc::boxed::Box;
 use blisp;
 
 const GLOBAL_CODE: &str = "
-(data Dim2 (Dim2 Int Int))
-
-(defun id (x) (Pure (-> (t) t))
-    x)
-
-(export callback-test (x)
-    (IO (-> (Int) Int))
-    (call-rust x 0 0))
-
-(defun mul2 (x) (Pure (-> (Int) Int))
-    (* 2 x))
-
-(export tail-call-test (n) (Pure (-> (Int) Int))
-    (if (<= n 0)
-        0
-        (tail-call-test (- n 1))))
-
-(data (Maybe t)
-    (Just t)
-    Nothing)
-
-(export label-test () (Pure (-> () Int))
-    (match (Just 10)
-        ((Just x) x)
-        (Nothing 0)))
-
-(export lambda-test (f) (Pure (-> ((Pure (-> (Int) Int))) Int))
-    (mul2 (f 2)))
+; switch to normal world
+(export switch-world () (IO (-> () Int))
+    (call-rust 1 0 0))
 
 (export factorial (n) (Pure (-> (Int) Int))
     (if (<= n 0)
@@ -41,10 +16,13 @@ const GLOBAL_CODE: &str = "
         (* n (factorial (- n 1)))))
 ";
 
-fn callback(x: i64, y: i64, z: i64) -> i64 {
-    let msg = format!("callback: x = {}, y = {}, z = {}\n", x, y, z);
-    uart::puts(&msg);
-    x * y * z
+fn callback(x: i64, _y: i64, _z: i64) -> i64 {
+    if x == 1 {
+        syscall::svc::switch_world();
+        0
+    } else {
+        -1
+    }
 }
 
 fn run_lisp() {
@@ -100,8 +78,6 @@ fn repl_uart(ctx: &blisp::semantics::Context) -> ! {
 
 #[no_mangle]
 pub fn el0_entry() -> ! {
-    syscall::svc::switch_world();
-
     let addr = mmu::get_memory_map();
 
     // initialize memory allocator
@@ -122,68 +98,3 @@ pub fn el0_entry() -> ! {
 
     delays::forever()
 }
-
-/*
-const EVAL_CODE: &str =
-"
-(test-callback 30 40 50)
-[10 20 30]
-(xor (and true false) true)
-(* (+ 143 200) 10)
-(Cons 30 (Cons 20 (Cons 10 Nil)))
-'(30 20 10)
-(let ((x 10) (y 20) (z 30))
-    '(z y x))
-(test-label 700 50)
-(match (Cons 50 Nil)
-    ((Cons x _) x))
-((lambda-test 30) 40)
-(let ((x (lambda (x) (* x 2))))
-    (x 50))
-";
-
-(defun test-match (a) (Pure (-> ((Maybe Dim2)) Int))
-    (match a
-        ((Just val)
-            (test-let val))
-        (Nothing
-            0)))
-
-(defun test-let (b) (Pure (-> (Dim2) Int))
-    (let (((Dim2 x y) b))
-                y))
-";
-
-
-    let code =
-"
-(defun test_tuple (z) (Pure (-> ([Bool Int]) Bool))
-    (let (([v1 v2] z))
-        v1))
-";
-
-    let code =
-"
-(data (Dim2 t)
-    (Dim2 t t))
-
-(data (Maybe t)
-    (Just t)
-    Nothing)
-
-(data (Tree t)
-    (Node (Tree t) (Tree t))
-    Leaf)
-
-(defun test_if (x y) (Pure (-> (Bool Bool) Bool))
-    (if x x y))
-
-(defun test_let (z) (Pure (-> ((Dim2 Int)) Int))
-    (let (((Dim2 n1 n2) z))
-        n1))
-
-(defun test_tuple (z) (Pure (-> ([Bool Int]) Int))
-    (let (([v1 v2] z))
-        v1))
-";
-*/

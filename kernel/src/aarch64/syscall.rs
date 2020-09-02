@@ -12,7 +12,7 @@ pub mod svc {
     }
 
     pub fn handle64(id: u64, _ctx: &context::GpRegs, _sp: usize) {
-        uart::puts("received sycall #");
+        uart::puts("Sycall #");
         uart::decimal(id);
         uart::puts("\n");
 
@@ -32,19 +32,26 @@ pub mod smc {
     use crate::el3;
 
     pub const SMC_TO_NORMAL: u64 = 1;
+    pub const SMC_TO_SECURE: u64 = 2;
 
-    /// switch to normal mode
+    /// switch to normal world
     pub fn to_normal() {
         unsafe { asm!("smc #1") }
     }
 
+    /// switch to secure world
+    pub fn to_secure() {
+        unsafe { asm!("smc #2") }
+    }
+
     pub fn handle64(id: u64, ctx: &context::GpRegs, sp: usize) {
-        uart::puts("received SMC #");
+        uart::puts("SMC #");
         uart::decimal(id);
         uart::puts("\n");
 
         match id {
-            SMC_TO_NORMAL => el3::smc_to_normal(ctx, sp),
+            SMC_TO_NORMAL => el3::switch_world(ctx, sp, false),
+            SMC_TO_SECURE => el3::switch_world(ctx, sp, true),
             _ => (),
         }
     }

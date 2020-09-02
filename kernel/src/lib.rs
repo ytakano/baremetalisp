@@ -34,10 +34,28 @@ pub fn print_msg(key: &str, val: &str) {
     driver::uart::puts("\n");
 }
 
+//-----------------------------------------------------------------------------
+// norml world functions
 #[no_mangle]
 pub fn ns_entry() -> ! {
-    driver::delays::forever();
+    unsafe {
+        asm!(
+            "ldr x1, =__ram_start
+             mov x2, #1024 * 1024 * 256
+             add x1, x1, x2
+             mov sp, x1"
+        );
+    }
+    non_secure()
 }
+
+pub fn non_secure() -> ! {
+    loop {
+        driver::uart::puts("Hello Normal World!\n");
+        aarch64::syscall::smc::to_secure();
+    }
+}
+//-----------------------------------------------------------------------------
 
 /// initialization for the master CPU
 fn init_master() {
