@@ -781,7 +781,7 @@ pub fn save_sysregs(is_secure: bool) {
 }
 
 /// switch from EL3 to EL2 or EL1
-pub fn restore_and_eret(is_secure: bool) {
+pub fn restore_and_eret(sp: u64, is_secure: bool) {
     let idx = topology::core_pos();
     let ctx = if is_secure {
         unsafe { &mut CPU_CONTEXT_SECURE[idx] }
@@ -829,8 +829,9 @@ pub fn restore_and_eret(is_secure: bool) {
               ldr {0}, [{2}, #8 * 24]
               msr cntkctl_el1, {0}
 
-              /*msr scr_el3, {3}*/
+              msr scr_el3, {3}
 
+              mov sp, {5}
               mov x30, {4}
 
               ldp  x0,  x1, [x30]
@@ -864,7 +865,8 @@ pub fn restore_and_eret(is_secure: bool) {
             out(reg) _,
             in(reg) &ctx.el1_sysregs_ctx as *const EL1SysRegs as u64,
             in(reg) ctx.scr_el3,
-            in(reg) &ctx.gpregx_ctx as *const GpRegs as u64);
+            in(reg) &ctx.gpregx_ctx as *const GpRegs as u64,
+            in(reg) sp);
     }
 }
 

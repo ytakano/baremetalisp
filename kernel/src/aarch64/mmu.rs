@@ -61,6 +61,38 @@ extern "C" {
     static __stack_firm_start: u64;
 }
 
+pub fn get_free_mem_start() -> u64 {
+    unsafe { &__free_mem_start as *const u64 as u64 }
+}
+
+pub fn get_ram_start() -> u64 {
+    unsafe { &__ram_start as *const u64 as u64 }
+}
+
+pub fn get_stack_firm_start() -> u64 {
+    unsafe { &__stack_firm_start as *const u64 as u64 }
+}
+
+pub fn get_stack_firm_end() -> u64 {
+    unsafe { &__stack_firm_end as *const u64 as u64 }
+}
+
+pub fn get_bss_start() -> u64 {
+    unsafe { &__bss_start as *const u64 as u64 }
+}
+
+pub fn get_bss_end() -> u64 {
+    unsafe { &__bss_end as *const u64 as u64 }
+}
+
+pub fn get_data_start() -> u64 {
+    unsafe { &__data_start as *const u64 as u64 }
+}
+
+pub fn get_data_end() -> u64 {
+    unsafe { &__data_end as *const u64 as u64 }
+}
+
 // 64KB page
 // level 2 and 3 translation tables
 
@@ -148,7 +180,7 @@ pub struct Addr {
 
 impl Addr {
     fn init(&mut self) {
-        self.no_cache_start = unsafe { &__free_mem_start as *const u64 as u64 };
+        self.no_cache_start = get_free_mem_start();
         self.no_cache_end = self.no_cache_start + PAGESIZE * NUM_CPU;
 
         // MMU's transition table for firmware
@@ -214,32 +246,32 @@ impl Addr {
         driver::uart::hex(DEVICE_MEM_END as u64);
         driver::uart::puts("\n");
 
-        let addr = unsafe { &__ram_start as *const u64 as u64 };
+        let addr = get_ram_start();
         driver::uart::puts("__ram_start        = 0x");
         driver::uart::hex(addr);
         driver::uart::puts("\n");
 
-        let addr = unsafe { &__data_start as *const u64 as u64 };
+        let addr = get_data_start();
         driver::uart::puts("__data_start       = 0x");
         driver::uart::hex(addr);
         driver::uart::puts("\n");
 
-        let addr = unsafe { &__data_end as *const u64 as u64 };
+        let addr = get_data_end();
         driver::uart::puts("__data_end         = 0x");
         driver::uart::hex(addr);
         driver::uart::puts("\n");
 
-        let addr = unsafe { &__bss_start as *const u64 as u64 };
+        let addr = get_bss_start();
         driver::uart::puts("__bss_start        = 0x");
         driver::uart::hex(addr);
         driver::uart::puts("\n");
 
-        let addr = unsafe { &__stack_firm_end as *const u64 as u64 };
+        let addr = get_stack_firm_end();
         driver::uart::puts("__stack_firm_end   = 0x");
         driver::uart::hex(addr);
         driver::uart::puts("\n");
 
-        let addr = unsafe { &__stack_firm_start as *const u64 as u64 };
+        let addr = get_stack_firm_start();
         driver::uart::puts("__stack_firm_start = 0x");
         driver::uart::hex(addr);
         driver::uart::puts("\n");
@@ -532,8 +564,8 @@ fn init_firm(addr: &Addr) -> TTable {
     }
 
     // map .init and .text section
-    let mut ram_start = unsafe { &__ram_start as *const u64 as u64 };
-    let data_start = unsafe { &__data_start as *const u64 as u64 };
+    let mut ram_start = get_ram_start();
+    let data_start = get_data_start();
     let flag = FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_R_R | FLAG_L3_ATTR_MEM | 0b11;
     while ram_start < data_start {
         table.map(ram_start, ram_start, flag);
@@ -541,8 +573,8 @@ fn init_firm(addr: &Addr) -> TTable {
     }
 
     // map .data
-    let mut data_start = unsafe { &__data_start as *const u64 as u64 };
-    let bss_start = unsafe { &__bss_start as *const u64 as u64 };
+    let mut data_start = get_data_start();
+    let bss_start = get_bss_start();
     let flag = FLAG_L3_XN
         | FLAG_L3_PXN
         | FLAG_L3_AF
@@ -556,8 +588,8 @@ fn init_firm(addr: &Addr) -> TTable {
     }
 
     // map .bss section
-    let mut bss_start = unsafe { &__bss_start as *const u64 as u64 };
-    let end = unsafe { &__stack_firm_end as *const u64 as u64 };
+    let mut bss_start = get_bss_start();
+    let end = get_stack_firm_end();
     let flag = FLAG_L3_XN
         | FLAG_L3_PXN
         | FLAG_L3_AF
@@ -571,8 +603,8 @@ fn init_firm(addr: &Addr) -> TTable {
     }
 
     // map firmware stack
-    let mut stack_end = unsafe { &__stack_firm_end as *const u64 as u64 };
-    let stack_start = unsafe { &__stack_firm_start as *const u64 as u64 };
+    let mut stack_end = get_stack_firm_end();
+    let stack_start = get_stack_firm_start();
     let flag = FLAG_L3_XN
         | FLAG_L3_PXN
         | FLAG_L3_AF
@@ -586,7 +618,7 @@ fn init_firm(addr: &Addr) -> TTable {
     }
 
     for i in 0..NUM_CPU {
-        let stack_end = unsafe { &__stack_firm_end as *const u64 as u64 };
+        let stack_end = get_stack_firm_end();
         let addr = stack_end + i * addr.stack_size;
         table.unmap(addr);
     }
@@ -739,8 +771,8 @@ fn init_el1(addr: &Addr) -> (TTable, TTable) {
     );
 
     // map .init and .text section
-    let mut ram_start = unsafe { &__ram_start as *const u64 as u64 };
-    let data_start = unsafe { &__data_start as *const u64 as u64 };
+    let mut ram_start = get_ram_start();
+    let data_start = get_data_start();
     let flag = FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_R_R | FLAG_L3_ATTR_MEM | 0b11;
     while ram_start < data_start {
         table0.map(ram_start, ram_start, flag);
@@ -748,8 +780,8 @@ fn init_el1(addr: &Addr) -> (TTable, TTable) {
     }
 
     // map .data
-    let mut data_start = unsafe { &__data_start as *const u64 as u64 };
-    let bss_start = unsafe { &__bss_start as *const u64 as u64 };
+    let mut data_start = get_data_start();
+    let bss_start = get_bss_start();
     let flag = FLAG_L3_XN
         | FLAG_L3_PXN
         | FLAG_L3_AF
@@ -763,8 +795,8 @@ fn init_el1(addr: &Addr) -> (TTable, TTable) {
     }
 
     // map .bss section
-    let mut bss_start = unsafe { &__bss_start as *const u64 as u64 };
-    let end = unsafe { &__stack_firm_end as *const u64 as u64 };
+    let mut bss_start = get_bss_start();
+    let end = get_stack_firm_end();
     let flag = FLAG_L3_XN
         | FLAG_L3_PXN
         | FLAG_L3_AF
