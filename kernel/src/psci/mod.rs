@@ -44,6 +44,9 @@ pub const PSCI_MEM_PROTECT: u32 = 0x84000013;
 pub const PSCI_MEM_CHK_RANGE_AARCH32: u32 = 0x84000014;
 pub const PSCI_MEM_CHK_RANGE_AARCH64: u32 = 0xc4000014;
 
+pub const PSCI_FID_MASK: u32 = 0xffe0;
+pub const PSCI_FID_VALUE: u32 = 0;
+
 pub const FUNCID_CC_SHIFT: u32 = 30;
 pub const FUNCID_CC_MASK: u32 = 0x1;
 
@@ -60,6 +63,10 @@ const SMC_FROM_NON_SECURE: usize = 1 << 0;
 
 extern "C" {
     fn ns_entry();
+}
+
+pub fn is_psci_fid(fid: u32) -> bool {
+    (fid & PSCI_FID_MASK) == PSCI_FID_VALUE
 }
 
 /// This function does the architectural setup and takes the warm boot
@@ -118,21 +125,17 @@ pub fn init() {
     context::init_context(topology::core_pos(), ep);
 }
 
-fn is_caller_non_secure(f: usize) -> bool {
-    f & SMC_FROM_NON_SECURE != 0
-}
-
-fn is_caller_secure(f: usize) -> bool {
-    !is_caller_non_secure(f)
-}
-
 /// PSCI top level handler for servicing SMCs.
-pub fn psci_smc_handler(smc_fid: u32, x1: usize, x2: usize, x3: usize, flags: usize) -> PsciResult {
-    if is_caller_secure(flags) {
+pub fn smc_handler(smc_fid: u32, x1: usize, x2: usize, x3: usize) -> PsciResult {
+    let is_secure = cpu::is_secure();
+    if is_secure {
         return PsciResult::PsciENotSupported;
     }
 
-    if (smc_fid >> FUNCID_CC_SHIFT) & FUNCID_CC_MASK == SMC_32 {
+    let ctx = context::get_ctx(topology::core_pos(), false);
+    ctx.save_fpregs();
+
+    let result = if (smc_fid >> FUNCID_CC_SHIFT) & FUNCID_CC_MASK == SMC_32 {
         // AArch32
         match smc_fid {
             PSCI_CPU_ON_AARCH32 => psci_cpu_on(x1, x2, x3),
@@ -144,7 +147,11 @@ pub fn psci_smc_handler(smc_fid: u32, x1: usize, x2: usize, x3: usize, flags: us
             PSCI_CPU_ON_AARCH64 => psci_cpu_on(x1, x2, x3),
             _ => PsciResult::PsciENotSupported,
         }
-    }
+    };
+
+    ctx.restore_fpregs();
+
+    result
 }
 
 fn psci_validate_mpidr(mpidr: usize) -> bool {

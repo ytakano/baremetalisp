@@ -31,28 +31,44 @@ pub mod smc {
     use crate::driver::uart;
     use crate::el3;
 
-    pub const SMC_TO_NORMAL: u64 = 1;
-    pub const SMC_TO_SECURE: u64 = 2;
+    const SMC64_STD_SERVICE: u64 = 0xc4;
+
+    pub const SMC_TO_NORMAL: u64 = 0xc400F001;
+    pub const SMC_TO_SECURE: u64 = 0xc400F002;
 
     /// switch to normal world
+    #[inline(never)]
     pub fn to_normal() {
-        unsafe { asm!("smc #1") }
+        unsafe {
+            asm!(
+                "mov x0, {}
+                 smc #0",
+                 in(reg) SMC_TO_NORMAL
+            )
+        }
     }
 
     /// switch to secure world
+    #[inline(never)]
     pub fn to_secure() {
-        unsafe { asm!("smc #2") }
+        unsafe {
+            asm!(
+                "mov x0, {}
+                 smc #0",
+                 in(reg) SMC_TO_SECURE
+            )
+        }
     }
 
-    pub fn handle64(id: u64, ctx: &context::GpRegs, sp: usize) {
-        uart::puts("SMC #");
-        uart::decimal(id);
+    pub fn handle64(ctx: &context::GpRegs, sp: usize) {
+        uart::puts("SMC 0x");
+        uart::hex32(ctx.x0 as u32);
         uart::puts("\n");
 
-        match id {
-            SMC_TO_NORMAL => el3::switch_world(ctx, sp, false),
-            SMC_TO_SECURE => el3::switch_world(ctx, sp, true),
-            _ => (),
+        let id = (ctx.x0 >> 24) & 0xff;
+
+        if id == SMC64_STD_SERVICE {
+            el3::smc64_std_service(ctx, sp);
         }
     }
 }

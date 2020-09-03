@@ -1,6 +1,8 @@
+use crate::aarch64::syscall::smc;
 use crate::aarch64::{context, cpu, mmu};
 use crate::driver::delays;
 use crate::driver::topology;
+use crate::psci;
 
 extern "C" {
     fn el1_entry();
@@ -27,38 +29,36 @@ const MASK_SERVICE: u32 = 0x3f000000;
 const MASK_RESERVED: u32 = 0x00ff0000;
 const MASK_FUNC: u32 = 0x0000ffff;
 
+/// switch between secure and normal world
+/// if to_secure is true then switch to secure world
+/// otherwise switch to normal world
 pub fn switch_world(ctx: &context::GpRegs, sp: usize, to_secure: bool) {
     if cpu::is_secure() == to_secure {
         return;
     }
 
-    // TODO: save SIMD
-    context::save_fpregs(!to_secure);
-    context::save_sysregs(!to_secure); // save system registers
-    context::save_gpregs(ctx, !to_secure); // save general purpose registers
+    let c = context::get_ctx(topology::core_pos(), !to_secure);
+    c.save_fpregs(); // save SIMD registers
+    c.save_sysregs(); // save system registers
+    c.save_gpregs(ctx); // save general purpose registers
+
     context::restore_and_eret(sp as u64, to_secure);
 }
 
-/// secure monitor call
-pub fn handle_smc64(ctx: &context::GpRegs) {
-    // TODO: save contexts more
-
-    let w0: u32 = ctx.x0 as u32;
-
-    if w0 & SMC64 == 0 {
-        return;
-    }
-
-    if w0 & FAST_CALL == 0 {
-        handle_smc64_yielding();
-    } else {
-        if w0 & MASK_RESERVED != 0 {
-            return;
+/// SMC64 standard service calls
+pub fn smc64_std_service(ctx: &context::GpRegs, sp: usize) {
+    match ctx.x0 {
+        smc::SMC_TO_NORMAL => switch_world(ctx, sp, false),
+        smc::SMC_TO_SECURE => switch_world(ctx, sp, true),
+        _ => {
+            if psci::is_psci_fid(ctx.x0 as u32) {
+                psci::smc_handler(
+                    ctx.x0 as u32,
+                    ctx.x1 as usize,
+                    ctx.x2 as usize,
+                    ctx.x3 as usize,
+                );
+            }
         }
-        handle_smc64_fast();
     }
 }
-
-fn handle_smc64_fast() {}
-
-fn handle_smc64_yielding() {}

@@ -304,6 +304,110 @@ impl CPUContext {
             fpregs_ctx: FPRegs::new(),
         }
     }
+
+    pub fn save_fpregs(&mut self) {
+        unsafe {
+            asm!("stp  q0,  q1, [{0}]
+                  stp  q2,  q3, [{0}, #32]
+                  stp  q4,  q5, [{0}, #32 *  1]
+                  stp  q6,  q7, [{0}, #32 *  2]
+                  stp  q8,  q9, [{0}, #32 *  3]
+                  stp q10, q11, [{0}, #32 *  4]
+                  stp q12, q13, [{0}, #32 *  5]
+                  stp q14, q15, [{0}, #32 *  6]
+                  stp q16, q17, [{0}, #32 *  7]
+                  stp q18, q19, [{0}, #32 *  8]
+                  stp q20, q21, [{0}, #32 *  9]
+                  stp q22, q23, [{0}, #32 * 10]
+                  stp q24, q25, [{0}, #32 * 11]
+                  stp q26, q27, [{0}, #32 * 12]
+                  stp q28, q29, [{0}, #32 * 13]
+                  stp q30, q31, [{0}, #32 * 14]
+                  mrs {1}, fpsr
+                  mrs {2}, fpcr
+                  stp {1}, {2}, [{0}, #32 * 15]",
+                in(reg) &mut self.fpregs_ctx as *mut FPRegs as u64,
+                out(reg) _,
+                out(reg) _,
+            );
+        }
+    }
+
+    pub fn restore_fpregs(&self) {
+        unsafe {
+            asm!("ldp  q0,  q1, [{0}]
+                  ldp  q2,  q3, [{0}, #32]
+                  ldp  q4,  q5, [{0}, #32 *  1]
+                  ldp  q6,  q7, [{0}, #32 *  2]
+                  ldp  q8,  q9, [{0}, #32 *  3]
+                  ldp q10, q11, [{0}, #32 *  4]
+                  ldp q12, q13, [{0}, #32 *  5]
+                  ldp q14, q15, [{0}, #32 *  6]
+                  ldp q16, q17, [{0}, #32 *  7]
+                  ldp q18, q19, [{0}, #32 *  8]
+                  ldp q20, q21, [{0}, #32 *  9]
+                  ldp q22, q23, [{0}, #32 * 10]
+                  ldp q24, q25, [{0}, #32 * 11]
+                  ldp q26, q27, [{0}, #32 * 12]
+                  ldp q28, q29, [{0}, #32 * 13]
+                  ldp q30, q31, [{0}, #32 * 14]
+                  ldp {1}, {2}, [{0}, #32 * 15]
+                  msr fpsr, {1}
+                  msr fpcr, {2}",
+                in(reg) &self.fpregs_ctx as *const FPRegs as u64,
+                out(reg) _,
+                out(reg) _,
+            );
+        }
+    }
+
+    pub fn save_sysregs(&mut self) {
+        unsafe {
+            macro_rules! save_sysreg {
+                ($x:ident) => {
+                    write_volatile(&mut self.el1_sysregs_ctx.$x, cpu::$x::get());
+                };
+            }
+
+            save_sysreg!(sctlr_el1);
+            save_sysreg!(actlr_el1);
+            save_sysreg!(cpacr_el1);
+            save_sysreg!(csselr_el1);
+            save_sysreg!(sp_el1);
+            save_sysreg!(esr_el1);
+            save_sysreg!(ttbr0_el1);
+            save_sysreg!(ttbr1_el1);
+            save_sysreg!(mair_el1);
+            save_sysreg!(amair_el1);
+            save_sysreg!(tcr_el1);
+            save_sysreg!(tpidr_el1);
+            save_sysreg!(tpidr_el0);
+            save_sysreg!(tpidrro_el0);
+            save_sysreg!(par_el1);
+            save_sysreg!(far_el1);
+            save_sysreg!(afsr0_el1);
+            save_sysreg!(afsr1_el1);
+            save_sysreg!(contextidr_el1);
+            save_sysreg!(vbar_el1);
+            save_sysreg!(cntp_ctl_el0);
+            save_sysreg!(cntp_cval_el0);
+            save_sysreg!(cntv_ctl_el0);
+            save_sysreg!(cntv_cval_el0);
+            save_sysreg!(cntkctl_el1);
+        }
+    }
+
+    pub fn save_gpregs(&mut self, regs: &GpRegs) {
+        unsafe { copy_nonoverlapping(regs, &mut self.gpregx_ctx, 1) };
+    }
+}
+
+pub fn get_ctx(idx: usize, is_secure: bool) -> &'static mut CPUContext {
+    if is_secure {
+        unsafe { &mut CPU_CONTEXT_SECURE[idx] }
+    } else {
+        unsafe { &mut CPU_CONTEXT_NON_SECURE[idx] }
+    }
 }
 
 // The following function initializes the cpu_context 'ctx' for
@@ -328,7 +432,7 @@ fn setup_context(ctx: &mut CPUContext, ep: EntryPointInfo) {
     }
 
     if is_secure {
-        save_sysregs(true);
+        ctx.save_sysregs();
     }
 
     // SCR_EL3 was initialised during reset sequence in macro
@@ -729,98 +833,10 @@ pub fn init_el2_regs() {
     // enable_extensions_nonsecure(el2_unused);
 }
 
-pub fn save_fpregs(is_secure: bool) {
-    let idx = topology::core_pos();
-    let ctx = if is_secure {
-        unsafe { &mut CPU_CONTEXT_SECURE[idx] }
-    } else {
-        unsafe { &mut CPU_CONTEXT_NON_SECURE[idx] }
-    };
-
-    unsafe {
-        asm!("stp  q0,  q1, [{0}]
-              stp  q2,  q3, [{0}, #32]
-              stp  q4,  q5, [{0}, #32 *  1]
-              stp  q6,  q7, [{0}, #32 *  2]
-              stp  q8,  q9, [{0}, #32 *  3]
-              stp q10, q11, [{0}, #32 *  4]
-              stp q12, q13, [{0}, #32 *  5]
-              stp q14, q15, [{0}, #32 *  6]
-              stp q16, q17, [{0}, #32 *  7]
-              stp q18, q19, [{0}, #32 *  8]
-              stp q20, q21, [{0}, #32 *  9]
-              stp q22, q23, [{0}, #32 * 10]
-              stp q24, q25, [{0}, #32 * 11]
-              stp q26, q27, [{0}, #32 * 12]
-              stp q28, q29, [{0}, #32 * 13]
-              stp q30, q31, [{0}, #32 * 14]
-              mrs {1}, fpsr
-              mrs {2}, fpcr
-              stp {1}, {2}, [{0}, #32 * 15]",
-            in(reg) &ctx.fpregs_ctx as *const FPRegs as u64,
-            out(reg) _,
-            out(reg) _,
-        );
-    }
-}
-
-pub fn save_gpregs(regs: &GpRegs, is_secure: bool) {
-    let idx = topology::core_pos();
-    let ctx = if is_secure {
-        unsafe { &mut CPU_CONTEXT_SECURE[idx] }
-    } else {
-        unsafe { &mut CPU_CONTEXT_NON_SECURE[idx] }
-    };
-    unsafe { copy_nonoverlapping(regs, &mut ctx.gpregx_ctx, 1) };
-}
-
-pub fn save_sysregs(is_secure: bool) {
-    let idx = topology::core_pos();
-    let ctx = if is_secure {
-        unsafe { &mut CPU_CONTEXT_SECURE[idx] }
-    } else {
-        unsafe { &mut CPU_CONTEXT_NON_SECURE[idx] }
-    };
-
-    unsafe {
-        macro_rules! save_sysreg {
-            ($x:ident) => {
-                write_volatile(&mut ctx.el1_sysregs_ctx.$x, cpu::$x::get());
-            };
-        }
-
-        save_sysreg!(sctlr_el1);
-        save_sysreg!(actlr_el1);
-        save_sysreg!(cpacr_el1);
-        save_sysreg!(csselr_el1);
-        save_sysreg!(sp_el1);
-        save_sysreg!(esr_el1);
-        save_sysreg!(ttbr0_el1);
-        save_sysreg!(ttbr1_el1);
-        save_sysreg!(mair_el1);
-        save_sysreg!(amair_el1);
-        save_sysreg!(tcr_el1);
-        save_sysreg!(tpidr_el1);
-        save_sysreg!(tpidr_el0);
-        save_sysreg!(tpidrro_el0);
-        save_sysreg!(par_el1);
-        save_sysreg!(far_el1);
-        save_sysreg!(afsr0_el1);
-        save_sysreg!(afsr1_el1);
-        save_sysreg!(contextidr_el1);
-        save_sysreg!(vbar_el1);
-        save_sysreg!(cntp_ctl_el0);
-        save_sysreg!(cntp_cval_el0);
-        save_sysreg!(cntv_ctl_el0);
-        save_sysreg!(cntv_cval_el0);
-        save_sysreg!(cntkctl_el1);
-    }
-}
-
 /// switch from EL3 to EL2 or EL1
-pub fn restore_and_eret(sp: u64, is_secure: bool) {
+pub fn restore_and_eret(sp: u64, to_secure: bool) {
     let idx = topology::core_pos();
-    let ctx = if is_secure {
+    let ctx = if to_secure {
         unsafe { &mut CPU_CONTEXT_SECURE[idx] }
     } else {
         unsafe { &mut CPU_CONTEXT_NON_SECURE[idx] }

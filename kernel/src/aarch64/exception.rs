@@ -77,7 +77,7 @@ pub fn lower_el_aarch64_sync_el3(ctx: *mut GpRegs, sp: usize) {
     let r = unsafe { &*ctx };
     let esr = cpu::esr_el3::get();
     if esr & ESR_EL3_EC_MASK == ESR_EL3_EC_SMC64 {
-        syscall::smc::handle64(esr & 0xff, r, sp);
+        syscall::smc::handle64(r, sp);
     } else {
         panic!("unexpected exception from EL1 to EL3");
     }

@@ -23,6 +23,23 @@ extern crate alloc;
 
 use core::panic::PanicInfo;
 
+//-----------------------------------------------------------------------------
+// secure world functions
+
+/// entry point from assembly code
+#[no_mangle]
+pub fn entry() -> ! {
+    aarch64::mmu::init_memory_map();
+
+    if driver::topology::core_pos() == 0 {
+        init_master();
+    } else {
+        init_slave();
+    }
+
+    driver::delays::forever()
+}
+
 pub fn print_msg(key: &str, val: &str) {
     driver::uart::puts("[");
     driver::uart::puts(key);
@@ -33,29 +50,6 @@ pub fn print_msg(key: &str, val: &str) {
     driver::uart::puts(val);
     driver::uart::puts("\n");
 }
-
-//-----------------------------------------------------------------------------
-// norml world functions
-#[no_mangle]
-pub fn ns_entry() -> ! {
-    unsafe {
-        asm!(
-            "ldr x1, =__ram_start
-             mov x2, #1024 * 1024 * 256
-             add x1, x1, x2
-             mov sp, x1"
-        );
-    }
-    non_secure()
-}
-
-pub fn non_secure() -> ! {
-    loop {
-        driver::uart::puts("Hello Normal World!\n");
-        aarch64::syscall::smc::to_secure();
-    }
-}
-//-----------------------------------------------------------------------------
 
 /// initialization for the master CPU
 fn init_master() {
@@ -106,18 +100,28 @@ fn init_slave() -> ! {
     driver::delays::forever()
 }
 
+//-----------------------------------------------------------------------------
+// norml world functions
 #[no_mangle]
-pub fn entry() -> ! {
-    aarch64::mmu::init_memory_map();
-
-    if driver::topology::core_pos() == 0 {
-        init_master();
-    } else {
-        init_slave();
+pub fn ns_entry() -> ! {
+    unsafe {
+        asm!(
+            "ldr x1, =__ram_start
+             mov x2, #1024 * 1024 * 256
+             add x1, x1, x2
+             mov sp, x1"
+        );
     }
-
-    driver::delays::forever()
+    non_secure()
 }
+
+pub fn non_secure() -> ! {
+    loop {
+        driver::uart::puts("Hello Normal World!\n");
+        aarch64::syscall::smc::to_secure();
+    }
+}
+//-----------------------------------------------------------------------------
 
 #[lang = "eh_personality"]
 #[no_mangle]
