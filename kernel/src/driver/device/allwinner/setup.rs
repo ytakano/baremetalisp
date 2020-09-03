@@ -6,7 +6,6 @@ use super::psci;
 use super::security;
 use super::{read_soc_id, SoCID};
 use crate::driver::arm::gic;
-//use crate::driver::uart;
 
 pub fn platform_setup() {
     // TODO
@@ -57,6 +56,5 @@ pub fn platform_setup() {
     }
 
     power::init();
-
     psci::init();
 }

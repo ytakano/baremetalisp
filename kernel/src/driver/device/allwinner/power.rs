@@ -2,6 +2,7 @@ use core::ptr::{read_volatile, write_volatile};
 
 use super::rsb;
 use super::{init_platform_r_twi, read_soc_id, SoCID};
+use crate::print_msg;
 
 static mut PMIC: PMICType = PMICType::UNKNOWN;
 
@@ -27,19 +28,23 @@ pub(crate) fn init() {
     match read_soc_id() {
         SoCID::H5 => {
             set_pmic(PMICType::RefDesignH5);
+            print_msg("PMIC", "RefDesignH5");
         }
         SoCID::A64 => {
             if !init_platform_r_twi(SoCID::A64, true) {
                 set_pmic(PMICType::GenericA64);
+                print_msg("PMIC", "GenericA64");
                 return;
             }
 
             if !rsb::init() {
                 set_pmic(PMICType::GenericA64);
+                print_msg("PMIC", "GenericA64");
                 return;
             }
 
             set_pmic(PMICType::AXP803RSB);
+            print_msg("PMIC", "AXP803RSB");
 
             // TODO
             // axp_setup_regulators(fdt);

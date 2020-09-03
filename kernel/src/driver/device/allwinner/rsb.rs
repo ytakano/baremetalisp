@@ -42,9 +42,6 @@ fn wait_bit(desc: &str, offset: usize, mask: u32) -> bool {
         tries -= 1;
         if tries == 0 {
             // timed out
-            uart::puts("error: ");
-            uart::puts(desc);
-            uart::puts(": timed out\n");
             return false;
         }
     }
@@ -60,12 +57,6 @@ fn wait_stat(desc: &str) -> bool {
     if reg == 0x01 {
         return true;
     }
-
-    uart::puts("error: ");
-    uart::puts(desc);
-    uart::puts(": 0x");
-    uart::hex32(reg);
-    uart::puts("\n");
 
     false
 }
@@ -92,9 +83,6 @@ pub fn init() -> bool {
     }
 
     // Associate the 8-bit runtime address with the 12-bit bus address.
-    //
-    // error on Pine64+ here. why?
-    //
     if !assign_runtime_address(axp::AXP803_HW_ADDR, axp::AXP803_RT_ADDR) {
         return false;
     }

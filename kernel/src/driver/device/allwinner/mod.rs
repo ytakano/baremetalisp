@@ -82,11 +82,11 @@ pub(crate) fn init_platform_r_twi(socid: SoCID, use_rsb: bool) -> bool {
 
     // un-gate R_PIO clock
     match socid {
-        SoCID::H6 => {
+        SoCID::H6 => (),
+        _ => {
             let ptr = (memory::SUNXI_R_PRCM_BASE + 0x28) as *mut u32;
             bits::bit_set32(ptr, 0);
         }
-        _ => (),
     }
 
     // switch pins PL0 and PL1 to the desired function

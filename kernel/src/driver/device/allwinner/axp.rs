@@ -15,12 +15,11 @@ pub fn check_id() -> bool {
 
     let val = val & 0xcf;
     if val != defs::AXP_CHIP_ID {
+        uart::puts("PMIC: Found unknown PMIC 0x");
+        uart::hex32(val);
+        uart::puts("\n");
         return false;
     }
-
-    uart::puts("PMIC: Found unknown PMIC 0x");
-    uart::hex32(val);
-    uart::puts("\n");
 
     true
 }
