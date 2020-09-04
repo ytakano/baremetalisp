@@ -1,5 +1,6 @@
 use super::cpu;
 use super::memory;
+use super::power;
 use crate::driver::arm::scpi;
 use crate::driver::psci::PsciResult;
 use crate::driver::{psci, topology};
@@ -22,11 +23,11 @@ pub(crate) fn pwr_domain_on(mpidr: usize) -> PsciResult {
     }
 
     if cpu::scpi_available() {
-        scpi::scpi_set_css_power_state(
+        scpi::set_css_power_state(
             mpidr,
-            scpi::ScpiPowerState::ScpiPowerOn,
-            scpi::ScpiPowerState::ScpiPowerOn,
-            scpi::ScpiPowerState::ScpiPowerOn,
+            scpi::ScpiPowerState::PowerOn,
+            scpi::ScpiPowerState::PowerOn,
+            scpi::ScpiPowerState::PowerOn,
         );
     } else {
         cpu::cpu_on(mpidr);
@@ -49,7 +50,9 @@ pub(crate) fn pwr_domain_suspend_finish(_target_state: &psci::PsciPowerState) {}
 
 pub(crate) fn pwr_domain_pwr_down_wfi(_target_state: &psci::PsciPowerState) {}
 
-pub(crate) fn system_off() {}
+pub(crate) fn system_off() {
+    power::system_off();
+}
 
 pub(crate) fn system_reset() {}
 

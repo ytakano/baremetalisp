@@ -103,7 +103,7 @@ pub(crate) fn init() {
         bit_set32(SUNXI_R_CPUCFG_BASE as *mut u32, 0);
 
         // Wait for the SCP firmware to boot.
-        if scpi::scpi_wait_ready() {
+        if scpi::wait_ready() {
             set_scpi_available(true);
         }
     } else {

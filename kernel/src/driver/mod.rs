@@ -1,4 +1,4 @@
-mod arm;
+pub(crate) mod arm;
 pub mod defs;
 pub mod delays;
 mod device;

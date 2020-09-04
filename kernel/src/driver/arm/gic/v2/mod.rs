@@ -329,14 +329,28 @@ pub fn cpuif_enable() {
 
 fn gicc_write_pmr(base: usize, val: u32) {
     let ptr = (base + GICC_PMR) as *mut u32;
-    unsafe {
-        write_volatile(ptr, val);
-    }
+    unsafe { write_volatile(ptr, val) };
 }
 
 fn gicc_write_ctlr(base: usize, val: u32) {
     let ptr = (base + GICC_CTLR) as *mut u32;
-    unsafe {
-        write_volatile(ptr, val);
-    }
+    unsafe { write_volatile(ptr, val) };
+}
+
+fn gicc_read_ctlr(base: usize) -> u32 {
+    let ptr = (base + GICC_CTLR) as *mut u32;
+    unsafe { read_volatile(ptr) }
+}
+
+/// Place the cpu interface in a state where it can never make a cpu exit wfi as
+/// as result of an asserted interrupt. This is critical for powering down a cpu
+pub fn cpuif_disable() {
+    // Disable secure, non-secure interrupts and disable their bypass
+    let base = get_gicc_base();
+    let val = gicc_read_ctlr(base) & !(gic::CTLR_ENABLE_G0_BIT | CTLR_ENABLE_G1_BIT)
+        | FIQ_BYP_DIS_GRP1
+        | FIQ_BYP_DIS_GRP0
+        | IRQ_BYP_DIS_GRP0
+        | IRQ_BYP_DIS_GRP1;
+    gicc_write_ctlr(base, val);
 }

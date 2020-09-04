@@ -51,8 +51,8 @@ pub const FUNCID_CC_SHIFT: u32 = 30;
 pub const FUNCID_CC_MASK: u32 = 0x1;
 
 // Flags and error codes
-pub const SMC_64: u32 = 0;
-pub const SMC_32: u32 = 1;
+pub const SMC_64: u32 = 1;
+pub const SMC_32: u32 = 0;
 
 pub const SMC_TYPE_FAST: u32 = 1;
 pub const SMC_TYPE_YIELD: u32 = 0;
@@ -139,6 +139,10 @@ pub fn smc_handler(smc_fid: u32, x1: usize, x2: usize, x3: usize) -> PsciResult 
         // AArch32
         match smc_fid {
             PSCI_CPU_ON_AARCH32 => psci_cpu_on(x1, x2, x3),
+            PSCI_SYSTEM_OFF => {
+                driver::psci::system_off();
+                PsciResult::PsciEInternFail
+            }
             _ => PsciResult::PsciENotSupported,
         }
     } else {

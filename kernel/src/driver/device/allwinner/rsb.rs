@@ -42,6 +42,9 @@ fn wait_bit(desc: &str, offset: usize, mask: u32) -> bool {
         tries -= 1;
         if tries == 0 {
             // timed out
+            uart::puts("error: ");
+            uart::puts(desc);
+            uart::puts(" timed out\n");
             return false;
         }
     }

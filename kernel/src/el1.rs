@@ -17,7 +17,7 @@ pub fn el1_entry() -> ! {
     let stack = addr.stack_el0_start - addr.stack_size * aff;
     let entry = el0_entry as *const () as u64;
 
-    // change execution level to EL1
+    // change execution level to EL0t
     cpu::sp_el0::set(stack);
     cpu::spsr_el1::set(0); // EL0t
     cpu::elr_el1::set(entry);

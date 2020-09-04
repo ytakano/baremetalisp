@@ -27,3 +27,30 @@ pub fn check_id() -> bool {
 pub(crate) fn read(reg: u32) -> Option<u32> {
     rsb::read(AXP803_RT_ADDR, reg)
 }
+
+pub(crate) fn write(reg: u32, val: u32) -> bool {
+    rsb::write(AXP803_RT_ADDR, reg, val)
+}
+
+pub fn power_off() {
+    // Set "power disable control" bit
+    setbits(0x32, 1 << 7);
+}
+
+fn clrsetbits(reg: u32, clr_mask: u32, set_mask: u32) -> bool {
+    let ret;
+    match read(reg) {
+        Some(x) => {
+            ret = x;
+        }
+        None => {
+            return false;
+        }
+    }
+    let val = (ret & !clr_mask) | set_mask;
+    write(reg, val)
+}
+
+fn setbits(reg: u32, set_mask: u32) -> bool {
+    clrsetbits(reg, 0, set_mask)
+}

@@ -45,8 +45,8 @@ pub fn switch_world(ctx: &context::GpRegs, sp: usize, to_secure: bool) {
     context::restore_and_eret(sp as u64, to_secure);
 }
 
-/// SMC64 standard service calls
-pub fn smc64_std_service(ctx: &context::GpRegs, sp: usize) {
+/// SMC standard service calls
+pub fn smc_std_service(ctx: &context::GpRegs, sp: usize) {
     match ctx.x0 {
         smc::SMC_TO_NORMAL => switch_world(ctx, sp, false),
         smc::SMC_TO_SECURE => switch_world(ctx, sp, true),

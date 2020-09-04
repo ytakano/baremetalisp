@@ -116,6 +116,16 @@ pub fn ns_entry() -> ! {
 }
 
 pub fn non_secure() -> ! {
+    // test code for shutdown
+    /*
+    unsafe {
+        let x0: u64 = 0x84000008;
+        asm!(
+            "mov x0, {}
+             smc #0",
+            in(reg) x0
+        );
+    }*/
     loop {
         driver::uart::puts("Hello Normal World!\n");
         aarch64::syscall::smc::to_secure();

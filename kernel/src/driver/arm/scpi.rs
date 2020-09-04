@@ -18,39 +18,60 @@ enum ScpiSet {
 }
 
 #[derive(PartialEq, Clone, Copy)]
-enum ScpiResult {
-    ScpOk = 0,    // Success
-    ScpEParam,    // Invalid parameter(s)
-    ScpEAlign,    // Invalid alignment
-    ScpESize,     // Invalid size
-    ScpEHandler,  // Invalid handler or callback
-    ScpEAccess,   // Invalid access or permission denied
-    ScpERange,    // Value out of range
-    ScpETimeout,  // Time out has ocurred
-    ScpENomem,    // Invalid memory area or pointer
-    ScpEPwrstate, // Invalid power state
-    ScpESupport,  // Feature not supported or disabled
-    ScpiEDevice,  // Device error
-    ScpiEBusy,    // Device is busy
+pub enum ScpiResult {
+    Ok = 0,    // Success
+    EParam,    // Invalid parameter(s)
+    EAlign,    // Invalid alignment
+    ESize,     // Invalid size
+    EHandler,  // Invalid handler or callback
+    EAccess,   // Invalid access or permission denied
+    ERange,    // Value out of range
+    ETimeout,  // Time out has ocurred
+    ENomem,    // Invalid memory area or pointer
+    EPwrstate, // Invalid power state
+    ESupport,  // Feature not supported or disabled
+    EDevice,   // Device error
+    EBusy,     // Device is busy
+}
+
+impl ScpiResult {
+    pub fn from_u32(n: u32) -> ScpiResult {
+        match n {
+            0 => ScpiResult::Ok,
+            1 => ScpiResult::EParam,
+            2 => ScpiResult::EAlign,
+            3 => ScpiResult::ESize,
+            4 => ScpiResult::EHandler,
+            5 => ScpiResult::EAccess,
+            6 => ScpiResult::ERange,
+            7 => ScpiResult::ETimeout,
+            8 => ScpiResult::ENomem,
+            9 => ScpiResult::EPwrstate,
+            10 => ScpiResult::ESupport,
+            11 => ScpiResult::EDevice,
+            12 => ScpiResult::EBusy,
+            _ => ScpiResult::EDevice,
+        }
+    }
 }
 
 enum ScpiCommand {
-    ScpiCmdScpReady = 0x01,
-    ScpiCmdSetCssPowerState = 0x03,
-    ScpiCmdGetCssPowerState = 0x04,
-    ScpiCmdSysPowerStat = 0x00,
+    ScpReady = 0x01,
+    SetCssPowerState = 0x03,
+    GetCssPowerState = 0x04,
+    SysPowerState = 0x05,
 }
 
 pub enum ScpiPowerState {
-    ScpiPowerOn = 0,
-    ScpiPowerRetention = 1,
-    ScpiPowerOff = 3,
+    PowerOn = 0,
+    PowerRetention = 1,
+    PowerOff = 3,
 }
 
-enum ScpiSystemState {
-    ScpiSystemShutdown = 0,
-    ScpiSystemReboot = 1,
-    ScpiSystemReset = 2,
+pub enum ScpiSystemState {
+    Shutdown = 0,
+    Reboot = 1,
+    Reset = 2,
 }
 
 #[repr(C)]
@@ -84,25 +105,25 @@ impl ScpiCmd {
     }
 }
 
-pub fn scpi_wait_ready() -> bool {
+pub fn wait_ready() -> bool {
     let mut cmd = ScpiCmd::new();
 
     {
         // Get a message from the SCP
         mhu::SecureMsgLock::new();
-        if !scpi_secure_message_receive(&mut cmd) {
+        if !secure_message_receive(&mut cmd) {
             // If no message was received, don't send a response
             return false;
         }
     }
 
     // We are expecting 'SCP Ready', produce correct error if it's not
-    let status = if cmd.id != ScpiCommand::ScpiCmdScpReady as u32 {
-        ScpiResult::ScpESupport
+    let status = if cmd.id != ScpiCommand::ScpReady as u32 {
+        ScpiResult::ESupport
     } else if cmd.size != 0 {
-        ScpiResult::ScpESize
+        ScpiResult::ESize
     } else {
-        ScpiResult::ScpOk
+        ScpiResult::Ok
     };
 
     // Send our response back to SCP.
@@ -118,13 +139,13 @@ pub fn scpi_wait_ready() -> bool {
             );
         }
 
-        scpi_secure_message_send(0);
+        secure_message_send(0);
     }
 
-    status == ScpiResult::ScpOk
+    status == ScpiResult::Ok
 }
 
-pub fn scpi_secure_message_send(_payload_size: usize) {
+pub fn secure_message_send(_payload_size: usize) {
     // Ensure that any write to the SCPI payload area is seen by SCP before
     // we write to the MHU register. If these 2 writes were reordered by
     // the CPU then SCP would read stale payload data
@@ -133,7 +154,7 @@ pub fn scpi_secure_message_send(_payload_size: usize) {
     mhu::mhu_secure_message_send(SCPI_MHU_SLOT_ID);
 }
 
-pub fn scpi_secure_message_receive(cmd: &mut ScpiCmd) -> bool {
+pub fn secure_message_receive(cmd: &mut ScpiCmd) -> bool {
     let mhu_status = mhu::mhu_secure_message_wait();
 
     // Expect an SCPI message, reject any other protocol
@@ -156,7 +177,7 @@ pub fn scpi_secure_message_receive(cmd: &mut ScpiCmd) -> bool {
     true
 }
 
-pub fn scpi_set_css_power_state(
+pub fn set_css_power_state(
     mpidr: usize,
     cpu_state: ScpiPowerState,
     cluster_state: ScpiPowerState,
@@ -170,7 +191,7 @@ pub fn scpi_set_css_power_state(
 
     // Populate the command header
     let mut cmd = ScpiCmd::new();
-    cmd.set_id(ScpiCommand::ScpiCmdSetCssPowerState);
+    cmd.set_id(ScpiCommand::SetCssPowerState);
     cmd.set_set(ScpiSet::ScpiSetNormal);
     cmd.sender = 0;
     cmd.size = size_of::<u32>() as u32; // sizeof state
@@ -189,8 +210,34 @@ pub fn scpi_set_css_power_state(
     unsafe {
         write_volatile(SCPI_CMD_PAYLOAD_AP_TO_SCP as *mut u32, state);
     }
-    scpi_secure_message_send(size_of::<u32>()); // sizeof state
+    secure_message_send(size_of::<u32>()); // sizeof state
 
     // SCP does not reply to this command in order to avoid MHU interrupts
     // from the sender, which could interfere with its power state request.
+}
+
+pub fn sys_power_state(system_state: ScpiSystemState) -> ScpiResult {
+    let mut response = ScpiCmd::new();
+    {
+        mhu::SecureMsgLock::new();
+        unsafe {
+            let cmd = SCPI_SHARED_MEM_AP_TO_SCP as *mut ScpiCmd;
+            // Populate the command header
+            write_volatile(&mut (*cmd).id, ScpiCommand::SysPowerState as u32);
+            write_volatile(&mut (*cmd).set, 0);
+            write_volatile(&mut (*cmd).sender, 0);
+            write_volatile(&mut (*cmd).size, size_of::<u8>() as u32);
+
+            // Populate the command payload
+            write_volatile(SCPI_CMD_PAYLOAD_AP_TO_SCP as *mut u8, system_state as u8);
+        }
+        secure_message_send(size_of::<u8>());
+
+        // If no response is received, fill in an error status
+        if !secure_message_receive(&mut response) {
+            return ScpiResult::ETimeout;
+        }
+    }
+
+    ScpiResult::from_u32(response.status)
 }

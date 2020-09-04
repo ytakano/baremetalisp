@@ -32,6 +32,7 @@ pub mod smc {
     use crate::el3;
 
     const SMC64_STD_SERVICE: u64 = 0xc4;
+    const SMC32_STD_SERVICE: u64 = 0x84;
 
     pub const SMC_TO_NORMAL: u64 = 0xc400F001;
     pub const SMC_TO_SECURE: u64 = 0xc400F002;
@@ -60,15 +61,15 @@ pub mod smc {
         }
     }
 
-    pub fn handle64(ctx: &context::GpRegs, sp: usize) {
+    pub fn handler(ctx: &context::GpRegs, sp: usize) {
         uart::puts("SMC 0x");
         uart::hex32(ctx.x0 as u32);
         uart::puts("\n");
 
         let id = (ctx.x0 >> 24) & 0xff;
 
-        if id == SMC64_STD_SERVICE {
-            el3::smc64_std_service(ctx, sp);
+        if id == SMC64_STD_SERVICE || id == SMC32_STD_SERVICE {
+            el3::smc_std_service(ctx, sp);
         }
     }
 }
