@@ -2,6 +2,7 @@ use core::ptr::{read_volatile, write_volatile};
 
 use super::{axp, cpu, memory, rsb};
 use super::{init_platform_r_twi, read_soc_id, SoCID};
+use crate::aarch64;
 use crate::bits;
 use crate::driver::arm::{gic, scpi};
 use crate::driver::{delays, uart};
@@ -74,14 +75,15 @@ pub fn system_off() {
         }
     }
 
-    // TODO:
     // Turn off all secondary CPUs
-    // sunxi_disable_secondary_cpus()
+    cpu::disable_secondary_cpus(aarch64::cpu::mpidr_el1::get() as usize);
 
+    uart::puts("PSCI: Turning off system\n");
     power_down();
 
     delays::wait_microsec(1000);
     uart::puts("error: PSCI: Cannot turn off system, halting\n");
+    aarch64::cpu::wait_interrupt();
     panic!("failed shutdown");
 }
 

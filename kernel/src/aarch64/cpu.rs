@@ -467,6 +467,11 @@ pub fn wait_event() {
     unsafe { asm!("wfe") };
 }
 
+/// wfi
+pub fn wait_interrupt() {
+    unsafe { asm!("wfi") };
+}
+
 /// dmb st
 pub fn dmb_st() {
     unsafe { asm!("dmb st") };

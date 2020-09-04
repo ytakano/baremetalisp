@@ -125,7 +125,9 @@ pub fn non_secure() -> ! {
              smc #0",
             in(reg) x0
         );
-    }*/
+    }
+    */
+
     loop {
         driver::uart::puts("Hello Normal World!\n");
         aarch64::syscall::smc::to_secure();

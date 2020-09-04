@@ -22,6 +22,9 @@ pub fn early_init() {
 
     delays::init();
     uart::init();
+    uart::puts("\n");
+
+    setup::early_platform_setup();
 
     //rand::init();
     //uart::puts("initialized rand\n");

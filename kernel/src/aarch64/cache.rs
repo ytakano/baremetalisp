@@ -3,8 +3,8 @@ use super::mmu::PAGESIZE;
 
 /// clean cache.
 /// dc cvac
-pub fn clean<T>(obj: &mut T, size: usize) {
-    let addr = obj as *mut T as usize;
+pub fn clean<T>(obj: &T, size: usize) {
+    let addr = obj as *const T as usize;
     let mut base = addr & !(PAGESIZE as usize - 1);
 
     while base < addr + size {
@@ -19,8 +19,8 @@ pub fn clean<T>(obj: &mut T, size: usize) {
 
 /// flush cache
 /// dc civac
-pub fn clean_invalidate<T>(obj: &mut T, size: usize) {
-    let addr = obj as *mut T as usize;
+pub fn clean_invalidate<T>(obj: &T, size: usize) {
+    let addr = obj as *const T as usize;
     let mut base = addr & !(PAGESIZE as usize - 1);
 
     while base < addr + size {
@@ -35,8 +35,8 @@ pub fn clean_invalidate<T>(obj: &mut T, size: usize) {
 
 /// invalidate cache
 /// dc ivac
-pub fn invalidate<T>(obj: &mut T, size: usize) {
-    let addr = obj as *mut T as usize;
+pub fn invalidate<T>(obj: &T, size: usize) {
+    let addr = obj as *const T as usize;
     let mut base = addr & !(PAGESIZE as usize - 1);
 
     while base < addr + size {

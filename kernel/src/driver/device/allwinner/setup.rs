@@ -1,11 +1,17 @@
 use core::ptr::write_volatile;
 
+use super::cpu;
 use super::memory;
 use super::power;
 use super::psci;
 use super::security;
 use super::{read_soc_id, SoCID};
+use crate::aarch64;
 use crate::driver::arm::gic;
+
+pub fn early_platform_setup() {
+    cpu::disable_secondary_cpus(aarch64::cpu::mpidr_el1::get() as usize);
+}
 
 pub fn platform_setup() {
     // TODO

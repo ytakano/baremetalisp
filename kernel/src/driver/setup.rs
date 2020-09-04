@@ -7,3 +7,7 @@ use super::device::allwinner::setup;
 pub fn platform_setup() {
     setup::platform_setup();
 }
+
+pub fn early_platform_setup() {
+    setup::early_platform_setup();
+}
