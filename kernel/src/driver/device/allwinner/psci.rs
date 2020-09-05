@@ -5,8 +5,6 @@ use crate::driver::arm::scpi;
 use crate::driver::psci::PsciResult;
 use crate::driver::{psci, topology};
 
-pub(crate) const PLAT_MAX_PWR_LVL: usize = 2;
-
 pub(crate) fn init() {
     cpu::init();
 }

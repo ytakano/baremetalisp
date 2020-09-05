@@ -5,8 +5,6 @@ use crate::driver::psci::PsciResult;
 // TODO:
 // not yet implemented
 
-pub(crate) const PLAT_MAX_PWR_LVL: usize = 1;
-
 pub(crate) fn init() {}
 
 pub(crate) fn cpu_standby(_cpu_state: u8) {}

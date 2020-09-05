@@ -4,6 +4,8 @@ use super::device::allwinner::psci;
 #[cfg(any(feature = "raspi3", feature = "raspi4"))]
 use super::device::raspi::psci;
 
+use super::defs;
+
 //use super::uart;
 
 pub enum PsciResult {
@@ -21,7 +23,7 @@ pub enum PsciResult {
 
 // The pwr_domain_state[] stores the local power state at each level
 // for the CPU.
-pub type PsciPowerState = [u8; psci::PLAT_MAX_PWR_LVL + 1];
+pub type PsciPowerState = [u8; (defs::MAX_PWR_LVL + 1) as usize];
 
 pub fn cpu_standby(cpu_state: u8) {
     psci::cpu_standby(cpu_state);

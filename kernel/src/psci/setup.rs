@@ -2,7 +2,7 @@ use super::ep_info::{Aapcs64Params, EntryPointInfo, ParamHeader};
 use super::{cpu_on, data, ep_info};
 use crate::aarch64::{context, cpu};
 use crate::driver;
-use crate::driver::psci::PsciResult;
+use crate::driver::psci::{PsciPowerState, PsciResult};
 use crate::driver::{defs, topology, uart};
 
 use core::mem::size_of;
@@ -234,7 +234,7 @@ fn get_power_on_target_pwrlvl(idx: usize) -> u8 {
 /// from the current cpu power domain to its ancestor at the 'end_pwrlvl'. This
 /// function will be called after a cpu is powered on to find the local state
 /// each power domain has emerged from.
-fn get_target_local_pwr_states(end_pwrlvl: u8) -> [u8; (defs::MAX_PWR_LVL + 1) as usize] {
+fn get_target_local_pwr_states(end_pwrlvl: u8) -> PsciPowerState {
     let mut target_state = [0; (defs::MAX_PWR_LVL + 1) as usize];
     let idx = topology::core_pos();
     let mut parent_idx = data::get_cpu_pd_parent_node(idx);
