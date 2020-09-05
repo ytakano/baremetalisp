@@ -11,14 +11,15 @@ extern "C" {
 
 pub fn el3_to_el1() -> ! {
     let addr = mmu::get_memory_map();
-    let aff = topology::core_pos() as u64;
-    let stack = addr.stack_el1_start - addr.stack_size * aff + mmu::EL1_ADDR_OFFSET;
+    let idx = topology::core_pos() as u64;
+    let stack = addr.stack_el1_start - addr.stack_size * idx + mmu::EL1_ADDR_OFFSET;
     let entry = el1_entry as *const () as u64;
-    let stack_el3 = mmu::get_stack_firm_start() - addr.stack_size * aff;
+    let stack_el3 = mmu::get_stack_firm_start() - addr.stack_size * idx;
 
-    context::set_sp_el1(stack, true); // set stack pointer of EL1
-    context::set_elr(entry, true); // set entry point of EL1
-    context::restore_and_eret(stack_el3, true); // enter EL1
+    let ctx = context::get_ctx(idx as usize, true);
+    ctx.set_sp_el1(stack); // set stack pointer of EL1
+    ctx.set_elr(entry); // set entry point of EL1
+    ctx.restore_and_eret(stack_el3); // enter EL1
 
     delays::forever();
 }
@@ -37,12 +38,14 @@ pub fn switch_world(ctx: &context::GpRegs, sp: usize, to_secure: bool) {
         return;
     }
 
-    let c = context::get_ctx(topology::core_pos(), !to_secure);
+    let idx = topology::core_pos();
+    let c = context::get_ctx(idx, !to_secure);
     c.save_fpregs(); // save SIMD registers
     c.save_sysregs(); // save system registers
     c.save_gpregs(ctx); // save general purpose registers
 
-    context::restore_and_eret(sp as u64, to_secure);
+    let c = context::get_ctx(idx, to_secure);
+    c.restore_and_eret(sp as u64);
 }
 
 /// SMC standard service calls

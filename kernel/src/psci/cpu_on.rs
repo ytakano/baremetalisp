@@ -7,7 +7,7 @@ use crate::driver;
 
 /// This function checks whether a cpu which has been requested to be turned on
 /// is OFF to begin with.
-fn cpu_on_validate_state(aff_state: &AffInfoState) -> PsciResult {
+fn validate_state(aff_state: &AffInfoState) -> PsciResult {
     match aff_state {
         AffInfoState::StateOn => PsciResult::PsciEAleadyOn,
         AffInfoState::StateOnPending => PsciResult::PsciEOnPending,
@@ -23,7 +23,7 @@ fn cpu_on_validate_state(aff_state: &AffInfoState) -> PsciResult {
 ///
 /// The state of all the relevant power domains are changed after calling the
 /// platform handler as it can return error.
-pub(crate) fn psci_cpu_on_start(target_cpu: usize, ep: EntryPointInfo) -> PsciResult {
+pub(crate) fn start(target_cpu: usize, ep: EntryPointInfo) -> PsciResult {
     let idx;
     match driver::topology::core_pos_by_mpidr(target_cpu) {
         Some(c) => {
@@ -53,7 +53,7 @@ pub(crate) fn psci_cpu_on_start(target_cpu: usize, ep: EntryPointInfo) -> PsciRe
     // so the cache may contain stale data for the target CPU.
     data::flush_cache_cpu_state(idx);
     let state = data::get_cpu_aff_info_state(idx);
-    match cpu_on_validate_state(&state) {
+    match validate_state(&state) {
         PsciResult::PsciESuccess => (),
         err => {
             return err;
@@ -96,4 +96,8 @@ pub(crate) fn psci_cpu_on_start(target_cpu: usize, ep: EntryPointInfo) -> PsciRe
     }
 
     rc
+}
+
+pub(crate) fn finish(idx: usize, state_info: &[u8]) {
+    // TODO
 }

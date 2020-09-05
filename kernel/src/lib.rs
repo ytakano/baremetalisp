@@ -29,12 +29,15 @@ use core::panic::PanicInfo;
 /// entry point from assembly code
 #[no_mangle]
 pub fn entry() -> ! {
-    aarch64::mmu::init_memory_map();
+    // Program the counter frequency
+    if aarch64::cpu::get_current_el() == 3 {
+        aarch64::cpu::cntfrq_el0::set(driver::defs::SYSCNT_FRQ as u64);
+    }
 
     if driver::topology::core_pos() == 0 {
-        init_master();
+        init_primary();
     } else {
-        init_slave();
+        init_secondary();
     }
 
     driver::delays::forever()
@@ -51,10 +54,12 @@ pub fn print_msg(key: &str, val: &str) {
     driver::uart::puts("\n");
 }
 
-/// initialization for the master CPU
-fn init_master() {
+/// initialization for the primary CPU
+fn init_primary() {
+    aarch64::mmu::init_memory_map();
+
     if aarch64::cpu::get_current_el() == 3 {
-        aarch64::cpu::init_cptr_el3();
+        aarch64::cpu::init_cptr_el3(); // enable NEON
     }
 
     driver::early_init();
@@ -69,6 +74,8 @@ fn init_master() {
 
     // examples
     // driver::psci::pwr_domain_on(1); // wake up CPU #1 (Pine64)
+    // driver::delays::wait_milisec(10);
+
     // aarch64::cpu::start_non_primary(); // wake up non-primary CPUs (Raspi)
 
     match aarch64::cpu::get_current_el() {
@@ -93,10 +100,25 @@ fn init_master() {
     }
 }
 
-/// initialization for slave CPUs
-fn init_slave() -> ! {
+/// initialization for secondary CPUs
+fn init_secondary() -> ! {
     aarch64::mmu::set_regs();
-    driver::uart::puts("initialized slaves\n");
+
+    match aarch64::cpu::get_current_el() {
+        3 => {
+            psci::init_warmboot();
+            aarch64::context::init_secure();
+            aarch64::context::init_el2_regs();
+            driver::uart::puts("booted secondary CPU\n");
+        }
+        2 => {
+            aarch64::context::init_el2_regs();
+        }
+        _ => {
+            panic!("execution level is not EL3");
+        }
+    }
+
     driver::delays::forever()
 }
 

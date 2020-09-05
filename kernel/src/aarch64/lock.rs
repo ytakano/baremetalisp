@@ -19,6 +19,16 @@ impl LockVar {
     pub fn lock(&mut self) -> SpinLock {
         SpinLock::new(&mut self.var)
     }
+
+    /// this function lock but do not release automatically
+    pub unsafe fn force_lock(&mut self) {
+        lock_var(&mut self.var);
+    }
+
+    /// unlock
+    pub unsafe fn force_unlock(&mut self) {
+        unlock_var(&mut self.var);
+    }
 }
 
 pub struct SpinLock<'a> {
@@ -27,34 +37,43 @@ pub struct SpinLock<'a> {
 
 impl<'a> SpinLock<'a> {
     fn new(n: &'a mut u64) -> SpinLock<'a> {
-        if 0 == unsafe { read_volatile(n) } {
-            if test_and_set_no_release(n) {
-                return SpinLock { lock: n };
-            }
-        }
-
-        loop {
-            cpu::send_event_local();
-            loop {
-                cpu::wait_event();
-                if 0 == unsafe { read_volatile(n) } {
-                    break;
-                }
-            }
-
-            if test_and_set_no_release(n) {
-                return SpinLock { lock: n };
-            }
-        }
+        lock_var(n);
+        return SpinLock { lock: n };
     }
 }
 
 impl<'a> Drop for SpinLock<'a> {
     fn drop(&mut self) {
-        let addr = self.lock as *mut u64 as usize;
-        unsafe {
-            asm!("stlr xzr, [{}]", in(reg) addr);
+        unlock_var(&mut self.lock);
+    }
+}
+
+fn lock_var<'a>(n: &'a mut u64) {
+    if 0 == unsafe { read_volatile(n) } {
+        if test_and_set_no_release(n) {
+            return;
         }
+    }
+
+    loop {
+        cpu::send_event_local();
+        loop {
+            cpu::wait_event();
+            if 0 == unsafe { read_volatile(n) } {
+                break;
+            }
+        }
+
+        if test_and_set_no_release(n) {
+            return;
+        }
+    }
+}
+
+fn unlock_var<'a>(n: &'a mut u64) {
+    let addr = n as *mut u64 as usize;
+    unsafe {
+        asm!("stlr xzr, [{}]", in(reg) addr);
     }
 }
 

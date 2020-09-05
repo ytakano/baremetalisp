@@ -1,13 +1,17 @@
-use super::data;
-use crate::driver::defs;
-use crate::driver::topology;
+use super::ep_info::{Aapcs64Params, EntryPointInfo, ParamHeader};
+use super::{cpu_on, data, ep_info};
+use crate::aarch64::{context, cpu};
+use crate::driver;
+use crate::driver::psci::PsciResult;
+use crate::driver::{defs, topology, uart};
+
+use core::mem::size_of;
 
 /// Function which initializes the 'psci_non_cpu_pd_nodes' or the
 /// 'psci_cpu_pd_nodes' corresponding to the power level.
-pub fn init_pwr_domain_node(node_idx: usize, parent_idx: usize, level: u8) {
+pub(crate) fn init_pwr_domain_node(node_idx: usize, parent_idx: usize, level: u8) {
     if level > data::PSCI_CPU_PWR_LVL {
         data::set_non_cpu_pd_level(node_idx, level);
-        data::set_non_cpu_pd_lock_index(node_idx, node_idx);
         data::set_non_cpu_pd_parent_node(node_idx, parent_idx);
         data::set_non_cpu_pd_local_state(node_idx, defs::MAX_OFF_STATE);
     } else {
@@ -131,12 +135,12 @@ pub(crate) fn init_req_local_pwr_states() {
 /// This function is invoked post CPU power up and initialization. It sets the
 /// affinity info state, target power state and requested power state for the
 /// current CPU and all its ancestor power domains to RUN.
-pub(crate) fn set_pwr_domains_to_run() {
+fn set_pwr_domains_to_run(end_pwrlvl: u8) {
     let cpu_idx = topology::core_pos();
     let mut parent_idx = data::get_cpu_pd_parent_node(cpu_idx);
 
     // Reset the local_state to RUN for the non cpu power domains.
-    for lvl in (data::PSCI_CPU_PWR_LVL + 1)..(defs::MAX_PWR_LVL + 1) {
+    for lvl in (data::PSCI_CPU_PWR_LVL + 1)..(end_pwrlvl + 1) {
         data::set_non_cpu_pd_local_state(parent_idx, data::PSCI_LOCAL_STATE_RUN);
         data::set_req_local_pwr_state(lvl as usize, cpu_idx, data::PSCI_LOCAL_STATE_RUN);
         parent_idx = data::get_non_cpu_pd_parent_node(parent_idx);
@@ -146,4 +150,258 @@ pub(crate) fn set_pwr_domains_to_run() {
     data::set_cpu_aff_info_state(cpu_idx, data::AffInfoState::StateOn);
 
     data::set_cpu_local_state(cpu_idx, data::PSCI_LOCAL_STATE_RUN);
+}
+
+/// Generic handler which is called when a cpu is physically powered on. It
+/// traverses the node information and finds the highest power level powered
+/// off and performs generic, architectural, platform setup and state management
+/// to power on that power level and power levels below it.
+/// e.g. For a cpu that's been powered on, it will call the platform specific
+/// code to enable the gic cpu interface and for a cluster it will enable
+/// coherency at the interconnect level in addition to gic cpu interface.
+pub(crate) fn init_warmboot() {
+    let idx = topology::core_pos();
+    match data::get_cpu_aff_info_state(idx) {
+        data::AffInfoState::StateOff => {
+            uart::puts("Unexpected affinity info state.\n");
+            panic!("invalid affinity info");
+        }
+        _ => (),
+    }
+
+    // Get the maximum power domain level to traverse to after this cpu
+    // has been physically powered up.
+    let end_pwrlvl = get_power_on_target_pwrlvl(idx);
+
+    // Get the parent nodes
+    let parent_nodes = &get_parent_pwr_domain_nodes(idx)[0..end_pwrlvl as usize];
+
+    // lock parents
+    for i in parent_nodes {
+        unsafe { data::non_cpu_pd_force_lock(*i) };
+    }
+
+    let state_info = get_target_local_pwr_states(end_pwrlvl);
+
+    // This CPU could be resuming from suspend or it could have just been
+    // turned on. To distinguish between these 2 cases, we examine the
+    // affinity state of the CPU:
+    //  - If the affinity state is ON_PENDING then it has just been
+    //    turned on.
+    //  - Else it is resuming from suspend.
+    //
+    // Depending on the type of warm reset identified, choose the right set
+    // of power management handler and perform the generic, architecture
+    // and platform specific handling.
+    match data::get_cpu_aff_info_state(idx) {
+        data::AffInfoState::StateOnPending => {
+            cpu_on::finish(idx, &state_info);
+        }
+        _ => {
+            // TODO
+            // psci_cpu_suspend_finish(cpu_idx, &state_info);
+        }
+    }
+
+    // Set the requested and target state of this CPU and all the higher
+    // power domains which are ancestors of this CPU to run.
+    set_pwr_domains_to_run(end_pwrlvl);
+
+    // This loop releases the lock corresponding to each power level
+    // in the reverse order to which they were acquired.
+    for i in parent_nodes {
+        unsafe { data::non_cpu_pd_force_unlock(*i) };
+    }
+}
+
+/// Routine to return the maximum power level to traverse to after a cpu has
+/// been physically powered up. It is expected to be called immediately after
+/// reset from assembler code.
+fn get_power_on_target_pwrlvl(idx: usize) -> u8 {
+    // Assume that this cpu was suspended and retrieve its target power
+    // level. If it is invalid then it could only have been turned off
+    // earlier. PLAT_MAX_PWR_LVL will be the highest power level a
+    // cpu can be turned off to.
+    let pwrlvl = data::get_cpu_target_pwrlvl(idx);
+    if pwrlvl == data::INVALID_PWR_LVL {
+        defs::MAX_PWR_LVL
+    } else {
+        pwrlvl
+    }
+}
+
+/// Helper function to return the current local power state of each power domain
+/// from the current cpu power domain to its ancestor at the 'end_pwrlvl'. This
+/// function will be called after a cpu is powered on to find the local state
+/// each power domain has emerged from.
+fn get_target_local_pwr_states(end_pwrlvl: u8) -> [u8; (defs::MAX_PWR_LVL + 1) as usize] {
+    let mut target_state = [0; (defs::MAX_PWR_LVL + 1) as usize];
+    let idx = topology::core_pos();
+    let mut parent_idx = data::get_cpu_pd_parent_node(idx);
+
+    // Copy the local power state from node to state_info
+    target_state[data::PSCI_CPU_PWR_LVL as usize] = data::get_cpu_local_state(idx);
+    for lvl in (data::PSCI_CPU_PWR_LVL + 1)..(end_pwrlvl + 1) {
+        target_state[lvl as usize] = data::get_non_cpu_pd_local_state(parent_idx);
+        parent_idx = data::get_non_cpu_pd_parent_node(parent_idx);
+    }
+
+    // Set the the higher levels to RUN
+    for lvl in (end_pwrlvl + 1)..(defs::MAX_PWR_LVL + 1) {
+        target_state[lvl as usize] = data::PSCI_LOCAL_STATE_RUN;
+    }
+
+    target_state
+}
+
+extern "C" {
+    fn ns_entry();
+}
+
+/// This function does the architectural setup and takes the warm boot
+/// entry-point `mailbox_ep` as an argument. The function also initializes the
+/// power domain topology tree by querying the platform. The power domain nodes
+/// higher than the CPU are populated in the array psci_non_cpu_pd_nodes[] and
+/// the CPU power domains are populated in psci_cpu_pd_nodes[]. The platform
+/// exports its static topology map through the
+/// populate_power_domain_topology_tree() API. The algorithm populates the
+/// psci_non_cpu_pd_nodes and psci_cpu_pd_nodes iteratively by using this
+/// topology map.  On a platform that implements two clusters of 2 cpus each,
+/// and supporting 3 domain levels, the populated psci_non_cpu_pd_nodes would
+/// look like this:
+///
+/// ---------------------------------------------------
+/// | system node | cluster 0 node  | cluster 1 node  |
+/// ---------------------------------------------------
+///
+/// And populated psci_cpu_pd_nodes would look like this :
+/// <-    cpus cluster0   -><-   cpus cluster1   ->
+/// ------------------------------------------------
+/// |   CPU 0   |   CPU 1   |   CPU 2   |   CPU 3  |
+/// ------------------------------------------------
+pub(crate) fn init() {
+    // Populate the power domain arrays using the platform topology map
+    populate_power_domain_tree(driver::topology::POWER_DOMAIN_TREE_DESC);
+
+    // Update the CPU limits for each node in psci_non_cpu_pd_nodes */
+    update_pwrlvl_limits();
+
+    // Populate the mpidr field of cpu node for this CPU
+    data::set_cpu_pd_mpidr(
+        topology::core_pos(),
+        cpu::mpidr_el1::get() & cpu::MPIDR_AFFINITY_MASK,
+    );
+
+    init_req_local_pwr_states();
+
+    // Set the requested and target state of this CPU and all the higher
+    // power domain levels for this CPU to run.
+    set_pwr_domains_to_run(defs::MAX_PWR_LVL);
+
+    // setup normal world's context
+    let ep;
+    let ptr = ns_entry as *const () as usize;
+    match validate_entry_point(ptr, 0) {
+        Ok(e) => {
+            ep = e;
+        }
+        Err(_) => {
+            return;
+        }
+    }
+
+    // Store the re-entry information for the non-secure world.
+    context::init_context(topology::core_pos(), ep);
+}
+
+/// This function validates the entrypoint with the platform layer if the
+/// appropriate pm_ops hook is exported by the platform and returns the
+/// 'entry_point_info'.
+pub(crate) fn validate_entry_point(
+    entrypoint: usize,
+    context_id: usize,
+) -> Result<EntryPointInfo, PsciResult> {
+    // Validate the entrypoint using platform psci_ops
+    match driver::psci::validate_ns_entrypoint(entrypoint) {
+        PsciResult::PsciESuccess => (),
+        _ => {
+            return Err(PsciResult::PsciEInvalidAddress);
+        }
+    }
+
+    // Verify and derive the re-entry information for
+    // the non-secure world from the non-secure state from
+    // where this call originated.
+    get_ns_ep_info(entrypoint, context_id)
+}
+
+/// This function determines the full entrypoint information for the requested
+/// PSCI entrypoint on power on/resume and returns it.
+/// (for AArch64)
+fn get_ns_ep_info(entrypoint: usize, context_id: usize) -> Result<EntryPointInfo, PsciResult> {
+    let ns_scr_el3 = cpu::scr_el3::get();
+    let sctlr = if (ns_scr_el3 & cpu::SCR_HCE_BIT) != 0 {
+        cpu::sctlr_el2::get()
+    } else {
+        cpu::sctlr_el1::get()
+    };
+
+    let ee;
+    let ep_attr;
+    if (sctlr & cpu::SCTLR_EE_BIT) != 0 {
+        ep_attr = ep_info::EP_NON_SECURE | ep_info::EP_EE_BIG | ep_info::EP_ST_DISABLE;
+        ee = 1;
+    } else {
+        ep_attr = ep_info::EP_NON_SECURE | ep_info::EP_ST_DISABLE;
+        ee = 0;
+    }
+
+    // Figure out whether the cpu enters the non-secure address space
+    // in aarch32 or aarch64
+    let spsr = if (ns_scr_el3 & cpu::SCR_RW_BIT) != 0 {
+        // Check whether a Thumb entry point has been provided for an
+        // aarch64 EL
+        if (entrypoint & 0x1) != 0 {
+            return Err(PsciResult::PsciEInvalidAddress);
+        }
+
+        let mode = if (ns_scr_el3 & cpu::SCR_HCE_BIT) != 0 {
+            cpu::EL::EL2h
+        } else {
+            cpu::EL::EL1h
+        };
+
+        cpu::spsr64(mode, cpu::DISABLE_ALL_EXCEPTIONS)
+    } else {
+        let mode = if (ns_scr_el3 & cpu::SCR_HCE_BIT) != 0 {
+            cpu::MODE32_HYP
+        } else {
+            cpu::MODE32_SVC
+        };
+
+        // TODO: Choose async. exception bits if HYP mode is not
+        // implemented according to the values of SCR.{AW, FW} bits
+        let daif = cpu::DAIF_ABT_BIT | cpu::DAIF_IRQ_BIT | cpu::DAIF_FIQ_BIT;
+
+        cpu::spsr32(mode, entrypoint as u64 & 1, ee, daif)
+    };
+
+    let headr = ParamHeader {
+        htype: ep_info::PARAM_EP,
+        version: ep_info::PARAM_VERSION_1,
+        size: size_of::<ParamHeader>() as u16,
+        attr: ep_attr as u32,
+    };
+
+    let mut args = Aapcs64Params::new();
+    args.arg0 = context_id as u64;
+
+    let ep = EntryPointInfo {
+        h: headr,
+        pc: entrypoint,
+        spsr: spsr,
+        args: args,
+    };
+
+    Ok(ep)
 }

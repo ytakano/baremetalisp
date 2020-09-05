@@ -6,14 +6,14 @@ use super::power;
 use super::psci;
 use super::security;
 use super::{read_soc_id, SoCID};
-use crate::aarch64;
 use crate::driver::arm::gic;
+use crate::{aarch64, print_msg};
 
-pub fn early_platform_setup() {
-    cpu::disable_secondary_cpus(aarch64::cpu::mpidr_el1::get() as usize);
-}
+pub fn early_platform_setup() {}
 
 pub fn platform_setup() {
+    cpu::disable_secondary_cpus(aarch64::cpu::mpidr_el1::get() as usize);
+
     // TODO
     // get device tree
     // see https://github.com/ARM-software/arm-trusted-firmware/blob/007be5ecd14542a5da8533c14293faa1c44c3a7e/plat/allwinner/common/sunxi_bl31_setup.c#L137-L147
@@ -43,8 +43,14 @@ pub fn platform_setup() {
             unsafe {
                 write_volatile(ptr, 0x00003180);
             }
+            print_msg("SoC", "Allwinner A64");
         }
-        _ => (),
+        SoCID::H5 => {
+            print_msg("SoC", "Allwinner H5");
+        }
+        SoCID::H6 => {
+            print_msg("SoC", "Allwinner H6");
+        }
     }
 
     // U-Boot or the kernel don't setup AHB2, which leaves it at the

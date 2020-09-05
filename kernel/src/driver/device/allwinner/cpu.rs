@@ -78,12 +78,34 @@ fn cpu_power_clamp_reg(cluster: usize, core: usize) -> *mut u32 {
     (SUNXI_R_PRCM_BASE as usize + 0x0140 + cluster * 16 + core * 4) as *mut u32
 }
 
+fn cpu_disable_power(cluster: usize, core: usize) {
+    let ptr = cpu_power_clamp_reg(cluster, core);
+    if unsafe { read_volatile(ptr) } == 0xff {
+        return;
+    }
+
+    uart::puts("PSCI: Disabling power to cluster ");
+    uart::decimal(cluster as u64);
+    uart::puts(", core ");
+    uart::decimal(core as u64);
+    uart::puts("\n");
+
+    unsafe { write_volatile(ptr, 0xff) };
+}
+
 fn enable_power(cluster: usize, core: usize) {
     let addr = cpu_power_clamp_reg(cluster, core);
     if unsafe { read_volatile(addr) } == 0 {
         return;
     }
 
+    uart::puts("PSCI: Enabling power to cluster ");
+    uart::decimal(cluster as u64);
+    uart::puts(", core ");
+    uart::decimal(core as u64);
+    uart::puts("\n");
+
+    // Power enable sequence from original Allwinner sources
     unsafe {
         write_volatile(addr, 0xfe);
         write_volatile(addr, 0xf8);
@@ -145,6 +167,12 @@ pub(crate) fn cpu_on(mpidr: usize) {
     let cluster = (mpidr >> 8) & 0xFF;
     let core = mpidr & 0xFF;
 
+    uart::puts("PSCI: Powering on cluster ");
+    uart::decimal(cluster as u64);
+    uart::puts(", core ");
+    uart::decimal(core as u64);
+    uart::puts("\n");
+
     let cls_ctrl = cpucfg_cls_ctrl_reg0(cluster);
     let rst_ctrl = cpucfg_rst_ctrl_reg(cluster);
     let poweron_rst = poweron_rst_reg(cluster);
@@ -195,7 +223,7 @@ pub(crate) fn cpu_off(mpidr: usize) {
     if topology::core_pos() != idx {
         // Activate the core output clamps, but not for core 0.
         if core != 0 {
-            bit_set32(CPUCFG_DBG_REG0, core as u32);
+            bit_set32(poweroff_gating_reg(cluster), core as u32);
         }
 
         // Assert CPU power-on reset
@@ -210,21 +238,6 @@ pub(crate) fn cpu_off(mpidr: usize) {
     // to do that work for us. The code expects the core mask to be
     // patched into the first instruction.
     sunxi_execute_arisc_code(unsafe { &mut ARISC_CORE_OFF }, 1 << core);
-}
-
-fn cpu_disable_power(cluster: usize, core: usize) {
-    let ptr = cpu_power_clamp_reg(cluster, core);
-    if unsafe { read_volatile(ptr) } == 0xff {
-        return;
-    }
-
-    uart::puts("PSCI: Disabling power to cluster ");
-    uart::decimal(cluster as u64);
-    uart::puts(", core ");
-    uart::decimal(core as u64);
-    uart::puts("\n");
-
-    unsafe { write_volatile(ptr, 0xff) };
 }
 
 static mut ARISC_LOCK: lock::BakeryTicket = lock::BakeryTicket::new();

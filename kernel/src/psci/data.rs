@@ -43,7 +43,7 @@ pub(crate) struct NonCpuPwrDomainNode {
     level: u8,
 
     // For indexing the psci_lock array
-    lock_index: usize,
+    lock_var: lock::LockVar,
 }
 
 pub(crate) struct CpuPwrDomainNode {
@@ -96,17 +96,25 @@ pub(crate) enum AffInfoState {
 def_static!(NON_CPU_PD_NODES: [NonCpuPwrDomainNode; topology::NUM_NON_CPU_PWR_DOMAINS]);
 def_static!(CPU_PD_NODES: [CpuPwrDomainNode; topology::CORE_COUNT]);
 def_static!(PSCI_CPU_DATA: [PsciCpuData; topology::CORE_COUNT]);
-def_static!(PSCI_LOCKS: [lock::LockVar; topology::NUM_NON_CPU_PWR_DOMAINS]);
+//def_static!(PSCI_LOCKS: [lock::LockVar; topology::NUM_NON_CPU_PWR_DOMAINS]);
 
 static mut REQ_LOCAL_PWR_STATES: [u8; defs::MAX_PWR_LVL as usize * topology::CORE_COUNT] =
     [0; defs::MAX_PWR_LVL as usize * topology::CORE_COUNT];
 
-pub(crate) fn non_pd_lock(idx: usize) -> lock::SpinLock<'static> {
-    unsafe { PSCI_LOCKS[idx].lock() }
+pub(crate) fn non_cpu_pd_lock(idx: usize) -> lock::SpinLock<'static> {
+    unsafe { NON_CPU_PD_NODES[idx].lock_var.lock() }
+}
+
+pub(crate) unsafe fn non_cpu_pd_force_lock(idx: usize) {
+    NON_CPU_PD_NODES[idx].lock_var.force_lock();
+}
+
+pub(crate) unsafe fn non_cpu_pd_force_unlock(idx: usize) {
+    NON_CPU_PD_NODES[idx].lock_var.force_unlock();
 }
 
 pub(crate) fn cpu_lock(idx: usize) -> lock::SpinLock<'static> {
-    unsafe { PSCI_LOCKS[idx].lock() }
+    unsafe { CPU_PD_NODES[idx].cpu_lock.lock() }
 }
 
 pub(crate) fn flush_cache_cpu_state(idx: usize) {
@@ -153,15 +161,15 @@ pub(crate) fn set_non_cpu_pd_parent_node(idx: usize, parent_node: usize) {
 }
 
 pub(crate) fn get_non_cpu_pd_parent_node(idx: usize) -> usize {
-    unsafe { read_volatile(&mut NON_CPU_PD_NODES[idx].parent_node) }
+    unsafe { read_volatile(&NON_CPU_PD_NODES[idx].parent_node) }
 }
 
 pub(crate) fn set_non_cpu_pd_local_state(idx: usize, local_state: u8) {
     unsafe { write_volatile(&mut NON_CPU_PD_NODES[idx].local_state, local_state) };
 }
 
-pub(crate) fn set_non_cpu_pd_lock_index(idx: usize, lock_index: usize) {
-    unsafe { write_volatile(&mut NON_CPU_PD_NODES[idx].lock_index, lock_index) };
+pub(crate) fn get_non_cpu_pd_local_state(idx: usize) -> u8 {
+    unsafe { read_volatile(&NON_CPU_PD_NODES[idx].local_state) }
 }
 
 pub(crate) fn get_non_cpu_pd_ncpus(idx: usize) -> usize {
@@ -177,7 +185,7 @@ pub(crate) fn set_cpu_pd_parent_node(idx: usize, parent_node: usize) {
 }
 
 pub(crate) fn get_cpu_pd_parent_node(idx: usize) -> usize {
-    unsafe { read_volatile(&mut CPU_PD_NODES[idx].parent_node) }
+    unsafe { read_volatile(&CPU_PD_NODES[idx].parent_node) }
 }
 
 pub(crate) fn set_cpu_pd_mpidr(idx: usize, mpidr: u64) {

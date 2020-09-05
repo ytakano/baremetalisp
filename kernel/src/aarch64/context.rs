@@ -400,6 +400,118 @@ impl CPUContext {
     pub fn save_gpregs(&mut self, regs: &GpRegs) {
         unsafe { copy_nonoverlapping(regs, &mut self.gpregx_ctx, 1) };
     }
+
+    /// switch from EL3 to EL2 or EL1
+    pub fn restore_and_eret(&self, sp: u64) {
+        unsafe {
+            asm!("ldp {0}, {1}, [{2}]
+              msr sctlr_el1, {0}
+              msr actlr_el1, {1}
+              ldp {0}, {1}, [{2}, #16]
+              msr cpacr_el1, {0}
+              msr csselr_el1, {1}
+              ldp {0}, {1}, [{2}, #16 * 2]
+              msr sp_el1, {0}
+              msr esr_el1, {1}
+              ldp {0}, {1}, [{2}, #16 * 3]
+              msr ttbr0_el1, {0}
+              msr ttbr1_el1, {1}
+              ldp {0}, {1}, [{2}, #16 * 4]
+              msr mair_el1, {0}
+              msr amair_el1, {1}
+              ldp {0}, {1}, [{2}, #16 * 5]
+              msr tcr_el1, {0}
+              msr tpidr_el1, {1}
+              ldp {0}, {1}, [{2}, #16 * 6]
+              msr tpidr_el0, {0}
+              msr tpidrro_el0, {1}
+              ldp {0}, {1}, [{2}, #16 * 7]
+              msr par_el1, {0}
+              msr far_el1, {1}
+              ldp {0}, {1}, [{2}, #16 * 8]
+              msr afsr0_el1, {0}
+              msr afsr1_el1, {1}
+              ldp {0}, {1}, [{2}, #16 * 9]
+              msr contextidr_el1, {0}
+              msr vbar_el1, {1}
+              ldp {0}, {1}, [{2}, #16 * 10]
+              msr cntp_ctl_el0, {0}
+              msr cntp_cval_el0, {1}
+              ldp {0}, {1}, [{2}, #16 * 11]
+              msr cntv_ctl_el0, {0}
+              msr cntv_cval_el0, {1}
+              ldr {0}, [{2}, #8 * 24]
+              msr cntkctl_el1, {0}
+
+              ldp  q0,  q1, [{6}]
+              ldp  q2,  q3, [{6}, #32]
+              ldp  q4,  q5, [{6}, #32 *  1]
+              ldp  q6,  q7, [{6}, #32 *  2]
+              ldp  q8,  q9, [{6}, #32 *  3]
+              ldp q10, q11, [{6}, #32 *  4]
+              ldp q12, q13, [{6}, #32 *  5]
+              ldp q14, q15, [{6}, #32 *  6]
+              ldp q16, q17, [{6}, #32 *  7]
+              ldp q18, q19, [{6}, #32 *  8]
+              ldp q20, q21, [{6}, #32 *  9]
+              ldp q22, q23, [{6}, #32 * 10]
+              ldp q24, q25, [{6}, #32 * 11]
+              ldp q26, q27, [{6}, #32 * 12]
+              ldp q28, q29, [{6}, #32 * 13]
+              ldp q30, q31, [{6}, #32 * 14]
+              ldp {0}, {1}, [{6}, #32 * 15]
+              msr fpsr, {0}
+              msr fpcr, {1}
+
+              msr scr_el3, {3}
+
+              mov sp, {5}
+              mov x30, {4}
+
+              ldp  x0,  x1, [x30]
+              ldp  x2,  x3, [x30, #16]
+              ldp  x4,  x5, [x30, #16 *  2]
+              ldp  x6,  x7, [x30, #16 *  3]
+              ldp  x8,  x9, [x30, #16 *  4]
+              ldp x10, x11, [x30, #16 *  5]
+              ldp x12, x13, [x30, #16 *  6]
+              ldp x14, x15, [x30, #16 *  7]
+              ldp x16, x17, [x30, #16 *  8]
+              ldp x18, x19, [x30, #16 *  9]
+              ldp x20, x21, [x30, #16 * 10]
+              ldp x22, x23, [x30, #16 * 11]
+              ldp x24, x25, [x30, #16 * 12]
+              ldp x26, x27, [x30, #16 * 13]
+
+              // restore ELR
+              ldr x28, [x30, #8 * 31]
+              msr elr_el3, x28
+
+              // restore SPSR
+              ldr x28, [x30, #8 * 32]
+              msr spsr_el3, x28
+
+              ldp x28, x29, [x30, #16 * 14]
+              ldr x30, [x30, #8 * 30]
+
+              eret",
+            out(reg) _,
+            out(reg) _,
+            in(reg) &self.el1_sysregs_ctx as *const EL1SysRegs as u64,
+            in(reg) self.scr_el3,
+            in(reg) &self.gpregx_ctx as *const GpRegs as u64,
+            in(reg) sp,
+            in(reg) &self.fpregs_ctx as *const FPRegs as u64);
+        }
+    }
+
+    pub fn set_sp_el1(&mut self, sp: u64) {
+        unsafe { write_volatile(&mut self.el1_sysregs_ctx.sp_el1, sp) };
+    }
+
+    pub fn set_elr(&mut self, elr: u64) {
+        unsafe { write_volatile(&mut self.gpregx_ctx.elr, elr) };
+    }
 }
 
 pub fn get_ctx(idx: usize, is_secure: bool) -> &'static mut CPUContext {
@@ -831,137 +943,4 @@ pub fn init_el2_regs() {
     }
     // TODO
     // enable_extensions_nonsecure(el2_unused);
-}
-
-/// switch from EL3 to EL2 or EL1
-pub fn restore_and_eret(sp: u64, to_secure: bool) {
-    let idx = topology::core_pos();
-    let ctx = if to_secure {
-        unsafe { &mut CPU_CONTEXT_SECURE[idx] }
-    } else {
-        unsafe { &mut CPU_CONTEXT_NON_SECURE[idx] }
-    };
-
-    unsafe {
-        asm!("ldp {0}, {1}, [{2}]
-              msr sctlr_el1, {0}
-              msr actlr_el1, {1}
-              ldp {0}, {1}, [{2}, #16]
-              msr cpacr_el1, {0}
-              msr csselr_el1, {1}
-              ldp {0}, {1}, [{2}, #16 * 2]
-              msr sp_el1, {0}
-              msr esr_el1, {1}
-              ldp {0}, {1}, [{2}, #16 * 3]
-              msr ttbr0_el1, {0}
-              msr ttbr1_el1, {1}
-              ldp {0}, {1}, [{2}, #16 * 4]
-              msr mair_el1, {0}
-              msr amair_el1, {1}
-              ldp {0}, {1}, [{2}, #16 * 5]
-              msr tcr_el1, {0}
-              msr tpidr_el1, {1}
-              ldp {0}, {1}, [{2}, #16 * 6]
-              msr tpidr_el0, {0}
-              msr tpidrro_el0, {1}
-              ldp {0}, {1}, [{2}, #16 * 7]
-              msr par_el1, {0}
-              msr far_el1, {1}
-              ldp {0}, {1}, [{2}, #16 * 8]
-              msr afsr0_el1, {0}
-              msr afsr1_el1, {1}
-              ldp {0}, {1}, [{2}, #16 * 9]
-              msr contextidr_el1, {0}
-              msr vbar_el1, {1}
-              ldp {0}, {1}, [{2}, #16 * 10]
-              msr cntp_ctl_el0, {0}
-              msr cntp_cval_el0, {1}
-              ldp {0}, {1}, [{2}, #16 * 11]
-              msr cntv_ctl_el0, {0}
-              msr cntv_cval_el0, {1}
-              ldr {0}, [{2}, #8 * 24]
-              msr cntkctl_el1, {0}
-
-              ldp  q0,  q1, [{6}]
-              ldp  q2,  q3, [{6}, #32]
-              ldp  q4,  q5, [{6}, #32 *  1]
-              ldp  q6,  q7, [{6}, #32 *  2]
-              ldp  q8,  q9, [{6}, #32 *  3]
-              ldp q10, q11, [{6}, #32 *  4]
-              ldp q12, q13, [{6}, #32 *  5]
-              ldp q14, q15, [{6}, #32 *  6]
-              ldp q16, q17, [{6}, #32 *  7]
-              ldp q18, q19, [{6}, #32 *  8]
-              ldp q20, q21, [{6}, #32 *  9]
-              ldp q22, q23, [{6}, #32 * 10]
-              ldp q24, q25, [{6}, #32 * 11]
-              ldp q26, q27, [{6}, #32 * 12]
-              ldp q28, q29, [{6}, #32 * 13]
-              ldp q30, q31, [{6}, #32 * 14]
-              ldp {0}, {1}, [{6}, #32 * 15]
-              msr fpsr, {0}
-              msr fpcr, {1}
-
-              msr scr_el3, {3}
-
-              mov sp, {5}
-              mov x30, {4}
-
-              ldp  x0,  x1, [x30]
-              ldp  x2,  x3, [x30, #16]
-              ldp  x4,  x5, [x30, #16 *  2]
-              ldp  x6,  x7, [x30, #16 *  3]
-              ldp  x8,  x9, [x30, #16 *  4]
-              ldp x10, x11, [x30, #16 *  5]
-              ldp x12, x13, [x30, #16 *  6]
-              ldp x14, x15, [x30, #16 *  7]
-              ldp x16, x17, [x30, #16 *  8]
-              ldp x18, x19, [x30, #16 *  9]
-              ldp x20, x21, [x30, #16 * 10]
-              ldp x22, x23, [x30, #16 * 11]
-              ldp x24, x25, [x30, #16 * 12]
-              ldp x26, x27, [x30, #16 * 13]
-
-              // restore ELR
-              ldr x28, [x30, #8 * 31]
-              msr elr_el3, x28
-
-              // restore SPSR
-              ldr x28, [x30, #8 * 32]
-              msr spsr_el3, x28
-
-              ldp x28, x29, [x30, #16 * 14]
-              ldr x30, [x30, #8 * 30]
-
-              eret",
-            out(reg) _,
-            out(reg) _,
-            in(reg) &ctx.el1_sysregs_ctx as *const EL1SysRegs as u64,
-            in(reg) ctx.scr_el3,
-            in(reg) &ctx.gpregx_ctx as *const GpRegs as u64,
-            in(reg) sp,
-            in(reg) &ctx.fpregs_ctx as *const FPRegs as u64);
-    }
-}
-
-pub fn set_sp_el1(sp: u64, is_secure: bool) {
-    let idx = topology::core_pos();
-    let ctx = if is_secure {
-        unsafe { &mut CPU_CONTEXT_SECURE[idx] }
-    } else {
-        unsafe { &mut CPU_CONTEXT_NON_SECURE[idx] }
-    };
-
-    unsafe { write_volatile(&mut ctx.el1_sysregs_ctx.sp_el1, sp) };
-}
-
-pub fn set_elr(elr: u64, is_secure: bool) {
-    let idx = topology::core_pos();
-    let ctx = if is_secure {
-        unsafe { &mut CPU_CONTEXT_SECURE[idx] }
-    } else {
-        unsafe { &mut CPU_CONTEXT_NON_SECURE[idx] }
-    };
-
-    unsafe { write_volatile(&mut ctx.gpregx_ctx.elr, elr) };
 }
