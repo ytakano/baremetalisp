@@ -1,4 +1,4 @@
-use crate::aarch64::{cpu, mmu, syscall};
+use crate::aarch64::{mmu, syscall};
 use crate::driver::{delays, uart};
 use crate::slab;
 
@@ -77,15 +77,10 @@ fn repl_uart(ctx: &blisp::semantics::Context) -> ! {
 }
 
 #[no_mangle]
-pub fn el0_entry() -> ! {
-    let addr = mmu::get_memory_map();
-
+pub fn el0_entry_core_0() -> ! {
     // initialize memory allocator
+    let addr = mmu::get_memory_map();
     slab::init(&addr);
-
-    // wake up slave CPUs
-    cpu::send_event();
-    cpu::wait_event();
 
     uart::puts("global code:\n");
     uart::puts(GLOBAL_CODE);
@@ -97,4 +92,13 @@ pub fn el0_entry() -> ! {
     // unsafe { *p = 10 };
 
     delays::forever()
+}
+
+#[no_mangle]
+pub fn el0_entry_core_x() -> ! {
+    // TODO:
+    // currently, secondary CPUs do nothing
+    loop {
+        syscall::svc::switch_world();
+    }
 }

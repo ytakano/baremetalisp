@@ -111,7 +111,7 @@ fn validate_mpidr(mpidr: usize) -> bool {
 /// PSCI frontend api for servicing SMCs. Described in the PSCI spec.
 fn psci_cpu_on(target_cpu: usize, entrypoint: usize, context_id: usize) -> PsciResult {
     // Determine if the cpu exists of not
-    if validate_mpidr(target_cpu) {
+    if !validate_mpidr(target_cpu) {
         return PsciResult::PsciEInvalidParams;
     }
 

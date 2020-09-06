@@ -119,7 +119,7 @@ pub(crate) fn cpu_lock(idx: usize) -> lock::SpinLock<'static> {
 
 pub(crate) fn flush_cache_cpu_state(idx: usize) {
     cache::clean_invalidate(
-        unsafe { &mut PSCI_CPU_DATA[idx].aff_info_state },
+        unsafe { &PSCI_CPU_DATA[idx].aff_info_state },
         size_of::<AffInfoState>(),
     );
 }

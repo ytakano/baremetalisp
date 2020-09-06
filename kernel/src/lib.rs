@@ -34,6 +34,10 @@ pub fn entry() -> ! {
         aarch64::cpu::cntfrq_el0::set(driver::defs::SYSCNT_FRQ as u64);
     }
 
+    if aarch64::cpu::get_current_el() == 3 {
+        aarch64::cpu::init_cptr_el3(); // enable NEON
+    }
+
     if driver::topology::core_pos() == 0 {
         init_primary();
     } else {
@@ -57,10 +61,6 @@ pub fn print_msg(key: &str, val: &str) {
 /// initialization for the primary CPU
 fn init_primary() {
     aarch64::mmu::init_memory_map();
-
-    if aarch64::cpu::get_current_el() == 3 {
-        aarch64::cpu::init_cptr_el3(); // enable NEON
-    }
 
     driver::early_init();
 
@@ -109,7 +109,12 @@ fn init_secondary() -> ! {
             psci::init_warmboot();
             aarch64::context::init_secure();
             aarch64::context::init_el2_regs();
-            driver::uart::puts("booted secondary CPU\n");
+
+            driver::uart::puts("booted and initialized CPU #");
+            driver::uart::decimal(driver::topology::core_pos() as u64);
+            driver::uart::puts("\n");
+
+            el3::el3_to_el1();
         }
         2 => {
             aarch64::context::init_el2_regs();
@@ -130,6 +135,11 @@ pub fn ns_entry() -> ! {
         asm!(
             "ldr x1, =__ram_start
              mov x2, #1024 * 1024 * 256
+             mrs x3, mpidr_el1 // read cpu id
+             and x3, x3, #0xFF
+             mov x4, #1024 * 1024 * 2
+             mul x3, x3, x4
+             add x2, x2, x3
              add x1, x1, x2
              mov sp, x1"
         );
@@ -138,21 +148,47 @@ pub fn ns_entry() -> ! {
 }
 
 pub fn non_secure() -> ! {
+    driver::uart::puts("Hello Normal World from CPU #");
+    driver::uart::decimal(driver::topology::core_pos() as u64);
+    driver::uart::puts("\n");
+
+    // test code for CPU on
+    if driver::topology::core_pos() == 0 {
+        // wake up CPU #1
+        driver::uart::puts("waking CPU #1 up\n");
+        unsafe {
+            let x0: u64 = psci::PSCI_CPU_ON_AARCH64 as u64;
+            asm!(
+                "mov x0, {}
+                 mov x1, 1 // CPU #1
+                 adr x2, ns_entry // set entry point
+                 mov x3, xzr
+                 smc #0",
+                in(reg) x0,
+            );
+        }
+    } else {
+        driver::delays::forever();
+    }
+
     // test code for shutdown
     /*
     unsafe {
-        let x0: u64 = 0x84000008;
+        let x0: u64 = psci::PSCI_SYSTEM_OFF as u64;
         asm!(
             "mov x0, {}
              smc #0",
             in(reg) x0
         );
-    }
-    */
+    }*/
+
+    driver::delays::wait_milisec(200);
 
     loop {
-        driver::uart::puts("Hello Normal World!\n");
         aarch64::syscall::smc::to_secure();
+        driver::uart::puts("Hello Normal World from CPU #");
+        driver::uart::decimal(driver::topology::core_pos() as u64);
+        driver::uart::puts("\n");
     }
 }
 //-----------------------------------------------------------------------------

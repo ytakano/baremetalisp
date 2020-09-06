@@ -95,7 +95,7 @@ fn get_parent_pwr_domain_nodes(cpu_idx: usize) -> [usize; defs::MAX_PWR_LVL as u
 
     for n in node_index.iter_mut() {
         *n = parent_node;
-        parent_node = data::get_cpu_pd_parent_node(parent_node);
+        parent_node = data::get_non_cpu_pd_parent_node(parent_node);
     }
 
     node_index

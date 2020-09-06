@@ -415,6 +415,7 @@ sysreg!(esr_el2);
 
 sysreg!(scr_el3);
 sysreg!(esr_el3);
+sysreg!(far_el3);
 
 pub fn get_affinity_lv0() -> u64 {
     let mpidr: u64;

@@ -4,6 +4,7 @@ use super::ep_info::EntryPointInfo;
 use super::PsciResult;
 use crate::aarch64;
 use crate::driver;
+use crate::driver::psci::PsciPowerState;
 
 /// This function checks whether a cpu which has been requested to be turned on
 /// is OFF to begin with.
@@ -98,6 +99,30 @@ pub(crate) fn start(target_cpu: usize, ep: EntryPointInfo) -> PsciResult {
     rc
 }
 
-pub(crate) fn finish(idx: usize, state_info: &[u8]) {
-    // TODO
+pub(crate) fn finish(idx: usize, state_info: &PsciPowerState) {
+    // Plat. management: Perform the platform specific actions
+    // for this cpu e.g. enabling the gic or zeroing the mailbox
+    // register. The actual state of this cpu has already been
+    // changed.
+    driver::psci::pwr_domain_on_finish(state_info);
+
+    // Plat. management: Perform any platform specific actions which
+    // can only be done with the cpu and the cluster guaranteed to
+    // be coherent.
+    driver::psci::pwr_domain_on_finish_late(state_info);
+
+    // Lock the CPU spin lock to make sure that the context initialization
+    // is done. Since the lock is only used in this function to create
+    // a synchronization point with cpu_on_start(), it can be released
+    // immediately.
+    {
+        data::cpu_lock(idx);
+    }
+
+    // Populate the mpidr field within the cpu node array */
+    // This needs to be done only once */
+    data::set_cpu_pd_mpidr(
+        idx,
+        aarch64::cpu::mpidr_el1::get() & aarch64::cpu::MPIDR_AFFINITY_MASK,
+    );
 }

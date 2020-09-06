@@ -9,9 +9,11 @@ const ESR_EL1_EC_SVC64: u64 = 0b010101 << 26;
 const ESR_LE1_EC_DATA: u64 = 0b100100 << 26;
 const ESR_LE1_EC_DATA_KERN: u64 = 0b100101 << 26;
 
+const ESR_EL3_ISS_MASK: u64 = 0xfff;
 const ESR_EL3_EC_MASK: u64 = 0b111111 << 26;
 const ESR_EL3_EC_SMC32: u64 = 0b010011 << 26;
 const ESR_EL3_EC_SMC64: u64 = 0b010111 << 26;
+const ESR_LE3_EC_DATA: u64 = 0b100101 << 26;
 
 //------------------------------------------------------------------------------
 
@@ -44,9 +46,27 @@ pub fn curr_el_spx_sync_el3(ctx: *mut GpRegs, _sp: usize) {
     driver::uart::hex(r.elr);
     driver::uart::puts("\nSPSR = 0x");
     driver::uart::hex(r.spsr as u64);
+
+    let esr = cpu::esr_el3::get();
     driver::uart::puts("\nESR = 0x");
-    driver::uart::hex(cpu::esr_el3::get());
+    driver::uart::hex(esr);
+
+    let ec = (esr & ESR_EL3_EC_MASK) >> 26;
+    driver::uart::puts("\nESR.EC = 0x");
+    driver::uart::hex32(ec as u32);
+    let iss = esr & ESR_EL3_ISS_MASK;
+    driver::uart::puts("\nESR.ISS = 0x");
+    driver::uart::hex32(iss as u32);
     driver::uart::puts("\n");
+
+    if (esr & ESR_EL3_EC_MASK) == ESR_LE3_EC_DATA {
+        let far_el3 = cpu::far_el3::get();
+        driver::uart::puts("FAR_EL3 = 0x");
+        driver::uart::hex(far_el3);
+        driver::uart::puts("\n");
+    }
+
+    driver::delays::forever();
 }
 
 #[no_mangle]

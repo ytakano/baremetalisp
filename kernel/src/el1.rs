@@ -5,17 +5,22 @@ use crate::driver::{delays, topology, uart};
 use crate::aarch64::syscall;
 
 extern "C" {
-    fn el0_entry();
+    fn el0_entry_core_0();
+    fn el0_entry_core_x();
 }
 
 #[no_mangle]
 pub fn el1_entry() -> ! {
-    cpu::init_cpacr_el1();
+    cpu::init_cpacr_el1(); // enable NEON
 
     let addr = mmu::get_memory_map();
     let aff = topology::core_pos() as u64;
     let stack = addr.stack_el0_start - addr.stack_size * aff;
-    let entry = el0_entry as *const () as u64;
+    let entry = if topology::core_pos() == 0 {
+        el0_entry_core_0
+    } else {
+        el0_entry_core_x
+    } as *const () as u64;
 
     // change execution level to EL0t
     cpu::sp_el0::set(stack);
