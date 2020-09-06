@@ -2,6 +2,7 @@ mod cpu_on;
 mod data;
 pub mod ep_info;
 mod setup;
+mod suspend;
 
 use crate::aarch64::{context, cpu};
 use crate::driver;
@@ -66,6 +67,12 @@ pub fn init_warmboot() {
 
 pub fn is_psci_fid(fid: u32) -> bool {
     (fid & PSCI_FID_MASK) == PSCI_FID_VALUE
+}
+
+/// Function to test whether the plat_local_state is OFF state
+pub fn is_local_state_off(plat_local_state: u8) -> bool {
+    (plat_local_state > driver::defs::MAX_RET_STATE)
+        && (plat_local_state <= driver::defs::MAX_OFF_STATE)
 }
 
 /// PSCI top level handler for servicing SMCs.

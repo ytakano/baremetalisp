@@ -6,6 +6,20 @@ use alloc::boxed::Box;
 use blisp;
 
 const GLOBAL_CODE: &str = "
+(data (Maybe t)
+    (Just t)
+    Nothing)
+
+(export car (x) (Pure (-> ('(Int)) (Maybe Int)))
+    (match x
+        ((Cons n _) (Just n))
+        (_ Nothing)))
+
+(export cdr (x) (Pure (-> ('(Int)) '(Int)))
+    (match x
+        ((Cons _ l) l)
+        (_ '())))
+
 ; switch to normal world
 (export switch-world () (IO (-> () Int))
     (call-rust 1 0 0))

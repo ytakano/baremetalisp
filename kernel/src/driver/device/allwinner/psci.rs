@@ -1,9 +1,11 @@
 use super::cpu;
+use super::defs;
 use super::memory;
 use super::power;
-use crate::driver::arm::scpi;
+use crate::driver::arm::{gic, scpi};
 use crate::driver::psci::PsciResult;
 use crate::driver::{psci, topology};
+use crate::psci::is_local_state_off;
 
 pub(crate) fn init() {
     cpu::init();
@@ -40,9 +42,22 @@ pub(crate) fn pwr_domain_suspend_pwrdown_early(_target_state: &psci::PsciPowerSt
 
 pub(crate) fn pwr_domain_suspend(_target_state: &psci::PsciPowerState) {}
 
-pub(crate) fn pwr_domain_on_finish(_target_state: &psci::PsciPowerState) {}
+pub(crate) fn pwr_domain_on_finish(target_state: &psci::PsciPowerState) {
+    if is_local_state_off(target_state[defs::SYSTEM_PWR_LVL as usize]) {
+        gic::v2::distif_init();
+    }
 
-pub(crate) fn pwr_domain_on_finish_late(_target_state: &psci::PsciPowerState) {}
+    if is_local_state_off(target_state[defs::CPU_PWR_LVL as usize]) {
+        gic::v2::pcpu_distif_init();
+        gic::v2::cpuif_enable();
+    }
+}
+
+pub(crate) fn pwr_domain_on_finish_late(target_state: &psci::PsciPowerState) {
+    if cpu::scpi_available() {
+        pwr_domain_on_finish(target_state);
+    }
+}
 
 pub(crate) fn pwr_domain_suspend_finish(_target_state: &psci::PsciPowerState) {}
 
