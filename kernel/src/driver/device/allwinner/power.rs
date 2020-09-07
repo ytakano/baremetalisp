@@ -10,6 +10,10 @@ use crate::print_msg;
 
 static mut PMIC: PMICType = PMICType::UNKNOWN;
 
+const SUNXI_WDOG0_CTRL_REG: *mut u32 = (memory::SUNXI_R_WDOG_BASE + 0x0010) as *mut u32;
+const SUNXI_WDOG0_CFG_REG: *mut u32 = (memory::SUNXI_R_WDOG_BASE + 0x0014) as *mut u32;
+const SUNXI_WDOG0_MODE_REG: *mut u32 = (memory::SUNXI_R_WDOG_BASE + 0x0018) as *mut u32;
+
 enum PMICType {
     UNKNOWN,
     GenericH5,
@@ -205,4 +209,33 @@ fn sunxi_turn_off_soc(socid: SoCID) {
         }
         _ => (),
     }
+}
+
+pub(crate) fn system_reset() {
+    gic::v2::cpuif_disable();
+
+    if cpu::scpi_available() {
+        // Send the system reset request to the SCP
+        match scpi::sys_power_state(scpi::ScpiSystemState::Reboot) {
+            scpi::ScpiResult::Ok => (),
+            ret => {
+                uart::puts("PSCI: SCPI reboot failed: ");
+                uart::decimal(ret as u64);
+                uart::puts("\n");
+            }
+        }
+    }
+
+    unsafe {
+        // Reset the whole system when the watchdog times out
+        write_volatile(SUNXI_WDOG0_CFG_REG, 1);
+        // Enable the watchdog with the shortest timeout (0.5 seconds)
+        write_volatile(SUNXI_WDOG0_MODE_REG, 1);
+    }
+    // Wait for twice the watchdog timeout before panicking
+    delays::wait_milisec(1000);
+
+    uart::puts("PSCI: System reset failed\n");
+    aarch64::cpu::wait_interrupt();
+    panic!("failed to reset");
 }

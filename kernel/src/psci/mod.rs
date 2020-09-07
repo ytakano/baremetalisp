@@ -89,6 +89,10 @@ pub fn smc_handler(smc_fid: u32, x1: usize, x2: usize, x3: usize) -> PsciResult 
         // AArch32
         match smc_fid {
             PSCI_CPU_ON_AARCH32 => psci_cpu_on(x1, x2, x3),
+            PSCI_SYSTEM_RESET => {
+                driver::psci::system_reset();
+                PsciResult::PsciEInternFail
+            }
             PSCI_SYSTEM_OFF => {
                 driver::psci::system_off();
                 PsciResult::PsciEInternFail

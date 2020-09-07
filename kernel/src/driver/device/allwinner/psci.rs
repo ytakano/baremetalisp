@@ -67,7 +67,9 @@ pub(crate) fn system_off() {
     power::system_off();
 }
 
-pub(crate) fn system_reset() {}
+pub(crate) fn system_reset() {
+    power::system_reset();
+}
 
 pub(crate) fn validate_power_state(
     _power_state: usize,
