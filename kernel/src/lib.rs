@@ -128,7 +128,7 @@ fn init_secondary() -> ! {
 }
 
 //-----------------------------------------------------------------------------
-// norml world functions
+// normal world functions
 #[no_mangle]
 pub fn ns_entry() -> ! {
     unsafe {
@@ -154,7 +154,7 @@ pub fn non_secure() -> ! {
     /*
         // test code for CPU on
         if driver::topology::core_pos() == 0 {
-            // wake up CPU #1
+            // wake CPU #1 up
             driver::uart::puts("waking CPU #1 up\n");
             unsafe {
                 let x0: u64 = psci::PSCI_CPU_ON_AARCH64 as u64;
@@ -172,6 +172,7 @@ pub fn non_secure() -> ! {
         }
     */
 
+    /*
     // test code for shutdown
     unsafe {
         let x0: u64 = psci::PSCI_SYSTEM_RESET as u64;
@@ -180,7 +181,7 @@ pub fn non_secure() -> ! {
              smc #0",
             in(reg) x0
         );
-    }
+    }*/
 
     driver::delays::wait_milisec(200);
 
