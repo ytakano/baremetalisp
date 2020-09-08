@@ -25,7 +25,9 @@ pub(crate) fn pwr_domain_on_finish_late(_target_state: &psci::PsciPowerState) {}
 
 pub(crate) fn pwr_domain_suspend_finish(_target_state: &psci::PsciPowerState) {}
 
-pub(crate) fn pwr_domain_pwr_down_wfi(_target_state: &psci::PsciPowerState) {}
+pub(crate) fn pwr_domain_pwr_down_wfi(_target_state: &psci::PsciPowerState) -> bool {
+    false
+}
 
 pub(crate) fn system_off() {}
 

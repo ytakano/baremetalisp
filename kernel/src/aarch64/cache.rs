@@ -1,4 +1,5 @@
 use super::cpu;
+use super::mmu;
 use super::mmu::PAGESIZE;
 
 /// clean cache.
@@ -41,6 +42,19 @@ pub fn invalidate<T>(obj: &T, size: usize) {
     while base < addr + size {
         unsafe { asm!("dc ivac, {}", in(reg) base) };
         base += PAGESIZE as usize;
+    }
+
+    cpu::dmb_sy();
+}
+
+pub fn flush_global() {
+    let mut start = mmu::get_data_start();
+    let end = mmu::get_bss_end();
+
+    cpu::dmb_sy();
+    while start < end {
+        unsafe { asm!("dc civac, {}", in(reg) start) };
+        start += PAGESIZE;
     }
 
     cpu::dmb_sy();

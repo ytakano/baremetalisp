@@ -57,7 +57,7 @@ pub fn pwr_domain_suspend_finish(target_state: &PsciPowerState) {
     psci::pwr_domain_suspend_finish(target_state)
 }
 
-pub fn pwr_domain_pwr_down_wfi(target_state: &PsciPowerState) {
+pub fn pwr_domain_pwr_down_wfi(target_state: &PsciPowerState) -> bool {
     psci::pwr_domain_pwr_down_wfi(target_state)
 }
 
@@ -111,4 +111,41 @@ pub fn write_mem_protect(val: isize) -> isize {
 
 pub fn system_reset2(is_vendor: isize, reset_type: isize, cookie: u64) -> isize {
     psci::system_reset2(is_vendor, reset_type, cookie)
+}
+
+/// The PSCI generic code uses this API to let the platform participate in state
+/// coordination during a power management operation. It compares the platform
+/// specific local power states requested by each cpu for a given power domain
+/// and returns the coordinated target power state that the domain should
+/// enter. A platform assigns a number to a local power state. This default
+/// implementation assumes that the platform assigns these numbers in order of
+/// increasing depth of the power state i.e. for two power states X & Y, if X < Y
+/// then X represents a shallower power state than Y. As a result, the
+/// coordinated target local power state for a power domain will be the minimum
+/// of the requested local power states.
+fn plat_get_target_pwr_state(_lvl: usize, states: &[u8], mut ncpu: usize) -> u8 {
+    let mut target = defs::MAX_OFF_STATE;
+
+    use super::uart;
+    uart::puts("ncpu = ");
+    uart::decimal(ncpu as u64);
+    uart::puts("\n");
+    assert_ne!(ncpu, 0);
+
+    for st in states {
+        if *st < target {
+            target = *st;
+        }
+        ncpu -= 1;
+        if ncpu == 0 {
+            break;
+        }
+    }
+
+    target
+}
+
+pub fn get_target_pwr_state(lvl: usize, states: &[u8], ncpu: usize) -> u8 {
+    // not for mediatek mt8173 and nvidia tegra
+    plat_get_target_pwr_state(lvl, states, ncpu)
 }

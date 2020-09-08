@@ -2,13 +2,26 @@ use super::cpu;
 use super::defs;
 use super::memory;
 use super::power;
+use crate::aarch64;
 use crate::driver::arm::{gic, scpi};
 use crate::driver::psci::PsciResult;
 use crate::driver::{psci, topology};
-use crate::psci::is_local_state_off;
+use crate::psci::common::{is_local_state_off, is_local_state_retn, is_local_state_run};
 
 pub(crate) fn init() {
     cpu::init();
+}
+
+pub fn available(f: u32) -> bool {
+    use crate::psci as PS;
+    match f {
+        PS::PSCI_CPU_OFF
+        | PS::PSCI_CPU_ON_AARCH32
+        | PS::PSCI_CPU_ON_AARCH64
+        | PS::PSCI_SYSTEM_OFF
+        | PS::PSCI_SYSTEM_RESET => true,
+        _ => false,
+    }
 }
 
 pub(crate) fn cpu_standby(_cpu_state: u8) {}
@@ -36,7 +49,35 @@ pub(crate) fn pwr_domain_on(mpidr: usize) -> PsciResult {
     PsciResult::PsciESuccess
 }
 
-pub(crate) fn pwr_domain_off(_target_state: &psci::PsciPowerState) {}
+fn scpi_map_state(psci_state: u8) -> scpi::ScpiPowerState {
+    if is_local_state_run(psci_state) {
+        scpi::ScpiPowerState::PowerOn
+    } else if is_local_state_retn(psci_state) {
+        scpi::ScpiPowerState::PowerRetention
+    } else {
+        scpi::ScpiPowerState::PowerOff
+    }
+}
+
+pub(crate) fn pwr_domain_off(target_state: &psci::PsciPowerState) {
+    let cpu_pwr_state = target_state[defs::CPU_PWR_LVL as usize];
+    let cluster_pwr_state = target_state[defs::CLUSTER_PWR_LVL as usize];
+    let system_pwr_state = target_state[defs::SYSTEM_PWR_LVL as usize];
+
+    if is_local_state_off(cpu_pwr_state) {
+        gic::v2::cpuif_disable();
+    }
+
+    let mpidr = aarch64::cpu::mpidr_el1::get() as usize;
+    if cpu::scpi_available() {
+        scpi::set_css_power_state(
+            mpidr,
+            scpi_map_state(cpu_pwr_state),
+            scpi_map_state(cluster_pwr_state),
+            scpi_map_state(system_pwr_state),
+        );
+    }
+}
 
 pub(crate) fn pwr_domain_suspend_pwrdown_early(_target_state: &psci::PsciPowerState) {}
 
@@ -61,7 +102,17 @@ pub(crate) fn pwr_domain_on_finish_late(target_state: &psci::PsciPowerState) {
 
 pub(crate) fn pwr_domain_suspend_finish(_target_state: &psci::PsciPowerState) {}
 
-pub(crate) fn pwr_domain_pwr_down_wfi(_target_state: &psci::PsciPowerState) {}
+pub(crate) fn pwr_domain_pwr_down_wfi(_target_state: &psci::PsciPowerState) -> bool {
+    if cpu::scpi_available() {
+        return false;
+    }
+
+    cpu::cpu_off(aarch64::cpu::mpidr_el1::get() as usize);
+
+    loop {
+        aarch64::cpu::wait_interrupt();
+    }
+}
 
 pub(crate) fn system_off() {
     power::system_off();

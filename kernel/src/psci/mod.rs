@@ -1,3 +1,5 @@
+pub mod common;
+mod cpu_off;
 mod cpu_on;
 mod data;
 pub mod ep_info;
@@ -69,12 +71,6 @@ pub fn is_psci_fid(fid: u32) -> bool {
     (fid & PSCI_FID_MASK) == PSCI_FID_VALUE
 }
 
-/// Function to test whether the plat_local_state is OFF state
-pub fn is_local_state_off(plat_local_state: u8) -> bool {
-    (plat_local_state > driver::defs::MAX_RET_STATE)
-        && (plat_local_state <= driver::defs::MAX_OFF_STATE)
-}
-
 /// PSCI top level handler for servicing SMCs.
 pub fn smc_handler(smc_fid: u32, x1: usize, x2: usize, x3: usize) -> PsciResult {
     let is_secure = cpu::is_secure();
@@ -89,6 +85,10 @@ pub fn smc_handler(smc_fid: u32, x1: usize, x2: usize, x3: usize) -> PsciResult 
         // AArch32
         match smc_fid {
             PSCI_CPU_ON_AARCH32 => psci_cpu_on(x1, x2, x3),
+            PSCI_CPU_OFF => {
+                cpu_off::do_off(driver::defs::MAX_PWR_LVL as usize);
+                PsciResult::PsciEInternFail
+            }
             PSCI_SYSTEM_RESET => {
                 driver::psci::system_reset();
                 PsciResult::PsciEInternFail

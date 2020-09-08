@@ -152,6 +152,10 @@ pub(crate) fn set_non_cpu_pd_cpu_start_idx(idx: usize, cpu_start_idx: usize) {
     unsafe { write_volatile(&mut NON_CPU_PD_NODES[idx].cpu_start_idx, cpu_start_idx) }
 }
 
+pub(crate) fn get_non_cpu_pd_cpu_start_idx(idx: usize) -> usize {
+    unsafe { read_volatile(&mut NON_CPU_PD_NODES[idx].cpu_start_idx) }
+}
+
 pub(crate) fn set_non_cpu_pd_level(idx: usize, level: u8) {
     unsafe { write_volatile(&mut NON_CPU_PD_NODES[idx].level, level) };
 }
@@ -202,5 +206,23 @@ pub(crate) fn set_req_local_pwr_state(pwrlvl: usize, core: usize, state: u8) {
     {
         let idx = topology::CORE_COUNT * (pwrlvl - 1) + core;
         unsafe { write_volatile(&mut REQ_LOCAL_PWR_STATES[idx], state) }
+    }
+}
+
+/// Helper function to return a reference to an array containing the local power
+/// states requested by each cpu for a power domain at 'pwrlvl'. The size of the
+/// array will be the number of cpu power domains of which this power domain is
+/// an ancestor. These requested states will be used to determine a suitable
+/// target state for this power domain during psci state coordination. An
+/// assertion is added to prevent us from accessing the CPU power level.
+pub(crate) fn get_req_local_pwr_states(pwrlvl: usize, cpu_idx: usize) -> &'static [u8] {
+    if pwrlvl > PSCI_CPU_PWR_LVL as usize
+        && pwrlvl <= defs::MAX_PWR_LVL as usize
+        && cpu_idx < topology::CORE_COUNT
+    {
+        let idx = topology::CORE_COUNT * (pwrlvl - 1) + cpu_idx;
+        return unsafe { &REQ_LOCAL_PWR_STATES[idx..] };
+    } else {
+        panic!("invalid arguments");
     }
 }

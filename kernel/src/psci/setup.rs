@@ -1,8 +1,8 @@
 use super::ep_info::{Aapcs64Params, EntryPointInfo, ParamHeader};
-use super::{cpu_on, data, ep_info};
+use super::{common, cpu_on, data, ep_info};
 use crate::aarch64::{context, cpu};
 use crate::driver;
-use crate::driver::psci::{PsciPowerState, PsciResult};
+use crate::driver::psci::PsciResult;
 use crate::driver::{defs, topology, uart};
 
 use core::mem::size_of;
@@ -88,19 +88,6 @@ pub(crate) fn populate_power_domain_tree(topology: &[u8]) -> u32 {
     n
 }
 
-/// PSCI helper function to get the parent nodes corresponding to a cpu_index.
-fn get_parent_pwr_domain_nodes(cpu_idx: usize) -> [usize; defs::MAX_PWR_LVL as usize] {
-    let mut parent_node = data::get_cpu_pd_parent_node(cpu_idx);
-    let mut node_index = [0; defs::MAX_PWR_LVL as usize];
-
-    for n in node_index.iter_mut() {
-        *n = parent_node;
-        parent_node = data::get_non_cpu_pd_parent_node(parent_node);
-    }
-
-    node_index
-}
-
 /// This functions updates cpu_start_idx and ncpus field for each of the node in
 /// psci_non_cpu_pd_nodes[]. It does so by comparing the parent nodes of each of
 /// the CPUs and check whether they match with the parent of the previous
@@ -111,14 +98,14 @@ fn get_parent_pwr_domain_nodes(cpu_idx: usize) -> [usize; defs::MAX_PWR_LVL as u
 pub(crate) fn update_pwrlvl_limits() {
     let mut nodes_idx = [0; defs::MAX_PWR_LVL as usize];
     for cpu_idx in 0..topology::CORE_COUNT {
-        let parents = get_parent_pwr_domain_nodes(cpu_idx);
+        let parents = common::get_parent_pwr_domain_nodes(cpu_idx);
         for j in (0..defs::MAX_PWR_LVL as usize).rev() {
             if parents[j] != nodes_idx[j] {
                 nodes_idx[j] = parents[j];
                 data::set_non_cpu_pd_cpu_start_idx(nodes_idx[j], cpu_idx);
             }
             let ncpus = data::get_non_cpu_pd_ncpus(nodes_idx[j]);
-            data::set_non_cpu_pd_ncpus(nodes_idx[j], ncpus);
+            data::set_non_cpu_pd_ncpus(nodes_idx[j], ncpus + 1);
         }
     }
 }
@@ -174,14 +161,14 @@ pub(crate) fn init_warmboot() {
     let end_pwrlvl = get_power_on_target_pwrlvl(idx);
 
     // Get the parent nodes
-    let parent_nodes = &get_parent_pwr_domain_nodes(idx)[0..end_pwrlvl as usize];
+    let parent_nodes = &common::get_parent_pwr_domain_nodes(idx)[0..end_pwrlvl as usize];
 
     // lock parents
     for i in parent_nodes {
         unsafe { data::non_cpu_pd_force_lock(*i) };
     }
 
-    let state_info = get_target_local_pwr_states(end_pwrlvl);
+    let state_info = common::get_target_local_pwr_states(end_pwrlvl);
 
     // This CPU could be resuming from suspend or it could have just been
     // turned on. To distinguish between these 2 cases, we examine the
@@ -209,7 +196,7 @@ pub(crate) fn init_warmboot() {
 
     // This loop releases the lock corresponding to each power level
     // in the reverse order to which they were acquired.
-    for i in parent_nodes {
+    for i in parent_nodes.iter().rev() {
         unsafe { data::non_cpu_pd_force_unlock(*i) };
     }
 }
@@ -228,30 +215,6 @@ fn get_power_on_target_pwrlvl(idx: usize) -> u8 {
     } else {
         pwrlvl
     }
-}
-
-/// Helper function to return the current local power state of each power domain
-/// from the current cpu power domain to its ancestor at the 'end_pwrlvl'. This
-/// function will be called after a cpu is powered on to find the local state
-/// each power domain has emerged from.
-fn get_target_local_pwr_states(end_pwrlvl: u8) -> PsciPowerState {
-    let mut target_state = [0; (defs::MAX_PWR_LVL + 1) as usize];
-    let idx = topology::core_pos();
-    let mut parent_idx = data::get_cpu_pd_parent_node(idx);
-
-    // Copy the local power state from node to state_info
-    target_state[data::PSCI_CPU_PWR_LVL as usize] = data::get_cpu_local_state(idx);
-    for lvl in (data::PSCI_CPU_PWR_LVL + 1)..(end_pwrlvl + 1) {
-        target_state[lvl as usize] = data::get_non_cpu_pd_local_state(parent_idx);
-        parent_idx = data::get_non_cpu_pd_parent_node(parent_idx);
-    }
-
-    // Set the the higher levels to RUN
-    for lvl in (end_pwrlvl + 1)..(defs::MAX_PWR_LVL + 1) {
-        target_state[lvl as usize] = data::PSCI_LOCAL_STATE_RUN;
-    }
-
-    target_state
 }
 
 extern "C" {
