@@ -150,10 +150,10 @@ pub fn find_max_off_lvl(state_info: &PsciPowerState) -> u8 {
         if is_local_state_off(state_info[i as usize]) {
             return i;
         }
-        i -= 1;
         if i == data::PSCI_CPU_PWR_LVL {
             break;
         }
+        i -= 1;
     }
 
     data::INVALID_PWR_LVL

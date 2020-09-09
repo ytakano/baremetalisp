@@ -1,3 +1,7 @@
+// Data cache set/way op type defines
+pub const DCISW: u64 = 0x0;
+pub const DCCISW: u64 = 0x1;
+
 // SCR definitions
 pub const SCR_RES1_BITS: u64 = (1 << 4) | (1 << 5);
 pub const SCR_TWEDEL_SHIFT: u64 = 30;
@@ -399,6 +403,7 @@ sysreg!(midr_el1);
 sysreg!(id_aa64pfr1_el1);
 sysreg!(id_aa64mmfr0_el1);
 sysreg!(id_aa64mmfr1_el1);
+sysreg!(clidr_el1);
 
 sysreg!(sctlr_el2);
 sysreg!(mdcr_el2);
@@ -416,6 +421,7 @@ sysreg!(esr_el2);
 sysreg!(scr_el3);
 sysreg!(esr_el3);
 sysreg!(far_el3);
+sysreg!(sctlr_el3);
 
 pub fn get_affinity_lv0() -> u64 {
     let mpidr: u64;
@@ -490,6 +496,10 @@ pub fn dmb_sy() {
 
 pub fn eret() {
     unsafe { asm!("eret") };
+}
+
+pub fn isb() {
+    unsafe { asm!("isb") };
 }
 
 pub fn start_non_primary() {

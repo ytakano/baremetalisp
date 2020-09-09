@@ -35,8 +35,11 @@ pub(crate) fn start(target_cpu: usize, ep: EntryPointInfo) -> PsciResult {
         }
     }
 
+    use driver::uart;
+    uart::puts("cpu_on: start 1\n");
     // Protect against multiple CPUs trying to turn ON the same target CPU
     data::cpu_lock(idx);
+    uart::puts("cpu_on: start 2\n");
 
     // Generic management: Ensure that the cpu is off to be
     // turned on.
@@ -53,6 +56,7 @@ pub(crate) fn start(target_cpu: usize, ep: EntryPointInfo) -> PsciResult {
     // target CPUs shutdown was not seen by the current CPU's cluster. And
     // so the cache may contain stale data for the target CPU.
     data::flush_cache_cpu_state(idx);
+    uart::puts("cpu_on: start 3\n");
     let state = data::get_cpu_aff_info_state(idx);
     match validate_state(&state) {
         PsciResult::PsciESuccess => (),
@@ -60,6 +64,7 @@ pub(crate) fn start(target_cpu: usize, ep: EntryPointInfo) -> PsciResult {
             return err;
         }
     }
+    uart::puts("cpu_on: start 4\n");
 
     // Set the Affinity info state of the target cpu to ON_PENDING.
     // Flush aff_info_state as it will be accessed with caches

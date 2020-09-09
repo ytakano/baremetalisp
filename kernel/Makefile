@@ -21,7 +21,7 @@ else ifeq ($(BSP),pine64)
 	INITADDR = 0x40080000
 endif
 
-ASM_FILE_DEP=asm/device/raspi.S asm/device/pine64.S
+ASM_FILE_DEP=asm/device/raspi.S asm/device/pine64.S asm/cache_helper.S
 
 ASM_FILE=asm/boot.S
 ASM_OBJ=boot.o

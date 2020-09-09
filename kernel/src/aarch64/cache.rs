@@ -2,6 +2,8 @@ use super::cpu;
 use super::mmu;
 use super::mmu::PAGESIZE;
 
+const LEVEL_SHIFT: u64 = 1;
+
 /// clean cache.
 /// dc cvac
 pub fn clean<T>(obj: &T, size: usize) {

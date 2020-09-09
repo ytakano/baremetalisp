@@ -1,6 +1,6 @@
 use super::common;
 use super::data;
-use crate::aarch64::{cache, cpu};
+use crate::aarch64::{cortex, cpu};
 use crate::driver;
 use crate::driver::{defs, psci::PsciPowerState, topology};
 
@@ -15,7 +15,7 @@ use crate::driver::{defs, psci::PsciPowerState, topology};
 /// call the platform specific code which will disable coherency at the
 /// interconnect level if the cpu is the last in the cluster and also the
 /// program the power controller.
-pub(crate) fn do_off(end_pwrlvl: usize) {
+pub(crate) fn start(end_pwrlvl: usize) {
     let idx = topology::core_pos();
     data::flush_cache_cpu_state(idx);
 
@@ -52,10 +52,6 @@ pub(crate) fn do_off(end_pwrlvl: usize) {
     uart::decimal(max_off_lvl as u64);
     uart::puts("\n");
 
-    // TODO
-    // Arch. management. Initiate power down sequence.
-    // psci_do_pwrdown_sequence(psci_find_max_off_lvl(&state_info));
-
     use crate::driver::uart;
     uart::puts("cpu_off\n");
 
@@ -68,19 +64,12 @@ pub(crate) fn do_off(end_pwrlvl: usize) {
     // Plat. management: Perform platform specific actions to turn this
     // cpu off e.g. exit cpu coherency, program the power controller etc.
     driver::psci::pwr_domain_off(&state_info);
-    uart::puts("cpu_off after\n");
-
-    let ncpus = data::get_non_cpu_pd_ncpus(1);
-    uart::puts("parent_idx = ");
-    uart::decimal(1 as u64);
-    uart::puts("\nncpus = ");
-    uart::decimal(ncpus as u64);
-    uart::puts("\n");
 
     loop {
         data::set_cpu_aff_info_state(idx, data::AffInfoState::StateOff);
+        data::flush_cache_cpu_state(idx);
 
-        cache::flush_global();
+        cortex::core_pwr_down();
 
         if !driver::psci::pwr_domain_pwr_down_wfi(&state_info) {
             cpu::dmb_sy();

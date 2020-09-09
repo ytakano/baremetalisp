@@ -86,7 +86,7 @@ pub fn smc_handler(smc_fid: u32, x1: usize, x2: usize, x3: usize) -> PsciResult 
         match smc_fid {
             PSCI_CPU_ON_AARCH32 => psci_cpu_on(x1, x2, x3),
             PSCI_CPU_OFF => {
-                cpu_off::do_off(driver::defs::MAX_PWR_LVL as usize);
+                cpu_off::start(driver::defs::MAX_PWR_LVL as usize);
                 PsciResult::PsciEInternFail
             }
             PSCI_SYSTEM_RESET => {
