@@ -1,8 +1,8 @@
 use super::ep_info::{Aapcs64Params, EntryPointInfo, ParamHeader};
+use super::PsciResult;
 use super::{common, cpu_on, data, ep_info};
 use crate::aarch64::{context, cpu};
 use crate::driver;
-use crate::driver::psci::PsciResult;
 use crate::driver::{defs, topology, uart};
 
 use core::mem::size_of;

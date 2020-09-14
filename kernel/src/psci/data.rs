@@ -96,7 +96,6 @@ pub(crate) enum AffInfoState {
 def_static!(NON_CPU_PD_NODES: [NonCpuPwrDomainNode; topology::NUM_NON_CPU_PWR_DOMAINS]);
 def_static!(CPU_PD_NODES: [CpuPwrDomainNode; topology::CORE_COUNT]);
 def_static!(PSCI_CPU_DATA: [PsciCpuData; topology::CORE_COUNT]);
-//def_static!(PSCI_LOCKS: [lock::LockVar; topology::NUM_NON_CPU_PWR_DOMAINS]);
 
 static mut REQ_LOCAL_PWR_STATES: [u8; defs::MAX_PWR_LVL as usize * topology::CORE_COUNT] =
     [0; defs::MAX_PWR_LVL as usize * topology::CORE_COUNT];

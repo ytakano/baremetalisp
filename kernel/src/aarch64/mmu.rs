@@ -197,16 +197,17 @@ impl Addr {
         self.tt_el1_ttbr1_start = self.tt_el1_ttbr0_end;
         self.tt_el1_ttbr1_end = self.tt_el1_ttbr1_start + PAGESIZE * KERN_TTBR1_TABLE_NUM as u64;
 
-        // 2MiB stack x NUM_CPU
-        self.stack_size = 32 * PAGESIZE * NUM_CPU;
+        // 2MiB stack for each
+        self.stack_size = 32 * PAGESIZE;
+        let stack_size_total = self.stack_size * NUM_CPU;
 
         // EL1's stack
         self.stack_el1_end = self.tt_el1_ttbr1_end;
-        self.stack_el1_start = self.stack_el1_end + self.stack_size;
+        self.stack_el1_start = self.stack_el1_end + stack_size_total;
 
         // EL0's stack
         self.stack_el0_end = self.stack_el1_start;
-        self.stack_el0_start = self.stack_el0_end + self.stack_size;
+        self.stack_el0_start = self.stack_el0_end + stack_size_total;
 
         // heap memory for EL0
         self.el0_heap_start = self.stack_el0_start;

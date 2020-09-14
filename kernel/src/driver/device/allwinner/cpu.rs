@@ -129,15 +129,7 @@ fn or1k_vec_addr(n: u32) -> u32 {
 
 pub(crate) fn init() {
     // Program all CPU entry points
-    let start = _start as *const () as u64;
-    for i in 0..4 {
-        let addr_lo = cpucfg_rvbar_lo_reg(i);
-        let addr_hi = cpucfg_rvbar_hi_reg(i);
-        unsafe {
-            write_volatile(addr_lo, (start & 0xFFFFFFFF) as u32);
-            write_volatile(addr_hi, (start >> 32) as u32);
-        }
-    }
+    init_entry_point();
 
     // Check for a valid SCP firmware, and boot the SCP if found.
     let scp_base = SUNXI_SCP_BASE as *mut u32;
@@ -160,6 +152,18 @@ pub(crate) fn init() {
         }
     } else {
         set_scpi_available(false);
+    }
+}
+
+fn init_entry_point() {
+    let start = _start as *const () as u64;
+    for i in 0..4 {
+        let addr_lo = cpucfg_rvbar_lo_reg(i);
+        let addr_hi = cpucfg_rvbar_hi_reg(i);
+        unsafe {
+            write_volatile(addr_lo, (start & 0xFFFFFFFF) as u32);
+            write_volatile(addr_hi, (start >> 32) as u32);
+        }
     }
 }
 

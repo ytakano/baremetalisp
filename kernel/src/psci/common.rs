@@ -91,13 +91,6 @@ pub(crate) fn do_state_coordination(end_pwrlvl: usize, state_info: &mut PsciPowe
         // this power level and return the target local power state.
 
         let ncpus = data::get_non_cpu_pd_ncpus(parent_idx);
-        use crate::driver::uart;
-        uart::puts("parent_idx = ");
-        uart::decimal(parent_idx as u64);
-        uart::puts("\ncpus = ");
-        uart::decimal(ncpus as u64);
-        uart::puts("\n");
-
         let target_state = driver::psci::get_target_pwr_state(lvl, req_states, ncpus);
 
         state_info[lvl] = target_state;

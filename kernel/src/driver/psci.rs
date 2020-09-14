@@ -5,21 +5,9 @@ use super::device::allwinner::psci;
 use super::device::raspi::psci;
 
 use super::defs;
+use crate::psci::PsciResult;
 
 //use super::uart;
-
-pub enum PsciResult {
-    PsciESuccess = 0,
-    PsciENotSupported = -1,
-    PsciEInvalidParams = -2,
-    PsciEDenied = -3,
-    PsciEAleadyOn = -4,
-    PsciEOnPending = -5,
-    PsciEInternFail = -6,
-    PsciENotPresent = -7,
-    PsciEDisabled = -8,
-    PsciEInvalidAddress = -9,
-}
 
 // The pwr_domain_state[] stores the local power state at each level
 // for the CPU.
@@ -126,10 +114,6 @@ pub fn system_reset2(is_vendor: isize, reset_type: isize, cookie: u64) -> isize 
 fn plat_get_target_pwr_state(_lvl: usize, states: &[u8], mut ncpu: usize) -> u8 {
     let mut target = defs::MAX_OFF_STATE;
 
-    use super::uart;
-    uart::puts("ncpu = ");
-    uart::decimal(ncpu as u64);
-    uart::puts("\n");
     assert_ne!(ncpu, 0);
 
     for st in states {

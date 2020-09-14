@@ -512,6 +512,10 @@ impl CPUContext {
     pub fn set_elr(&mut self, elr: u64) {
         unsafe { write_volatile(&mut self.gpregx_ctx.elr, elr) };
     }
+
+    pub fn set_x0(&mut self, x0: u64) {
+        unsafe { write_volatile(&mut self.gpregx_ctx.x0, x0) };
+    }
 }
 
 pub fn get_ctx(idx: usize, is_secure: bool) -> &'static mut CPUContext {

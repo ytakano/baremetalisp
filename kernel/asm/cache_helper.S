@@ -71,9 +71,6 @@
 	.endm
 
 
-	.globl	flush_dcache_range
-	.globl	clean_dcache_range
-	.globl	inv_dcache_range
 	.globl	dcsw_op_louis
 	.globl	dcsw_op_all
 	.globl	dcsw_op_level1

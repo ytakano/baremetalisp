@@ -4,9 +4,9 @@ use super::memory;
 use super::power;
 use crate::aarch64;
 use crate::driver::arm::{gic, scpi};
-use crate::driver::psci::PsciResult;
 use crate::driver::{psci, topology};
 use crate::psci::common::{is_local_state_off, is_local_state_retn, is_local_state_run};
+use crate::psci::PsciResult;
 
 pub(crate) fn init() {
     cpu::init();

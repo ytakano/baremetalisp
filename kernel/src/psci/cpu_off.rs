@@ -16,6 +16,8 @@ use crate::driver::{defs, psci::PsciPowerState, topology};
 /// interconnect level if the cpu is the last in the cluster and also the
 /// program the power controller.
 pub(crate) fn start(end_pwrlvl: usize) {
+    // TODO: buggy
+
     let idx = topology::core_pos();
     data::flush_cache_cpu_state(idx);
 
@@ -41,19 +43,12 @@ pub(crate) fn start(end_pwrlvl: usize) {
     // the end level specified.
     common::do_state_coordination(end_pwrlvl, &mut state_info);
 
-    for s in &state_info {
-        uart::puts("state_info = ");
-        uart::decimal(*s as u64);
-        uart::puts("\n");
-    }
+    // Plat. management: Perform platform specific actions to turn this
+    // cpu off e.g. exit cpu coherency, program the power controller etc.
+    driver::psci::pwr_domain_off(&state_info);
 
-    let max_off_lvl = common::find_max_off_lvl(&state_info);
-    uart::puts("max_off_lvl = ");
-    uart::decimal(max_off_lvl as u64);
-    uart::puts("\n");
-
-    use crate::driver::uart;
-    uart::puts("cpu_off\n");
+    data::set_cpu_aff_info_state(idx, data::AffInfoState::StateOff);
+    data::flush_cache_cpu_state(idx);
 
     // Release the locks corresponding to each power level in the
     // reverse order to which they were acquired.
@@ -61,21 +56,16 @@ pub(crate) fn start(end_pwrlvl: usize) {
         unsafe { data::non_cpu_pd_force_unlock(*i) };
     }
 
-    // Plat. management: Perform platform specific actions to turn this
-    // cpu off e.g. exit cpu coherency, program the power controller etc.
-    driver::psci::pwr_domain_off(&state_info);
-
-    loop {
-        data::set_cpu_aff_info_state(idx, data::AffInfoState::StateOff);
-        data::flush_cache_cpu_state(idx);
-
+    let max_off_lvl = common::find_max_off_lvl(&state_info);
+    if max_off_lvl == 0 {
         cortex::core_pwr_down();
+    } else {
+        cortex::cluster_pwr_down();
+    }
 
-        if !driver::psci::pwr_domain_pwr_down_wfi(&state_info) {
-            cpu::dmb_sy();
-            cpu::wait_interrupt();
-            panic!("failed CPU off");
-        }
+    if !driver::psci::pwr_domain_pwr_down_wfi(&state_info) {
+        cpu::wait_interrupt();
+        driver::delays::forever();
     }
 }
 

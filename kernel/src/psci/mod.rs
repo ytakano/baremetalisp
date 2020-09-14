@@ -8,7 +8,6 @@ mod suspend;
 
 use crate::aarch64::{context, cpu};
 use crate::driver;
-use crate::driver::psci::PsciResult;
 use crate::driver::topology;
 
 // Defines for runtime services function ids
@@ -59,6 +58,19 @@ pub const SMC_TYPE_YIELD: u32 = 0;
 const SMC_FROM_SECURE: usize = 0 << 0;
 const SMC_FROM_NON_SECURE: usize = 1 << 0;
 
+pub enum PsciResult {
+    PsciESuccess = 0,
+    PsciENotSupported = -1,
+    PsciEInvalidParams = -2,
+    PsciEDenied = -3,
+    PsciEAleadyOn = -4,
+    PsciEOnPending = -5,
+    PsciEInternFail = -6,
+    PsciENotPresent = -7,
+    PsciEDisabled = -8,
+    PsciEInvalidAddress = -9,
+}
+
 pub fn init() {
     setup::init();
 }
@@ -72,22 +84,26 @@ pub fn is_psci_fid(fid: u32) -> bool {
 }
 
 /// PSCI top level handler for servicing SMCs.
-pub fn smc_handler(smc_fid: u32, x1: usize, x2: usize, x3: usize) -> PsciResult {
-    let is_secure = cpu::is_secure();
-    if is_secure {
-        return PsciResult::PsciENotSupported;
-    }
-
+pub fn smc_handler(smc_fid: u32, x1: usize, x2: usize, x3: usize) {
     let ctx = context::get_ctx(topology::core_pos(), false);
     ctx.save_fpregs();
+
+    let is_secure = cpu::is_secure();
+    if is_secure {
+        ctx.set_x0(PsciResult::PsciENotSupported as u64);
+        return;
+    }
 
     let result = if (smc_fid >> FUNCID_CC_SHIFT) & FUNCID_CC_MASK == SMC_32 {
         // AArch32
         match smc_fid {
             PSCI_CPU_ON_AARCH32 => psci_cpu_on(x1, x2, x3),
             PSCI_CPU_OFF => {
-                cpu_off::start(driver::defs::MAX_PWR_LVL as usize);
-                PsciResult::PsciEInternFail
+                PsciResult::PsciENotSupported
+
+                // dieslabe CPU off because of bug
+                // cpu_off::start(driver::defs::MAX_PWR_LVL as usize);
+                // PsciResult::PsciEInternFail
             }
             PSCI_SYSTEM_RESET => {
                 driver::psci::system_reset();
@@ -108,8 +124,7 @@ pub fn smc_handler(smc_fid: u32, x1: usize, x2: usize, x3: usize) -> PsciResult 
     };
 
     ctx.restore_fpregs();
-
-    result
+    ctx.set_x0(result as u64);
 }
 
 fn validate_mpidr(mpidr: usize) -> bool {

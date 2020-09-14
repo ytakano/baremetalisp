@@ -102,10 +102,14 @@ fn init_primary() {
 
 /// initialization for secondary CPUs
 fn init_secondary() -> ! {
+    aarch64::cache::invalidate_l1_cache();
+    aarch64::cache::invalidate_l2_cache();
+    aarch64::cache::invalidate_icache();
     aarch64::mmu::set_regs();
 
     match aarch64::cpu::get_current_el() {
         3 => {
+            aarch64::cpu::init_cptr_el3();
             psci::init_warmboot();
             aarch64::context::init_secure();
             aarch64::context::init_el2_regs();
@@ -147,52 +151,63 @@ pub fn ns_entry() -> ! {
     non_secure()
 }
 
+pub fn wake_up_cpu(n: u64) {
+    driver::uart::puts("\nwaking CPU #");
+    driver::uart::decimal(n);
+    driver::uart::puts("\n");
+    unsafe {
+        let x0: u64 = psci::PSCI_CPU_ON_AARCH64 as u64;
+        asm!(
+            "mov x0, {}
+             mov x1, {} // CPU #
+             adr x2, ns_entry // set entry point
+             mov x3, xzr
+             smc #0",
+            in(reg) x0,
+            in(reg) n,
+        );
+    }
+}
+
 pub fn non_secure() -> ! {
     driver::uart::puts("Hello Normal World from CPU #");
     driver::uart::decimal(driver::topology::core_pos() as u64);
     driver::uart::puts("\n");
-    /*
-    loop {
-        // test code for CPU on
-        if driver::topology::core_pos() == 0 {
-            // wake CPU #1 up
-            driver::uart::puts("waking CPU #1 up\n");
-            unsafe {
-                let x0: u64 = psci::PSCI_CPU_ON_AARCH64 as u64;
-                asm!(
-                    "mov x0, {}
-                         mov x1, 1 // CPU #1
-                         adr x2, ns_entry // set entry point
-                         mov x3, xzr
-                         smc #0",
-                    in(reg) x0,
-                );
-            }
-        } else {
-            unsafe {
-                let x0: u64 = psci::PSCI_CPU_OFF as u64;
-                asm!(
-                    "mov x0, {}
-                         smc #0",
-                    in(reg) x0,
-                );
-            }
-            driver::delays::forever();
-        }
 
+    // test code for CPU on
+    if driver::topology::core_pos() == 0 {
+        // wake CPUs
+        wake_up_cpu(1);
+        driver::delays::wait_milisec(200);
+        wake_up_cpu(2);
+        driver::delays::wait_milisec(200);
+        wake_up_cpu(3);
+        driver::delays::wait_milisec(200);
+
+        aarch64::syscall::smc::to_secure();
+    } else {
+        driver::uart::puts("\n");
         /*
-        // test code for shutdown
         unsafe {
-            let x0: u64 = psci::PSCI_SYSTEM_RESET as u64;
+            let x0: u64 = psci::PSCI_CPU_OFF as u64;
             asm!(
                 "mov x0, {}
-                 smc #0",
-                in(reg) x0
+                     smc #0",
+                in(reg) x0,
             );
         }*/
+        driver::delays::forever();
+    }
 
-        driver::delays::wait_milisec(200);
-        aarch64::syscall::smc::to_secure();
+    /*
+    // test code for shutdown
+    unsafe {
+        let x0: u64 = psci::PSCI_SYSTEM_RESET as u64;
+        asm!(
+            "mov x0, {}
+             smc #0",
+            in(reg) x0
+        );
     }*/
 
     loop {

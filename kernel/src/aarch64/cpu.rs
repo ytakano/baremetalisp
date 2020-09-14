@@ -1,3 +1,5 @@
+pub const ECTLR_SMP_BIT: u64 = 1 << 6;
+
 // Data cache set/way op type defines
 pub const DCISW: u64 = 0x0;
 pub const DCCISW: u64 = 0x1;
@@ -376,6 +378,7 @@ sysreg!(tpidr_el0);
 sysreg!(tpidrro_el0);
 sysreg!(pmcr_el0);
 sysreg!(sp_el0);
+sysreg!(ctr_el0);
 
 sysreg!(elr_el1);
 sysreg!(spsr_el1);
@@ -422,6 +425,9 @@ sysreg!(scr_el3);
 sysreg!(esr_el3);
 sysreg!(far_el3);
 sysreg!(sctlr_el3);
+sysreg!(actlr_el3);
+sysreg!(mair_el3);
+sysreg!(cptr_el3);
 
 pub fn get_affinity_lv0() -> u64 {
     let mpidr: u64;
