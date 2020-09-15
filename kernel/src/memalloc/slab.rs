@@ -1,16 +1,14 @@
 use alloc::alloc::handle_alloc_error;
-use core::alloc::{GlobalAlloc, Layout};
+use core::alloc::Layout;
 use core::ptr::null_mut;
 
 use crate::aarch64::bits::clz;
-use crate::aarch64::{lock, mmu};
 use crate::driver;
 use crate::pager;
 
-struct Allocator;
+pub const MAX_SLAB_SIZE: usize = 65512;
 
 struct SlabAllocator {
-    lock: lock::LockVar,
     pages: pager::PageManager,
 
     slab16_partial: *mut Slab16,
@@ -45,8 +43,6 @@ struct SlabAllocator {
 macro_rules! AllocMemory {
     ($t:ident, $slab_partial:ident, $slab_full:ident, $layout:ident) => {
         let r = {
-            let _lock = SLAB_ALLOC.lock.lock();
-
             match SLAB_ALLOC.$slab_partial.as_mut() {
                 Some(partial) => {
                     let ret = partial.alloc();
@@ -176,143 +172,137 @@ macro_rules! DeallocMemory {
     };
 }
 
-unsafe impl GlobalAlloc for Allocator {
-    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        /*
-                driver::uart::puts("alloc:\n");
-                driver::uart::puts("  layout.size: ");
-                driver::uart::decimal(layout.size() as u64);
-                driver::uart::puts("\n  layout.align: ");
-                driver::uart::decimal(layout.align() as u64);
-                driver::uart::puts("\n");
-        */
-        let size = layout.size();
-        let n = clz(size as u64 + 8 - 1);
+pub unsafe fn slab_alloc(layout: Layout) -> *mut u8 {
+    /*
+            driver::uart::puts("alloc:\n");
+            driver::uart::puts("  layout.size: ");
+            driver::uart::decimal(layout.size() as u64);
+            driver::uart::puts("\n  layout.align: ");
+            driver::uart::decimal(layout.align() as u64);
+            driver::uart::puts("\n");
+    */
+    let size = layout.size();
+    let n = clz(size as u64 + 8 - 1);
 
-        match n {
-            61 => {
-                AllocMemory!(Slab16, slab16_partial, slab16_full, layout);
-            }
-            60 => {
-                AllocMemory!(Slab16, slab16_partial, slab16_full, layout);
-            }
-            59 => {
-                AllocMemory!(Slab32, slab32_partial, slab32_full, layout);
-            }
-            58 => {
-                AllocMemory!(Slab64, slab64_partial, slab64_full, layout);
-            }
-            57 => {
-                AllocMemory!(Slab128, slab128_partial, slab128_full, layout);
-            }
-            56 => {
-                AllocMemory!(Slab256, slab256_partial, slab256_full, layout);
-            }
-            55 => {
-                AllocMemory!(Slab512, slab512_partial, slab512_full, layout);
-            }
-            54 => {
-                AllocMemory!(Slab1024, slab1024_partial, slab1024_full, layout);
-            }
-            _ => {
-                if size <= 4088 - 16 {
-                    if size <= 2040 - 16 {
-                        // Slab2040
-                        AllocMemory!(Slab2040, slab2040_partial, slab2040_full, layout);
+    match n {
+        61 => {
+            AllocMemory!(Slab16, slab16_partial, slab16_full, layout);
+        }
+        60 => {
+            AllocMemory!(Slab16, slab16_partial, slab16_full, layout);
+        }
+        59 => {
+            AllocMemory!(Slab32, slab32_partial, slab32_full, layout);
+        }
+        58 => {
+            AllocMemory!(Slab64, slab64_partial, slab64_full, layout);
+        }
+        57 => {
+            AllocMemory!(Slab128, slab128_partial, slab128_full, layout);
+        }
+        56 => {
+            AllocMemory!(Slab256, slab256_partial, slab256_full, layout);
+        }
+        55 => {
+            AllocMemory!(Slab512, slab512_partial, slab512_full, layout);
+        }
+        54 => {
+            AllocMemory!(Slab1024, slab1024_partial, slab1024_full, layout);
+        }
+        _ => {
+            if size <= 4088 - 16 {
+                if size <= 2040 - 16 {
+                    // Slab2040
+                    AllocMemory!(Slab2040, slab2040_partial, slab2040_full, layout);
+                } else {
+                    // Slab4088
+                    AllocMemory!(Slab4088, slab4088_partial, slab4088_full, layout);
+                }
+            } else {
+                if size <= 16376 - 16 {
+                    if size <= 8184 - 16 {
+                        // Slab8184
+                        AllocMemory!(Slab8184, slab8184_partial, slab8184_full, layout);
                     } else {
-                        // Slab4088
-                        AllocMemory!(Slab4088, slab4088_partial, slab4088_full, layout);
+                        // Slab16376
+                        AllocMemory!(Slab16376, slab16376_partial, slab16376_full, layout);
                     }
                 } else {
-                    if size <= 16376 - 16 {
-                        if size <= 8184 - 16 {
-                            // Slab8184
-                            AllocMemory!(Slab8184, slab8184_partial, slab8184_full, layout);
-                        } else {
-                            // Slab16376
-                            AllocMemory!(Slab16376, slab16376_partial, slab16376_full, layout);
-                        }
+                    if size <= 32752 - 16 {
+                        // Slab32752
+                        AllocMemory!(Slab32752, slab32752_partial, slab32752_full, layout);
+                    } else if size <= 65512 - 16 {
+                        // Slab65512
+                        AllocMemory!(Slab65512, slab65512_partial, slab65512_full, layout);
                     } else {
-                        if size <= 32752 - 16 {
-                            // Slab32752
-                            AllocMemory!(Slab32752, slab32752_partial, slab32752_full, layout);
-                        } else if size <= 65512 - 16 {
-                            // Slab65512
-                            AllocMemory!(Slab65512, slab65512_partial, slab65512_full, layout);
-                        } else {
-                            handle_alloc_error(layout);
-                        }
+                        handle_alloc_error(layout);
                     }
                 }
             }
         }
     }
+}
 
-    unsafe fn dealloc(&self, ptr: *mut u8, _layout: Layout) {
-        let addr_slab = *((ptr as usize - 8) as *const u64);
-        let size = *((addr_slab + 65532) as *const u32);
-        /*
-                driver::uart::puts("dealloc:\n");
-                driver::uart::puts("  ptr: 0x");
-                driver::uart::hex(ptr as u64);
-                driver::uart::puts("\n");
-                driver::uart::puts("  addr_slab: 0x");
-                driver::uart::hex(addr_slab);
-                driver::uart::puts("\n");
-                driver::uart::puts("  size: ");
-                driver::uart::decimal(size as u64);
-                driver::uart::puts("\n");
-        */
-        match size {
-            16 => {
-                DeallocMemory!(ptr, addr_slab, Slab16, slab16_partial, slab16_full);
-            }
-            32 => {
-                DeallocMemory!(ptr, addr_slab, Slab32, slab32_partial, slab32_full);
-            }
-            64 => {
-                DeallocMemory!(ptr, addr_slab, Slab64, slab64_partial, slab64_full);
-            }
-            128 => {
-                DeallocMemory!(ptr, addr_slab, Slab128, slab128_partial, slab128_full);
-            }
-            256 => {
-                DeallocMemory!(ptr, addr_slab, Slab256, slab256_partial, slab256_full);
-            }
-            512 => {
-                DeallocMemory!(ptr, addr_slab, Slab512, slab512_partial, slab512_full);
-            }
-            1024 => {
-                DeallocMemory!(ptr, addr_slab, Slab1024, slab1024_partial, slab1024_full);
-            }
-            2040 => {
-                DeallocMemory!(ptr, addr_slab, Slab2040, slab2040_partial, slab2040_full);
-            }
-            4088 => {
-                DeallocMemory!(ptr, addr_slab, Slab4088, slab4088_partial, slab4088_full);
-            }
-            8184 => {
-                DeallocMemory!(ptr, addr_slab, Slab8184, slab8184_partial, slab8184_full);
-            }
-            16376 => {
-                DeallocMemory!(ptr, addr_slab, Slab16376, slab16376_partial, slab16376_full);
-            }
-            32752 => {
-                DeallocMemory!(ptr, addr_slab, Slab32752, slab32752_partial, slab32752_full);
-            }
-            65512 => {
-                DeallocMemory!(ptr, addr_slab, Slab65512, slab65512_partial, slab65512_full);
-            }
-            _ => {}
+pub unsafe fn slab_dealloc(ptr: *mut u8, _layout: Layout) {
+    let addr_slab = *((ptr as usize - 8) as *const u64);
+    let size = *((addr_slab + 65532) as *const u32);
+    /*
+            driver::uart::puts("dealloc:\n");
+            driver::uart::puts("  ptr: 0x");
+            driver::uart::hex(ptr as u64);
+            driver::uart::puts("\n");
+            driver::uart::puts("  addr_slab: 0x");
+            driver::uart::hex(addr_slab);
+            driver::uart::puts("\n");
+            driver::uart::puts("  size: ");
+            driver::uart::decimal(size as u64);
+            driver::uart::puts("\n");
+    */
+    match size {
+        16 => {
+            DeallocMemory!(ptr, addr_slab, Slab16, slab16_partial, slab16_full);
         }
+        32 => {
+            DeallocMemory!(ptr, addr_slab, Slab32, slab32_partial, slab32_full);
+        }
+        64 => {
+            DeallocMemory!(ptr, addr_slab, Slab64, slab64_partial, slab64_full);
+        }
+        128 => {
+            DeallocMemory!(ptr, addr_slab, Slab128, slab128_partial, slab128_full);
+        }
+        256 => {
+            DeallocMemory!(ptr, addr_slab, Slab256, slab256_partial, slab256_full);
+        }
+        512 => {
+            DeallocMemory!(ptr, addr_slab, Slab512, slab512_partial, slab512_full);
+        }
+        1024 => {
+            DeallocMemory!(ptr, addr_slab, Slab1024, slab1024_partial, slab1024_full);
+        }
+        2040 => {
+            DeallocMemory!(ptr, addr_slab, Slab2040, slab2040_partial, slab2040_full);
+        }
+        4088 => {
+            DeallocMemory!(ptr, addr_slab, Slab4088, slab4088_partial, slab4088_full);
+        }
+        8184 => {
+            DeallocMemory!(ptr, addr_slab, Slab8184, slab8184_partial, slab8184_full);
+        }
+        16376 => {
+            DeallocMemory!(ptr, addr_slab, Slab16376, slab16376_partial, slab16376_full);
+        }
+        32752 => {
+            DeallocMemory!(ptr, addr_slab, Slab32752, slab32752_partial, slab32752_full);
+        }
+        65512 => {
+            DeallocMemory!(ptr, addr_slab, Slab65512, slab65512_partial, slab65512_full);
+        }
+        _ => {}
     }
 }
 
-#[global_allocator]
-static GLOBAL: Allocator = Allocator;
-
 static mut SLAB_ALLOC: SlabAllocator = SlabAllocator {
-    lock: lock::LockVar::new(),
     pages: pager::PageManager::new(),
     slab16_partial: null_mut(),
     slab32_partial: null_mut(),
@@ -342,23 +332,8 @@ static mut SLAB_ALLOC: SlabAllocator = SlabAllocator {
     slab65512_full: null_mut(),
 };
 
-#[alloc_error_handler]
-fn on_oom(layout: Layout) -> ! {
-    print_slabs();
-
-    let size = layout.size() as u64;
-    driver::uart::puts("memory allocation error: size = ");
-    driver::uart::decimal(size);
-    driver::uart::puts("\n");
-    loop {}
-}
-
-pub fn init(addr: &mmu::Addr) {
-    unsafe {
-        SLAB_ALLOC
-            .pages
-            .set_range(addr.el0_heap_start as usize, addr.el0_heap_end as usize);
-    }
+pub(crate) unsafe fn init(start: usize, size: usize) {
+    SLAB_ALLOC.pages.set_range(start, size);
 }
 
 trait Slab {

@@ -1,7 +1,6 @@
 use crate::aarch64::{mmu, syscall};
 use crate::driver::{delays, uart};
 use crate::memalloc;
-use crate::slab;
 
 use alloc::boxed::Box;
 use blisp;
@@ -95,7 +94,9 @@ fn repl_uart(ctx: &blisp::semantics::Context) -> ! {
 pub fn el0_entry_core_0() -> ! {
     // initialize memory allocator
     let addr = mmu::get_memory_map();
-    slab::init(&addr);
+    let size = addr.el0_heap_end - addr.el0_heap_start;
+    let mid = (addr.el0_heap_start + (size >> 1)) as usize;
+    memalloc::init(addr.el0_heap_start as usize, mid, mid);
 
     uart::puts("global code:\n");
     uart::puts(GLOBAL_CODE);

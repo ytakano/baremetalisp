@@ -17,7 +17,6 @@ mod el3;
 mod memalloc;
 mod pager;
 mod psci;
-mod slab;
 
 #[macro_use]
 extern crate alloc;

@@ -28,7 +28,7 @@
 
 use crate::driver::uart;
 
-const MAX_DEPTH: usize = 10; // depth of tree
+const MAX_DEPTH: usize = 9; // depth of tree
 const NUM_NODES: usize = (1 << (MAX_DEPTH + 1)) - 1; // the number of nodes
 const NUM_NODES32: usize = (NUM_NODES >> 5) + 1; // #nodes / 32 + 1
 
@@ -57,12 +57,12 @@ impl BuddyAlloc {
         }
     }
 
-    pub fn mem_alloc(&mut self, size: usize) -> Option<usize> {
+    pub fn mem_alloc(&mut self, size: usize) -> Option<*mut u8> {
         self.find_mem(size, (1 << MAX_DEPTH) * self.min_size, 0, 0)
     }
 
-    pub fn mem_free(&mut self, addr: usize) {
-        self.release_mem(addr, (1 << MAX_DEPTH) * self.min_size, 0, 0)
+    pub fn mem_free(&mut self, addr: *mut u8) {
+        self.release_mem(addr as usize, (1 << MAX_DEPTH) * self.min_size, 0, 0)
     }
 
     fn get_tag(&self, idx: usize) -> Tag {
@@ -98,7 +98,7 @@ impl BuddyAlloc {
         bytes: usize, // total bytes of this block
         depth: usize,
         offset: usize, // offset of current node in the depth
-    ) -> Option<usize> {
+    ) -> Option<*mut u8> {
         if req > bytes || depth > MAX_DEPTH {
             return None;
         }
@@ -115,7 +115,7 @@ impl BuddyAlloc {
                     self.find_mem(req, next_bytes, depth + 1, offset * 2)
                 } else {
                     self.set_tag(idx, Tag::UsedLeaf);
-                    Some(self.start + bytes * offset)
+                    Some((self.start + bytes * offset) as *mut u8)
                 }
             }
             Tag::Inner => match self.find_mem(req, bytes >> 1, depth + 1, offset * 2) {
