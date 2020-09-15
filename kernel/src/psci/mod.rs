@@ -47,6 +47,9 @@ pub const PSCI_FID_VALUE: u32 = 0;
 pub const FUNCID_CC_SHIFT: u32 = 30;
 pub const FUNCID_CC_MASK: u32 = 0x1;
 
+pub const PSCI_MAJOR_VERSION: u64 = 1 << 16;
+pub const PSCI_MINOR_VERSION: u64 = 1;
+
 // Flags and error codes
 pub const SMC_64: u32 = 1;
 pub const SMC_32: u32 = 0;
@@ -97,9 +100,10 @@ pub fn smc_handler(smc_fid: u32, x1: usize, x2: usize, x3: usize) {
     let result = if (smc_fid >> FUNCID_CC_SHIFT) & FUNCID_CC_MASK == SMC_32 {
         // AArch32
         match smc_fid {
-            PSCI_CPU_ON_AARCH32 => psci_cpu_on(x1, x2, x3),
+            PSCI_VERSION => PSCI_MAJOR_VERSION | PSCI_MINOR_VERSION,
+            PSCI_CPU_ON_AARCH32 => psci_cpu_on(x1, x2, x3) as u64,
             PSCI_CPU_OFF => {
-                PsciResult::PsciENotSupported
+                PsciResult::PsciENotSupported as u64
 
                 // dieslabe CPU off because of bug
                 // cpu_off::start(driver::defs::MAX_PWR_LVL as usize);
@@ -107,24 +111,24 @@ pub fn smc_handler(smc_fid: u32, x1: usize, x2: usize, x3: usize) {
             }
             PSCI_SYSTEM_RESET => {
                 driver::psci::system_reset();
-                PsciResult::PsciEInternFail
+                PsciResult::PsciEInternFail as u64
             }
             PSCI_SYSTEM_OFF => {
                 driver::psci::system_off();
-                PsciResult::PsciEInternFail
+                PsciResult::PsciEInternFail as u64
             }
-            _ => PsciResult::PsciENotSupported,
+            _ => PsciResult::PsciENotSupported as u64,
         }
     } else {
         // AArch64
         match smc_fid {
-            PSCI_CPU_ON_AARCH64 => psci_cpu_on(x1, x2, x3),
-            _ => PsciResult::PsciENotSupported,
+            PSCI_CPU_ON_AARCH64 => psci_cpu_on(x1, x2, x3) as u64,
+            _ => PsciResult::PsciENotSupported as u64,
         }
     };
 
     ctx.restore_fpregs();
-    ctx.set_x0(result as u64);
+    ctx.set_x0(result);
 }
 
 fn validate_mpidr(mpidr: usize) -> bool {

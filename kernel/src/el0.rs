@@ -1,5 +1,6 @@
 use crate::aarch64::{mmu, syscall};
 use crate::driver::{delays, uart};
+use crate::memalloc;
 use crate::slab;
 
 use alloc::boxed::Box;

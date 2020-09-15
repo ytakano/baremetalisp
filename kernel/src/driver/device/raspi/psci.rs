@@ -1,6 +1,6 @@
 use super::memory;
 use crate::driver::psci;
-use crate::driver::psci::PsciResult;
+use crate::psci::PsciResult;
 
 // TODO:
 // not yet implemented
