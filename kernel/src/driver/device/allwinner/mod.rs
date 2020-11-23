@@ -2,31 +2,31 @@ use core::ptr::{read_volatile, write_volatile};
 
 use crate::bits;
 
-pub(crate) mod axp;
-pub(crate) mod cpu;
-pub(crate) mod defs;
-pub(crate) mod mbox;
-pub(crate) mod memory;
-pub(crate) mod mhu;
-pub(crate) mod power;
-pub(crate) mod psci;
-pub(crate) mod rsb;
-pub(crate) mod security;
-pub(crate) mod setup;
-pub(crate) mod topology;
-pub(crate) mod uart;
+pub(in crate::driver) mod axp;
+pub(in crate::driver) mod cpu;
+pub(in crate::driver) mod defs;
+pub(in crate::driver) mod mbox;
+pub(in crate::driver) mod memory;
+pub(in crate::driver) mod mhu;
+pub(in crate::driver) mod power;
+pub(in crate::driver) mod psci;
+pub(in crate::driver) mod rsb;
+pub(in crate::driver) mod security;
+pub(in crate::driver) mod setup;
+pub(in crate::driver) mod topology;
+pub(in crate::driver) mod uart;
 
 const SUNXI_SOC_A64: u32 = 0x1689;
 const SUNXI_SOC_H5: u32 = 0x1718;
 const SUNXI_SOC_H6: u32 = 0x1728;
 
-pub(crate) enum SoCID {
+pub(super) enum SoCID {
     A64,
     H5,
     H6,
 }
 
-pub(crate) fn read_soc_id() -> SoCID {
+pub(super) fn read_soc_id() -> SoCID {
     let ver_reg = (memory::SUNXI_SYSCON_BASE + 0x24) as *mut u32;
 
     let ver;
@@ -52,7 +52,7 @@ pub(crate) fn read_soc_id() -> SoCID {
     }
 }
 
-pub(crate) fn init_platform_r_twi(socid: SoCID, use_rsb: bool) -> bool {
+pub(super) fn init_platform_r_twi(socid: SoCID, use_rsb: bool) -> bool {
     let pin_func: u32;
     let device_bit: u32;
     let reset_offset: usize;

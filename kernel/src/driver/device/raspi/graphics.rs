@@ -4,9 +4,9 @@ pub struct Display {
     pub size_phy: (u32, u32),
     pub size_virt: (u32, u32),
     pub offset: (u32, u32),
-    pub depth: u32,            // bits per pixel
-    pub pitch: u32,            // bytes per line
-    pub ptr: u32,              // base address of frame buffer
+    pub depth: u32,                // bits per pixel
+    pub pitch: u32,                // bytes per line
+    pub ptr: u32,                  // base address of frame buffer
     pub buffer: &'static mut [u8], // frame buffer
 }
 
@@ -18,7 +18,7 @@ impl Display {
         self.buffer[pos + 2] = b;
     }
 
-    pub fn plot_mandelbrot_set(&mut self) {
+    pub(in crate::driver) fn plot_mandelbrot_set(&mut self) {
         let size = 2;
         let width = self.size_virt.0;
         let height = self.size_virt.1;
@@ -53,11 +53,11 @@ impl Display {
 }
 
 /// Set screen resolution to 1280x720
-pub fn init() -> Option<Display> {
+pub(in crate::driver) fn init() -> Option<Display> {
     mbox::set_display(1280, 720, 1280, 720, 0, 0)
 }
 
-pub fn hsv2rgb(mut h: f32, s: f32, v: f32) -> (u8, u8, u8) {
+fn hsv2rgb(mut h: f32, s: f32, v: f32) -> (u8, u8, u8) {
     let mut r = v;
     let mut g = v;
     let mut b = v;

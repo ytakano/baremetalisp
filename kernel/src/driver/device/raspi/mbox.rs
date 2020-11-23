@@ -53,7 +53,7 @@ const MBOX_RESPONSE: u32 = 0x80000000;
 const MBOX_FULL: u32 = 0x80000000;
 const MBOX_EMPTY: u32 = 0x40000000;
 
-pub fn call(ptr: *mut u32, ch: u8) -> bool {
+pub(super) fn call(ptr: *mut u32, ch: u8) -> bool {
     let r = ptr as u64;
     if r & 0xF != 0 || r > 0xFFFFFFFF {
         return false;
@@ -89,7 +89,7 @@ pub fn call(ptr: *mut u32, ch: u8) -> bool {
 struct Mbox<T>(T);
 
 /// get board's serial number
-pub fn get_serial() -> Option<u64> {
+pub(super) fn get_serial() -> Option<u64> {
     let m = mmu::get_no_cache::<[u32; 8]>();
 
     // get the board's unique serial number with a mailbox call
@@ -128,22 +128,22 @@ fn get_len7_u32(tag: u32) -> Option<u32> {
 }
 
 /// get firmware version
-pub fn get_firmware_version() -> Option<u32> {
+pub(super) fn get_firmware_version() -> Option<u32> {
     get_len7_u32(MBOX_TAG_GETFWVER)
 }
 
 /// get board model
-pub fn get_board_model() -> Option<u32> {
+pub(super) fn get_board_model() -> Option<u32> {
     get_len7_u32(MBOX_TAG_GETBOARDMODEL)
 }
 
 /// get board revision
-pub fn get_board_rev() -> Option<u32> {
+pub(super) fn get_board_rev() -> Option<u32> {
     get_len7_u32(MBOX_TAG_GETBOARDREV)
 }
 
 /// get memory size
-pub fn get_memory() -> usize {
+pub(super) fn get_memory() -> usize {
     match get_board_rev() {
         Some(rev) => {
             // https://www.raspberrypi.org/documentation/hardware/raspberrypi/revision-codes/README.md
@@ -178,7 +178,7 @@ pub fn get_memory() -> usize {
     }
 }
 
-pub fn set_uart_clock(clock: u32) {
+pub(super) fn set_uart_clock(clock: u32) {
     let m = mmu::get_no_cache::<[u32; 9]>();
     m[0] = 9 * 4;
     m[1] = MBOX_REQUEST;
@@ -194,7 +194,7 @@ pub fn set_uart_clock(clock: u32) {
 }
 
 /// power off a device
-pub fn set_power_off(n: u32) {
+pub(super) fn set_power_off(n: u32) {
     let m = mmu::get_no_cache::<[u32; 8]>();
     m[0] = 8 * 4; // length of the message
     m[1] = MBOX_REQUEST; // this is a request message
@@ -209,7 +209,7 @@ pub fn set_power_off(n: u32) {
 }
 
 /// set display's setting
-pub fn set_display(
+pub(super) fn set_display(
     width_phy: u32,
     height_phy: u32,
     width_virt: u32,

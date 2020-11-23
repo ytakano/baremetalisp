@@ -106,6 +106,7 @@ pub struct BakeryLock<'a> {
 impl<'a> BakeryLock<'a> {
     fn new(t: &'a mut BakeryTicket) -> BakeryLock<'a> {
         let core = core_pos() as usize;
+        cpu::dmb_sy();
         unsafe {
             write_volatile(&mut t.entering[core], true);
         }
@@ -116,21 +117,30 @@ impl<'a> BakeryLock<'a> {
                 max = *v;
             }
         }
+        let ticket = 1 + max;
         unsafe {
-            write_volatile(&mut t.number[core], 1 + max);
+            write_volatile(&mut t.number[core], ticket);
+            cpu::dmb_sy();
             write_volatile(&mut t.entering[core], false);
+            cpu::dmb_sy();
         }
-        cpu::dmb_sy();
 
         for i in 0..(CORE_COUNT as usize) {
+            if i == core {
+                continue;
+            }
+
+            cpu::dmb_sy();
             while unsafe { read_volatile(&t.entering[i]) } {}
+            cpu::dmb_sy();
 
             let mut n = unsafe { read_volatile(&t.number[i]) };
-            while n != 0 && (n, i) < (unsafe { read_volatile(&t.number[core]) }, core) {
+            while n != 0 && (n, i) < (ticket, core) {
                 n = unsafe { read_volatile(&t.number[i]) };
             }
         }
 
+        cpu::dmb_sy();
         BakeryLock { ticket: t }
     }
 }
@@ -138,7 +148,9 @@ impl<'a> BakeryLock<'a> {
 impl<'a> Drop for BakeryLock<'a> {
     fn drop(&mut self) {
         let core = core_pos() as usize;
-        self.ticket.number[core] = 0;
+        cpu::dmb_sy();
+        unsafe { write_volatile(&mut self.ticket.number[core], 0) };
+        cpu::dmb_sy();
     }
 }
 

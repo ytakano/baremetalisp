@@ -6,26 +6,26 @@ use crate::aarch64::{cache, lock};
 use crate::driver::defs;
 use crate::driver::topology;
 
-pub(crate) const INVALID_MPIDR: u64 = !0;
-pub(crate) const INVALID_PWR_LVL: u8 = defs::MAX_PWR_LVL + 1;
+pub(super) const INVALID_MPIDR: u64 = !0;
+pub(super) const INVALID_PWR_LVL: u8 = defs::MAX_PWR_LVL + 1;
 
 // This is the power level corresponding to a CPU
-pub(crate) const PSCI_CPU_PWR_LVL: u8 = 0;
+pub(super) const PSCI_CPU_PWR_LVL: u8 = 0;
 
 // The maximum power level supported by PSCI. Since PSCI CPU_SUSPEND
 // uses the old power_state parameter format which has 2 bits to specify the
 // power level, this constant is defined to be 3.
-pub(crate) const PSCI_MAX_PWR_LVL: u8 = 3;
+pub(super) const PSCI_MAX_PWR_LVL: u8 = 3;
 
 // The local state macro used to represent RUN state.
-pub(crate) const PSCI_LOCAL_STATE_RUN: u8 = 0;
+pub(super) const PSCI_LOCAL_STATE_RUN: u8 = 0;
 
 /// The following two data structures implement the power domain tree. The tree
 /// is used to track the state of all the nodes i.e. power domain instances
 /// described by the platform. The tree consists of nodes that describe CPU power
 /// domains i.e. leaf nodes and all other power domains which are parents of a
 /// CPU power domain i.e. non-leaf nodes.
-pub(crate) struct NonCpuPwrDomainNode {
+pub(super) struct NonCpuPwrDomainNode {
     // Index of the first CPU power domain node level 0 which has this node
     // as its parent.
     cpu_start_idx: usize,
@@ -46,7 +46,7 @@ pub(crate) struct NonCpuPwrDomainNode {
     lock_var: lock::LockVar,
 }
 
-pub(crate) struct CpuPwrDomainNode {
+pub(super) struct CpuPwrDomainNode {
     mpidr: u64,
 
     // Index of the parent power domain node.
@@ -87,7 +87,7 @@ macro_rules! def_static {
 
 // CPU. The definitions of these states can be found in Section 5.7.1 in the
 // PSCI specification (ARM DEN 0022C).
-pub(crate) enum AffInfoState {
+pub(super) enum AffInfoState {
     StateOn = 0,
     StateOff,
     StateOnPending,
@@ -100,105 +100,105 @@ def_static!(PSCI_CPU_DATA: [PsciCpuData; topology::CORE_COUNT]);
 static mut REQ_LOCAL_PWR_STATES: [u8; defs::MAX_PWR_LVL as usize * topology::CORE_COUNT] =
     [0; defs::MAX_PWR_LVL as usize * topology::CORE_COUNT];
 
-pub(crate) fn non_cpu_pd_lock(idx: usize) -> lock::SpinLock<'static> {
+pub(super) fn non_cpu_pd_lock(idx: usize) -> lock::SpinLock<'static> {
     unsafe { NON_CPU_PD_NODES[idx].lock_var.lock() }
 }
 
-pub(crate) unsafe fn non_cpu_pd_force_lock(idx: usize) {
+pub(super) unsafe fn non_cpu_pd_force_lock(idx: usize) {
     NON_CPU_PD_NODES[idx].lock_var.force_lock();
 }
 
-pub(crate) unsafe fn non_cpu_pd_force_unlock(idx: usize) {
+pub(super) unsafe fn non_cpu_pd_force_unlock(idx: usize) {
     NON_CPU_PD_NODES[idx].lock_var.force_unlock();
 }
 
-pub(crate) fn cpu_lock(idx: usize) -> lock::SpinLock<'static> {
+pub(super) fn cpu_lock(idx: usize) -> lock::SpinLock<'static> {
     unsafe { CPU_PD_NODES[idx].cpu_lock.lock() }
 }
 
-pub(crate) fn flush_cache_cpu_state(idx: usize) {
+pub(super) fn flush_cache_cpu_state(idx: usize) {
     cache::clean_invalidate(
         unsafe { &PSCI_CPU_DATA[idx].aff_info_state },
         size_of::<AffInfoState>(),
     );
 }
 
-pub(crate) fn get_cpu_aff_info_state(idx: usize) -> AffInfoState {
+pub(super) fn get_cpu_aff_info_state(idx: usize) -> AffInfoState {
     unsafe { read_volatile(&PSCI_CPU_DATA[idx].aff_info_state) }
 }
 
-pub(crate) fn set_cpu_aff_info_state(idx: usize, state: AffInfoState) {
+pub(super) fn set_cpu_aff_info_state(idx: usize, state: AffInfoState) {
     unsafe { write_volatile(&mut PSCI_CPU_DATA[idx].aff_info_state, state) }
 }
 
-pub(crate) fn get_cpu_target_pwrlvl(idx: usize) -> u8 {
+pub(super) fn get_cpu_target_pwrlvl(idx: usize) -> u8 {
     unsafe { read_volatile(&PSCI_CPU_DATA[idx].target_pwrlvl) }
 }
 
-pub(crate) fn set_cpu_target_pwrlvl(idx: usize, target_pwrlvl: u8) {
+pub(super) fn set_cpu_target_pwrlvl(idx: usize, target_pwrlvl: u8) {
     unsafe { write_volatile(&mut PSCI_CPU_DATA[idx].target_pwrlvl, target_pwrlvl) }
 }
 
-pub(crate) fn get_cpu_local_state(idx: usize) -> u8 {
+pub(super) fn get_cpu_local_state(idx: usize) -> u8 {
     unsafe { read_volatile(&PSCI_CPU_DATA[idx].local_state) }
 }
 
-pub(crate) fn set_cpu_local_state(idx: usize, local_state: u8) {
+pub(super) fn set_cpu_local_state(idx: usize, local_state: u8) {
     unsafe { write_volatile(&mut PSCI_CPU_DATA[idx].local_state, local_state) }
 }
 
-pub(crate) fn set_non_cpu_pd_cpu_start_idx(idx: usize, cpu_start_idx: usize) {
+pub(super) fn set_non_cpu_pd_cpu_start_idx(idx: usize, cpu_start_idx: usize) {
     unsafe { write_volatile(&mut NON_CPU_PD_NODES[idx].cpu_start_idx, cpu_start_idx) }
 }
 
-pub(crate) fn get_non_cpu_pd_cpu_start_idx(idx: usize) -> usize {
+pub(super) fn get_non_cpu_pd_cpu_start_idx(idx: usize) -> usize {
     unsafe { read_volatile(&mut NON_CPU_PD_NODES[idx].cpu_start_idx) }
 }
 
-pub(crate) fn set_non_cpu_pd_level(idx: usize, level: u8) {
+pub(super) fn set_non_cpu_pd_level(idx: usize, level: u8) {
     unsafe { write_volatile(&mut NON_CPU_PD_NODES[idx].level, level) };
 }
 
-pub(crate) fn set_non_cpu_pd_parent_node(idx: usize, parent_node: usize) {
+pub(super) fn set_non_cpu_pd_parent_node(idx: usize, parent_node: usize) {
     unsafe { write_volatile(&mut NON_CPU_PD_NODES[idx].parent_node, parent_node) };
 }
 
-pub(crate) fn get_non_cpu_pd_parent_node(idx: usize) -> usize {
+pub(super) fn get_non_cpu_pd_parent_node(idx: usize) -> usize {
     unsafe { read_volatile(&NON_CPU_PD_NODES[idx].parent_node) }
 }
 
-pub(crate) fn set_non_cpu_pd_local_state(idx: usize, local_state: u8) {
+pub(super) fn set_non_cpu_pd_local_state(idx: usize, local_state: u8) {
     unsafe { write_volatile(&mut NON_CPU_PD_NODES[idx].local_state, local_state) };
 }
 
-pub(crate) fn get_non_cpu_pd_local_state(idx: usize) -> u8 {
+pub(super) fn get_non_cpu_pd_local_state(idx: usize) -> u8 {
     unsafe { read_volatile(&NON_CPU_PD_NODES[idx].local_state) }
 }
 
-pub(crate) fn get_non_cpu_pd_ncpus(idx: usize) -> usize {
+pub(super) fn get_non_cpu_pd_ncpus(idx: usize) -> usize {
     unsafe { read_volatile(&NON_CPU_PD_NODES[idx].ncpus) }
 }
 
-pub(crate) fn set_non_cpu_pd_ncpus(idx: usize, ncpus: usize) {
+pub(super) fn set_non_cpu_pd_ncpus(idx: usize, ncpus: usize) {
     unsafe { write_volatile(&mut NON_CPU_PD_NODES[idx].ncpus, ncpus) }
 }
 
-pub(crate) fn set_cpu_pd_parent_node(idx: usize, parent_node: usize) {
+pub(super) fn set_cpu_pd_parent_node(idx: usize, parent_node: usize) {
     unsafe { write_volatile(&mut CPU_PD_NODES[idx].parent_node, parent_node) };
 }
 
-pub(crate) fn get_cpu_pd_parent_node(idx: usize) -> usize {
+pub(super) fn get_cpu_pd_parent_node(idx: usize) -> usize {
     unsafe { read_volatile(&CPU_PD_NODES[idx].parent_node) }
 }
 
-pub(crate) fn set_cpu_pd_mpidr(idx: usize, mpidr: u64) {
+pub(super) fn set_cpu_pd_mpidr(idx: usize, mpidr: u64) {
     unsafe { write_volatile(&mut CPU_PD_NODES[idx].mpidr, mpidr) };
 }
 
 /// Helper function to update the requested local power state array. This array
 /// does not store the requested state for the CPU power level. Hence an
 /// assertion is added to prevent us from accessing the CPU power level.
-pub(crate) fn set_req_local_pwr_state(pwrlvl: usize, core: usize, state: u8) {
+pub(super) fn set_req_local_pwr_state(pwrlvl: usize, core: usize, state: u8) {
     if pwrlvl > PSCI_CPU_PWR_LVL as usize
         && pwrlvl <= defs::MAX_PWR_LVL as usize
         && core < topology::CORE_COUNT
@@ -214,7 +214,7 @@ pub(crate) fn set_req_local_pwr_state(pwrlvl: usize, core: usize, state: u8) {
 /// an ancestor. These requested states will be used to determine a suitable
 /// target state for this power domain during psci state coordination. An
 /// assertion is added to prevent us from accessing the CPU power level.
-pub(crate) fn get_req_local_pwr_states(pwrlvl: usize, cpu_idx: usize) -> &'static [u8] {
+pub(super) fn get_req_local_pwr_states(pwrlvl: usize, cpu_idx: usize) -> &'static [u8] {
     if pwrlvl > PSCI_CPU_PWR_LVL as usize
         && pwrlvl <= defs::MAX_PWR_LVL as usize
         && cpu_idx < topology::CORE_COUNT

@@ -9,7 +9,7 @@ use core::mem::size_of;
 
 /// Function which initializes the 'psci_non_cpu_pd_nodes' or the
 /// 'psci_cpu_pd_nodes' corresponding to the power level.
-pub(crate) fn init_pwr_domain_node(node_idx: usize, parent_idx: usize, level: u8) {
+pub(super) fn init_pwr_domain_node(node_idx: usize, parent_idx: usize, level: u8) {
     if level > data::PSCI_CPU_PWR_LVL {
         data::set_non_cpu_pd_level(node_idx, level);
         data::set_non_cpu_pd_parent_node(node_idx, parent_idx);
@@ -35,7 +35,7 @@ pub(crate) fn init_pwr_domain_node(node_idx: usize, parent_idx: usize, level: u8
 /// the platform is populated breadth-first and the first entry in the map
 /// informs the number of root power domains. The parent nodes of the root nodes
 /// will point to an invalid entry(-1).
-pub(crate) fn populate_power_domain_tree(topology: &[u8]) -> u32 {
+pub(super) fn populate_power_domain_tree(topology: &[u8]) -> u32 {
     let mut level = defs::MAX_PWR_LVL;
     let mut node_index = 0;
     let mut parent_node_index = 0;
@@ -95,7 +95,7 @@ pub(crate) fn populate_power_domain_tree(topology: &[u8]) -> u32 {
 /// are allocated adjacent indices. The platform should ensure this though proper
 /// mapping of the CPUs to indices via plat_core_pos_by_mpidr() and
 /// plat_my_core_pos() APIs.
-pub(crate) fn update_pwrlvl_limits() {
+pub(super) fn update_pwrlvl_limits() {
     let mut nodes_idx = [0; defs::MAX_PWR_LVL as usize];
     for cpu_idx in 0..topology::CORE_COUNT {
         let parents = common::get_parent_pwr_domain_nodes(cpu_idx);
@@ -111,7 +111,7 @@ pub(crate) fn update_pwrlvl_limits() {
 }
 
 /// This function initializes the psci_req_local_pwr_states.
-pub(crate) fn init_req_local_pwr_states() {
+pub(super) fn init_req_local_pwr_states() {
     for pwrlvl in 1..(defs::MAX_PWR_LVL as usize + 1) {
         for core in 0..topology::CORE_COUNT {
             data::set_req_local_pwr_state(pwrlvl, core, defs::MAX_OFF_STATE);
@@ -146,7 +146,7 @@ fn set_pwr_domains_to_run(end_pwrlvl: u8) {
 /// e.g. For a cpu that's been powered on, it will call the platform specific
 /// code to enable the gic cpu interface and for a cluster it will enable
 /// coherency at the interconnect level in addition to gic cpu interface.
-pub(crate) fn init_warmboot() {
+pub(super) fn init_warmboot() {
     let idx = topology::core_pos();
     match data::get_cpu_aff_info_state(idx) {
         data::AffInfoState::StateOff => {
@@ -242,7 +242,7 @@ extern "C" {
 /// ------------------------------------------------
 /// |   CPU 0   |   CPU 1   |   CPU 2   |   CPU 3  |
 /// ------------------------------------------------
-pub(crate) fn init() {
+pub(super) fn init() {
     // Populate the power domain arrays using the platform topology map
     populate_power_domain_tree(driver::topology::POWER_DOMAIN_TREE_DESC);
 
@@ -280,7 +280,7 @@ pub(crate) fn init() {
 /// This function validates the entrypoint with the platform layer if the
 /// appropriate pm_ops hook is exported by the platform and returns the
 /// 'entry_point_info'.
-pub(crate) fn validate_entry_point(
+pub(super) fn validate_entry_point(
     entrypoint: usize,
     context_id: usize,
 ) -> Result<EntryPointInfo, PsciResult> {

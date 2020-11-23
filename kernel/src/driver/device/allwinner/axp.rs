@@ -24,11 +24,11 @@ pub fn check_id() -> bool {
     true
 }
 
-pub(crate) fn read(reg: u32) -> Option<u32> {
+pub(super) fn read(reg: u32) -> Option<u32> {
     rsb::read(AXP803_RT_ADDR, reg)
 }
 
-pub(crate) fn write(reg: u32, val: u32) -> bool {
+pub(super) fn write(reg: u32, val: u32) -> bool {
     rsb::write(AXP803_RT_ADDR, reg, val)
 }
 

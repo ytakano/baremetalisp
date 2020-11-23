@@ -6,7 +6,7 @@ const SYSTMR_LO: *mut u32 = (MMIO_BASE + 0x00003004) as *mut u32;
 const SYSTMR_HI: *mut u32 = (MMIO_BASE + 0x00003008) as *mut u32;
 
 /// Get System Timer's counter
-pub fn get_timer_value() -> u64 {
+pub(in crate::driver) fn get_timer_value() -> u64 {
     let mut hi: u32;
     let mut lo: u32;
 
@@ -26,7 +26,7 @@ pub fn get_timer_value() -> u64 {
 }
 
 /// Wait N microsec (with BCM System Timer)
-pub fn wait_microsec(n: u32) {
+pub(in crate::driver) fn wait_microsec(n: u32) {
     let t = get_timer_value();
     // we must check if it's non-zero, because qemu does not emulate
     // system timer, and returning constant zero would mean infinite loop
@@ -35,4 +35,4 @@ pub fn wait_microsec(n: u32) {
     }
 }
 
-pub fn init() {}
+pub(in crate::driver) fn init() {}

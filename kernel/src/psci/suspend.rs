@@ -6,7 +6,7 @@ use crate::driver::psci::PsciPowerState;
 /// The following functions finish an earlier suspend request. They
 /// are called by the common finisher routine in psci_common.c. The `state_info`
 /// is the psci_power_state from which this CPU has woken up from.
-pub(crate) fn finish(idx: usize, state_info: &PsciPowerState) {
+pub(super) fn finish(idx: usize, state_info: &PsciPowerState) {
     // Plat. management: Perform the platform specific actions
     // before we change the state of the cpu e.g. enabling the
     // gic or zeroing the mailbox register. If anything goes

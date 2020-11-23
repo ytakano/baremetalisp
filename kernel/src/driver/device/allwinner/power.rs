@@ -32,7 +32,7 @@ fn set_pmic(pmic: PMICType) {
     }
 }
 
-pub(crate) fn init() {
+pub(super) fn init() {
     match read_soc_id() {
         SoCID::H5 => {
             set_pmic(PMICType::RefDesignH5);
@@ -211,7 +211,7 @@ fn sunxi_turn_off_soc(socid: SoCID) {
     }
 }
 
-pub(crate) fn system_reset() {
+pub(super) fn system_reset() {
     gic::v2::cpuif_disable();
 
     if cpu::scpi_available() {

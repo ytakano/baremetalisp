@@ -8,27 +8,27 @@ use super::defs;
 use super::memory;
 use crate::driver::uart;
 
-pub const RSB_CTRL: u32 = 0x00;
-pub const RSB_CCR: u32 = 0x04;
-pub const RSB_INTE: u32 = 0x08;
-pub const RSB_STAT: u32 = 0x0c;
-pub const RSB_DADDR0: u32 = 0x10;
-pub const RSB_DLEN: u32 = 0x18;
-pub const RSB_DATA0: u32 = 0x1c;
-pub const RSB_LCR: u32 = 0x24;
-pub const RSB_PMCR: u32 = 0x28;
-pub const RSB_CMD: u32 = 0x2c;
-pub const RSB_SADDR: u32 = 0x30;
+pub(super) const RSB_CTRL: u32 = 0x00;
+pub(super) const RSB_CCR: u32 = 0x04;
+pub(super) const RSB_INTE: u32 = 0x08;
+pub(super) const RSB_STAT: u32 = 0x0c;
+pub(super) const RSB_DADDR0: u32 = 0x10;
+pub(super) const RSB_DLEN: u32 = 0x18;
+pub(super) const RSB_DATA0: u32 = 0x1c;
+pub(super) const RSB_LCR: u32 = 0x24;
+pub(super) const RSB_PMCR: u32 = 0x28;
+pub(super) const RSB_CMD: u32 = 0x2c;
+pub(super) const RSB_SADDR: u32 = 0x30;
 
-pub const RSBCMD_SRTA: u32 = 0xE8; // Set run-time address
-pub const RSBCMD_RD8: u32 = 0x8B;
-pub const RSBCMD_RD16: u32 = 0x9C;
-pub const RSBCMD_RD32: u32 = 0xA6;
-pub const RSBCMD_WR8: u32 = 0x4E;
-pub const RSBCMD_WR16: u32 = 0x59;
-pub const RSBCMD_WR32: u32 = 0x63;
+pub(super) const RSBCMD_SRTA: u32 = 0xE8; // Set run-time address
+pub(super) const RSBCMD_RD8: u32 = 0x8B;
+pub(super) const RSBCMD_RD16: u32 = 0x9C;
+pub(super) const RSBCMD_RD32: u32 = 0xA6;
+pub(super) const RSBCMD_WR8: u32 = 0x4E;
+pub(super) const RSBCMD_WR16: u32 = 0x59;
+pub(super) const RSBCMD_WR32: u32 = 0x63;
 
-pub const MAX_TRIES: u32 = 100000;
+pub(super) const MAX_TRIES: u32 = 100000;
 
 fn wait_bit(desc: &str, offset: usize, mask: u32) -> bool {
     let ptr = (memory::SUNXI_R_RSB_BASE as usize + offset) as *const u32;
@@ -64,7 +64,7 @@ fn wait_stat(desc: &str) -> bool {
     false
 }
 
-pub fn init() -> bool {
+pub(super) fn init() -> bool {
     if !init_controller() {
         return false;
     }
@@ -100,7 +100,7 @@ fn init_controller() -> bool {
     wait_bit("RSB: reset controller", RSB_CTRL as usize, 1)
 }
 
-pub fn set_bus_speed(source_req: u32, bus_freq: u32) -> bool {
+pub(super) fn set_bus_speed(source_req: u32, bus_freq: u32) -> bool {
     if bus_freq == 0 {
         return false;
     }
@@ -119,13 +119,13 @@ pub fn set_bus_speed(source_req: u32, bus_freq: u32) -> bool {
     true
 }
 
-pub fn set_device_mode(device_mode: u32) -> bool {
+pub(super) fn set_device_mode(device_mode: u32) -> bool {
     let ptr = (memory::SUNXI_R_RSB_BASE + RSB_PMCR) as *mut u32;
     unsafe { write_volatile(ptr, (device_mode & 0x00ffffff) | (1 << 31)) };
     wait_bit("RSB: set device to RSB", RSB_PMCR as usize, 1 << 31)
 }
 
-pub fn assign_runtime_address(hw_addr: u32, rt_addr: u32) -> bool {
+pub(super) fn assign_runtime_address(hw_addr: u32, rt_addr: u32) -> bool {
     unsafe {
         let ptr = (memory::SUNXI_R_RSB_BASE + RSB_SADDR) as *mut u32;
         write_volatile(ptr, (rt_addr << 16) | hw_addr);
@@ -140,7 +140,7 @@ pub fn assign_runtime_address(hw_addr: u32, rt_addr: u32) -> bool {
     wait_stat("RSB: set run-time address")
 }
 
-pub fn read(rt_addr: u32, reg_addr: u32) -> Option<u32> {
+pub(super) fn read(rt_addr: u32, reg_addr: u32) -> Option<u32> {
     unsafe {
         let ptr = (memory::SUNXI_R_RSB_BASE + RSB_CMD) as *mut u32;
         write_volatile(ptr, RSBCMD_RD8); // read a byte
@@ -163,7 +163,7 @@ pub fn read(rt_addr: u32, reg_addr: u32) -> Option<u32> {
     Some(unsafe { read_volatile(ptr) & 0xff })
 }
 
-pub fn write(rt_addr: u32, reg_addr: u32, value: u32) -> bool {
+pub(super) fn write(rt_addr: u32, reg_addr: u32, value: u32) -> bool {
     unsafe {
         let ptr = (memory::SUNXI_R_RSB_BASE + RSB_CMD) as *mut u32;
         write_volatile(ptr, RSBCMD_WR8); // byte write

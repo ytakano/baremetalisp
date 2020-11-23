@@ -15,7 +15,7 @@ use crate::driver::{defs, psci::PsciPowerState, topology};
 /// call the platform specific code which will disable coherency at the
 /// interconnect level if the cpu is the last in the cluster and also the
 /// program the power controller.
-pub(crate) fn start(end_pwrlvl: usize) {
+pub(super) fn start(end_pwrlvl: usize) {
     // TODO: buggy
 
     let idx = topology::core_pos();

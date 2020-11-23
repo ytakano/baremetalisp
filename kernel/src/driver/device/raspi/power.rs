@@ -11,7 +11,7 @@ const PM_WDOG_MAGIC: u32 = 0x5a000000;
 const PM_RSTC_FULLRST: u32 = 0x00000020;
 
 /// Shutdown the board
-pub fn shutdown() {
+pub(in crate::driver) fn shutdown() {
     // power off devices one by one
     for r in 0..16 {
         mbox::set_power_off(r);
@@ -55,7 +55,7 @@ pub fn shutdown() {
 }
 
 /// Reboot
-pub fn reset() {
+pub(in crate::driver) fn reset() {
     // trigger a restart by instructing the GPU to boot from partition 0
     let mut r = unsafe { read_volatile(PM_RSTS) };
     r &= !0xfffffaaa;

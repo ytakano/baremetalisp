@@ -15,7 +15,7 @@ const UART0_ICR: *mut u32 = (MMIO_BASE + 0x00201044) as *mut u32;
 /// Initialiaze UART0 for serial console.
 /// Set baud rate and characteristics (8N1) and map to GPIO 14 (Tx) and 15 (Rx).
 /// 8N1 stands for "eight data bits, no parity, one stop bit".
-pub fn init(uart_clock: u64, baudrate: u64) {
+pub(in crate::driver) fn init(uart_clock: u64, baudrate: u64) {
     unsafe { write_volatile(UART0_CR, 0) }; // turn off UART0
 
     // map UART1 to GPIO pins
@@ -52,7 +52,7 @@ pub fn init(uart_clock: u64, baudrate: u64) {
 }
 
 /// send a character to serial console
-pub fn send(c: u32) {
+pub(in crate::driver) fn send(c: u32) {
     // wait until we can send
     unsafe { asm!("nop;") };
     while unsafe { read_volatile(UART0_FR) } & 0x20 != 0 {
@@ -65,7 +65,7 @@ pub fn send(c: u32) {
     }
 }
 
-pub fn recv() -> u32 {
+pub(in crate::driver) fn recv() -> u32 {
     // wait until something is in the buffer
     unsafe { asm!("nop;") };
     while unsafe { read_volatile(UART0_FR) } & 0x10 != 0 {

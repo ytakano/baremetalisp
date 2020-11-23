@@ -1,1 +1,1 @@
-pub(crate) mod delays;
+pub(in crate::driver) mod delays;

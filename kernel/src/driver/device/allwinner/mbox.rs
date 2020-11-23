@@ -15,7 +15,7 @@ const TX_CHAN: u32 = 0;
 const MHU_TIMEOUT_ITERS: u32 = 10000;
 const MHU_TIMEOUT_DELAY: u32 = 10;
 
-pub(crate) fn rx_irx(n: u32) -> u32 {
+pub(super) fn rx_irx(n: u32) -> u32 {
     1 << (2 * n)
 }
 
@@ -31,13 +31,13 @@ fn msg_data_reg(n: u32) -> u32 {
     0x0180 + 4 * (n)
 }
 
-pub(crate) fn sunxi_msgbox_last_tx_done(chan: u32) -> bool {
+pub(super) fn sunxi_msgbox_last_tx_done(chan: u32) -> bool {
     let addr = (SUNXI_MSGBOX_BASE + REMOTE_IRQ_STAT_REG) as *mut u32;
     let stat = unsafe { read_volatile(addr) };
     stat & rx_irx(chan) == 0
 }
 
-pub(crate) fn sunxi_msgbox_peek_data(chan: u32) -> bool {
+pub(super) fn sunxi_msgbox_peek_data(chan: u32) -> bool {
     let addr = (SUNXI_MSGBOX_BASE + msg_stat_reg(chan)) as *mut u32;
     (unsafe { read_volatile(addr) } & msg_stat_mask()) != 0
 }
@@ -72,7 +72,7 @@ impl<'a> Drop for SecureMsgLock<'a> {
     }
 }
 
-pub(crate) fn mhu_secure_message_wait() -> u32 {
+pub(super) fn mhu_secure_message_wait() -> u32 {
     let mut timeout = MHU_TIMEOUT_ITERS;
 
     // Wait for a message from the SCP.
@@ -92,7 +92,7 @@ pub(crate) fn mhu_secure_message_wait() -> u32 {
     msg
 }
 
-pub(crate) fn mhu_secure_message_send(slot_id: u32) {
+pub(super) fn mhu_secure_message_send(slot_id: u32) {
     let addr = (SUNXI_MSGBOX_BASE + msg_data_reg(TX_CHAN)) as *mut u32;
     unsafe {
         write_volatile(addr, 1 << slot_id);

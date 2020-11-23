@@ -106,7 +106,7 @@ pub(crate) fn start(target_cpu: usize, ep: EntryPointInfo) -> PsciResult {
     rc
 }
 
-pub(crate) fn finish(idx: usize, state_info: &PsciPowerState) {
+pub(super) fn finish(idx: usize, state_info: &PsciPowerState) {
     // Plat. management: Perform the platform specific actions
     // for this cpu e.g. enabling the gic or zeroing the mailbox
     // register. The actual state of this cpu has already been

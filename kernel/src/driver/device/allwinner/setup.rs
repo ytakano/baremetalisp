@@ -9,9 +9,9 @@ use super::{read_soc_id, SoCID};
 use crate::driver::arm::gic;
 use crate::{aarch64, print_msg};
 
-pub fn early_platform_setup() {}
+pub(in crate::driver) fn early_platform_setup() {}
 
-pub fn platform_setup() {
+pub(in crate::driver) fn platform_setup() {
     cpu::disable_secondary_cpus(aarch64::cpu::mpidr_el1::get() as usize);
 
     // TODO

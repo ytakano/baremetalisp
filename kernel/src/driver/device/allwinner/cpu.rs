@@ -46,7 +46,7 @@ static mut ARISC_CORE_OFF: [u32; 27] = [
     0x15000000, // l.nop
 ];
 
-pub(crate) fn scpi_available() -> bool {
+pub(super) fn scpi_available() -> bool {
     unsafe { read_volatile(&SCPI_AVAILABLE) }
 }
 
@@ -127,7 +127,7 @@ fn or1k_vec_addr(n: u32) -> u32 {
     0x100 * n
 }
 
-pub(crate) fn init() {
+pub(super) fn init() {
     // Program all CPU entry points
     init_entry_point();
 
@@ -167,7 +167,7 @@ fn init_entry_point() {
     }
 }
 
-pub(crate) fn cpu_on(mpidr: usize) {
+pub(super) fn cpu_on(mpidr: usize) {
     let cluster = (mpidr >> 8) & 0xFF;
     let core = mpidr & 0xFF;
 
@@ -200,7 +200,7 @@ pub(crate) fn cpu_on(mpidr: usize) {
     bit_set32(CPUCFG_DBG_REG0, core as u32);
 }
 
-pub(crate) fn cpu_off(mpidr: usize) {
+pub(super) fn cpu_off(mpidr: usize) {
     let cluster = (mpidr >> 8) & 0xFF;
     let core = mpidr & 0xFF;
 

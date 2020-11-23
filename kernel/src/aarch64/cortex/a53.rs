@@ -2,7 +2,7 @@ use crate::aarch64::cache;
 
 const CORTEX_A53_ECTLR_SMP_BIT: u64 = 1 << 6;
 
-pub(crate) fn core_pwr_down() {
+pub(super) fn core_pwr_down() {
     // Turn off caches.
     cache::disable_dcache_el3();
 
@@ -19,7 +19,7 @@ pub(crate) fn core_pwr_down() {
     cache::invalidate_icache();
 }
 
-pub(crate) fn cluster_pwr_down() {
+pub(super) fn cluster_pwr_down() {
     // Turn off caches.
     cache::disable_dcache_el3();
 

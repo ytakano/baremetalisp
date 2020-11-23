@@ -3,7 +3,7 @@ use crate::driver;
 use crate::driver::{defs, psci::PsciPowerState, topology};
 
 /// PSCI helper function to get the parent nodes corresponding to a cpu_index.
-pub(crate) fn get_parent_pwr_domain_nodes(cpu_idx: usize) -> [usize; defs::MAX_PWR_LVL as usize] {
+pub(super) fn get_parent_pwr_domain_nodes(cpu_idx: usize) -> [usize; defs::MAX_PWR_LVL as usize] {
     let mut parent_node = data::get_cpu_pd_parent_node(cpu_idx);
     let mut node_index = [0; defs::MAX_PWR_LVL as usize];
 
@@ -19,7 +19,7 @@ pub(crate) fn get_parent_pwr_domain_nodes(cpu_idx: usize) -> [usize; defs::MAX_P
 /// from the current cpu power domain to its ancestor at the 'end_pwrlvl'. This
 /// function will be called after a cpu is powered on to find the local state
 /// each power domain has emerged from.
-pub(crate) fn get_target_local_pwr_states(end_pwrlvl: u8) -> PsciPowerState {
+pub(super) fn get_target_local_pwr_states(end_pwrlvl: u8) -> PsciPowerState {
     let mut target_state = [0; (defs::MAX_PWR_LVL + 1) as usize];
     let idx = topology::core_pos();
     let mut parent_idx = data::get_cpu_pd_parent_node(idx);
@@ -43,7 +43,7 @@ pub(crate) fn get_target_local_pwr_states(end_pwrlvl: u8) -> PsciPowerState {
 /// from the current cpu power domain to its ancestor at the 'end_pwrlvl' will
 /// enter. This function will be called after coordination of requested power
 /// states has been done for each power level.
-pub(crate) fn set_target_local_pwr_states(end_pwlvl: u8, target_state: &PsciPowerState) {
+pub(super) fn set_target_local_pwr_states(end_pwlvl: u8, target_state: &PsciPowerState) {
     let idx = topology::core_pos();
     data::set_cpu_local_state(idx, target_state[data::PSCI_CPU_PWR_LVL as usize]);
 
@@ -74,7 +74,7 @@ pub(crate) fn set_target_local_pwr_states(end_pwlvl: u8, target_state: &PsciPowe
 ///
 /// This function will only be invoked with data cache enabled and while
 /// powering down a core.
-pub(crate) fn do_state_coordination(end_pwrlvl: usize, state_info: &mut PsciPowerState) {
+pub(super) fn do_state_coordination(end_pwrlvl: usize, state_info: &mut PsciPowerState) {
     let cpu_idx = topology::core_pos();
     let mut parent_idx = data::get_cpu_pd_parent_node(cpu_idx);
 

@@ -9,7 +9,7 @@ fn spc_decport_set_reg(p: u32) -> u32 {
     memory::SUNXI_SPC_BASE + ((p) * 0x0c) + 0x8
 }
 
-pub(crate) fn init() {
+pub(super) fn init() {
     // SPC setup: set all devices to non-secure
     for i in 0..6 {
         let ptr = spc_decport_set_reg(i) as *mut u32;
