@@ -500,6 +500,21 @@ pub fn dmb_sy() {
     unsafe { asm!("dmb sy") };
 }
 
+/// dsb st
+pub fn dsb_st() {
+    unsafe { asm!("dsb st") };
+}
+
+/// dsb ld
+pub fn dsb_ld() {
+    unsafe { asm!("dsb ld") };
+}
+
+/// dsb sy
+pub fn dsb_sy() {
+    unsafe { asm!("dsb sy") };
+}
+
 pub fn eret() {
     unsafe { asm!("eret") };
 }

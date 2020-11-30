@@ -130,9 +130,7 @@ impl<'a> BakeryLock<'a> {
                 continue;
             }
 
-            cpu::dmb_sy();
             while unsafe { read_volatile(&t.entering[i]) } {}
-            cpu::dmb_sy();
 
             let mut n = unsafe { read_volatile(&t.number[i]) };
             while n != 0 && (n, i) < (ticket, core) {
@@ -148,9 +146,7 @@ impl<'a> BakeryLock<'a> {
 impl<'a> Drop for BakeryLock<'a> {
     fn drop(&mut self) {
         let core = core_pos() as usize;
-        cpu::dmb_sy();
         unsafe { write_volatile(&mut self.ticket.number[core], 0) };
-        cpu::dmb_sy();
     }
 }
 
