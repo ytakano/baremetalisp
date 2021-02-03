@@ -36,8 +36,8 @@ jobs:
           command: install
           args: cargo-xbuild cargo-binutils
 
-      - name: Install LLVM 11
-        run: sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 15CF4D18AF4F7421 && sudo apt-add-repository "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-10 main" && sudo apt-get -y update && sudo apt-get -y install clang-11
+      - name: Install LLVM 12
+        run: wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key|sudo apt-key add - && sudo apt-add-repository "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-12 main" && sudo apt-get -y update && sudo apt-get -y install clang-12
 
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v2
