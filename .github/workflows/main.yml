@@ -20,7 +20,7 @@ jobs:
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       - name: Install Dependencies
-        run: sudo apt-get -y install make curl software-properties-common lld
+        run: sudo apt-get -y install make curl software-properties-common lld clang
 
       - name: Install Rust
         uses: actions-rs/toolchain@v1
@@ -36,12 +36,9 @@ jobs:
           command: install
           args: cargo-xbuild cargo-binutils
 
-      - name: Install LLVM 12
-        run: wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key|sudo apt-key add - && sudo apt-add-repository "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-12 main" && sudo apt-get -y update && sudo apt-get -y install clang-12
-
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v2
 
       # Runs a single command using the runners shell
       - name: Compile
-        run: cd $GITHUB_WORKSPACE/kernel && make CC=clang-11 LD=ld.lld baremetalisp
+        run: cd $GITHUB_WORKSPACE/kernel && make CC=clang LD=ld.lld baremetalisp
