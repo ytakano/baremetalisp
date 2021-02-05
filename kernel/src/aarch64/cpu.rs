@@ -420,6 +420,9 @@ sysreg!(cntvoff_el2);
 sysreg!(hstr_el2);
 sysreg!(cnthp_ctl_el2);
 sysreg!(esr_el2);
+sysreg!(mair_el2);
+sysreg!(tcr_el2);
+sysreg!(ttbr0_el2);
 
 sysreg!(scr_el3);
 sysreg!(esr_el3);
@@ -428,6 +431,8 @@ sysreg!(sctlr_el3);
 sysreg!(actlr_el3);
 sysreg!(mair_el3);
 sysreg!(cptr_el3);
+sysreg!(ttbr0_el3);
+sysreg!(tcr_el3);
 
 pub fn get_affinity_lv0() -> u64 {
     let mpidr: u64;
@@ -513,6 +518,11 @@ pub fn dsb_ld() {
 /// dsb sy
 pub fn dsb_sy() {
     unsafe { asm!("dsb sy") };
+}
+
+/// dsb ish
+pub fn dsb_ish() {
+    unsafe { asm!("dsb ish") };
 }
 
 pub fn eret() {

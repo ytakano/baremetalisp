@@ -410,45 +410,42 @@ impl TTable {
 }
 
 pub fn enabled() -> Option<bool> {
-    let mut sctlr: u32;
-
     let el = cpu::get_current_el();
     if el == 1 {
-        unsafe { llvm_asm!("mrs $0, SCTLR_EL1" : "=r"(sctlr)) };
+        let sctlr = cpu::sctlr_el1::get();
         Some(sctlr & 1 == 1)
     } else if el == 2 {
-        unsafe { llvm_asm!("mrs $0, SCTLR_EL2" : "=r"(sctlr)) };
+        let sctlr = cpu::sctlr_el2::get();
         Some(sctlr & 1 == 1)
     } else if el == 3 {
-        unsafe { llvm_asm!("mrs $0, SCTLR_EL3" : "=r"(sctlr)) };
+        let sctlr = cpu::sctlr_el3::get();
         Some((sctlr & 1) == 1)
     } else {
         None
     }
 }
 
-fn get_sctlr() -> u32 {
-    let mut sctlr: u32 = 0;
+fn get_sctlr() -> u64 {
     let el = cpu::get_current_el();
     if el == 1 {
-        unsafe { llvm_asm!("mrs $0, SCTLR_EL1" : "=r"(sctlr)) };
+        cpu::sctlr_el1::get()
     } else if el == 2 {
-        unsafe { llvm_asm!("mrs $0, SCTLR_EL2" : "=r"(sctlr)) };
+        cpu::sctlr_el2::get()
     } else if el == 3 {
-        unsafe { llvm_asm!("mrs $0, SCTLR_EL3" : "=r"(sctlr)) };
+        cpu::sctlr_el3::get()
+    } else {
+        0
     }
-
-    sctlr
 }
 
-fn set_sctlr(sctlr: u32) {
+fn set_sctlr(sctlr: u64) {
     let el = cpu::get_current_el();
     if el == 1 {
-        unsafe { llvm_asm!("msr SCTLR_EL1, $0" : : "r"(sctlr)) };
+        cpu::sctlr_el1::set(sctlr);
     } else if el == 2 {
-        unsafe { llvm_asm!("msr SCTLR_EL2, $0" : : "r"(sctlr)) };
+        cpu::sctlr_el2::set(sctlr);
     } else if el == 3 {
-        unsafe { llvm_asm!("msr SCTLR_EL3, $0" : : "r"(sctlr)) };
+        cpu::sctlr_el3::set(sctlr);
     }
 }
 
@@ -475,8 +472,7 @@ pub fn init() -> Option<(TTable, (TTable, TTable))> {
     addr.print();
 
     // check for 64KiB granule and at least 36 bits physical address bus
-    let mut mmfr: u64;
-    unsafe { llvm_asm!("mrs $0, id_aa64mmfr0_el1" : "=r" (mmfr)) };
+    let mmfr = cpu::id_aa64mmfr0_el1::get();
     let b = mmfr & 0xF;
     if b < 1
     /* 36 bits */
@@ -511,8 +507,7 @@ fn get_mair() -> u64 {
 
 /// for TCR_EL2 and TCR_EL2
 fn get_tcr() -> u64 {
-    let mut mmfr: u64;
-    unsafe { llvm_asm!("mrs $0, id_aa64mmfr0_el1" : "=r" (mmfr)) };
+    let mmfr = cpu::id_aa64mmfr0_el1::get();
     let b = mmfr & 0xF;
 
     1 << 31 | // Res1
@@ -711,19 +706,24 @@ fn init_el3(addr: &Addr) -> TTable {
 
 fn set_reg_el3(ttbr: usize) {
     // first, set Memory Attributes array, indexed by PT_MEM, PT_DEV, PT_NC in our example
-    unsafe { llvm_asm!("msr mair_el3, $0" : : "r" (get_mair())) };
+    cpu::mair_el3::set(get_mair());
 
     // next, specify mapping characteristics in translate control register
-    unsafe { llvm_asm!("msr tcr_el3, $0" : : "r" (get_tcr())) };
+    cpu::tcr_el3::set(get_tcr());
 
     // tell the MMU where our translation tables are.
-    unsafe { llvm_asm!("msr ttbr0_el3, $0" : : "r" (ttbr | 1)) };
+    cpu::ttbr0_el3::set(ttbr as u64 | 1);
 
     // finally, toggle some bits in system control register to enable page translation
-    let mut sctlr: u64;
-    unsafe { llvm_asm!("dsb ish; isb; mrs $0, sctlr_el3" : "=r" (sctlr)) };
-    sctlr = update_sctlr(sctlr);
-    unsafe { llvm_asm!("msr sctlr_el3, $0; dsb sy; isb" : : "r" (sctlr)) };
+    cpu::dsb_ish();
+    cpu::isb();
+
+    let sctlr = cpu::sctlr_el3::get();
+    let sctlr = update_sctlr(sctlr);
+    cpu::sctlr_el3::set(sctlr);
+
+    cpu::dsb_sy();
+    cpu::isb();
 }
 
 fn init_el2(addr: &Addr) -> TTable {
@@ -746,19 +746,24 @@ fn init_el2(addr: &Addr) -> TTable {
 
 fn set_reg_el2(ttbr: usize) {
     // first, set Memory Attributes array, indexed by PT_MEM, PT_DEV, PT_NC in our example
-    unsafe { llvm_asm!("msr mair_el2, $0" : : "r" (get_mair())) };
+    cpu::mair_el2::set(get_mair());
 
     // next, specify mapping characteristics in translate control register
-    unsafe { llvm_asm!("msr tcr_el2, $0" : : "r" (get_tcr())) };
+    cpu::tcr_el2::set(get_tcr());
 
     // tell the MMU where our translation tables are.
-    unsafe { llvm_asm!("msr ttbr0_el2, $0" : : "r" (ttbr | 1)) };
+    cpu::ttbr0_el2::set(ttbr as u64 | 1);
 
     // finally, toggle some bits in system control register to enable page translation
-    let mut sctlr: u64;
-    unsafe { llvm_asm!("dsb ish; isb; mrs $0, sctlr_el2" : "=r" (sctlr)) };
-    sctlr = update_sctlr(sctlr);
-    unsafe { llvm_asm!("msr sctlr_el2, $0; dsb sy; isb" : : "r" (sctlr)) };
+    cpu::dsb_ish();
+    cpu::isb();
+
+    let sctlr = cpu::sctlr_el2::get();
+    let sctlr = update_sctlr(sctlr);
+    cpu::sctlr_el2::set(sctlr);
+
+    cpu::dsb_sy();
+    cpu::isb();
 }
 
 /// set up EL1's page table, 64KB page, level 2 and 3 translation tables,
@@ -927,10 +932,9 @@ fn init_el1(addr: &Addr) -> (TTable, TTable) {
 
 fn set_reg_el1(ttbr0: usize, ttbr1: usize) {
     // first, set Memory Attributes array, indexed by PT_MEM, PT_DEV, PT_NC in our example
-    unsafe { llvm_asm!("msr mair_el1, $0" : : "r" (get_mair())) };
+    cpu::mair_el1::set(get_mair());
 
-    let mut mmfr: u64;
-    unsafe { llvm_asm!("mrs $0, id_aa64mmfr0_el1" : "=r" (mmfr)) };
+    let mmfr = cpu::id_aa64mmfr0_el1::get();
     let b = mmfr & 0xF;
 
     let tcr: u64 = b << 32 |
@@ -946,21 +950,22 @@ fn set_reg_el1(ttbr0: usize, ttbr1: usize) {
         22; // T0SZ = 22, 2 levels (level 2 and 3 translation tables), 2^42B (4TiB) space
 
     // next, specify mapping characteristics in translate control register
-    unsafe { llvm_asm!("msr tcr_el1, $0" : : "r" (tcr)) };
+    cpu::tcr_el1::set(tcr);
 
     // tell the MMU where our translation tables are.
-    unsafe { llvm_asm!("msr ttbr0_el1, $0" : : "r" (ttbr0 | 1)) };
-    unsafe { llvm_asm!("msr ttbr1_el1, $0" : : "r" (ttbr1 | 1)) };
+    cpu::ttbr0_el1::set(ttbr0 as u64 | 1);
+    cpu::ttbr1_el1::set(ttbr1 as u64 | 1);
 
     // finally, toggle some bits in system control register to enable page translation
-    let mut sctlr: u64;
-    unsafe { llvm_asm!("dsb ish; isb; mrs $0, sctlr_el1" : "=r" (sctlr)) };
-    sctlr = update_sctlr(sctlr);
-    sctlr &= !(
-        1 << 4
-        // clear SA0
-    );
-    unsafe { llvm_asm!("msr sctlr_el1, $0; dsb sy; isb" : : "r" (sctlr)) };
+    cpu::dsb_ish();
+    cpu::isb();
+
+    let sctlr = cpu::sctlr_el1::get();
+    let sctlr = update_sctlr(sctlr) & !(1 << 4); // clear SA0
+    cpu::sctlr_el1::set(sctlr);
+
+    cpu::dsb_sy();
+    cpu::isb();
 }
 
 pub fn get_no_cache<T>() -> &'static mut T {
