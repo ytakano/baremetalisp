@@ -242,3 +242,8 @@ fn panic(info: &PanicInfo) -> ! {
 pub fn abort() -> ! {
     driver::delays::forever();
 }
+
+#[no_mangle]
+extern "C" fn fmod(x: f64, y: f64) -> f64 {
+    libm::fmod(x, y)
+}

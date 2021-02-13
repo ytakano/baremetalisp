@@ -5,25 +5,12 @@ use alloc::boxed::Box;
 use blisp;
 use core::alloc::Layout;
 use memalloc::Allocator;
+use num_bigint::{BigInt, ToBigInt};
 
 #[global_allocator]
 static mut GLOBAL: Allocator = Allocator::new();
 
 const GLOBAL_CODE: &str = "
-(data (Maybe t)
-    (Just t)
-    Nothing)
-
-(export car (x) (Pure (-> ('(Int)) (Maybe Int)))
-    (match x
-        ((Cons n _) (Just n))
-        (_ Nothing)))
-
-(export cdr (x) (Pure (-> ('(Int)) '(Int)))
-    (match x
-        ((Cons _ l) l)
-        (_ '())))
-
 ; switch to normal world
 (export switch-world () (IO (-> () Int))
     (call-rust 1 0 0))
@@ -34,12 +21,12 @@ const GLOBAL_CODE: &str = "
         (* n (factorial (- n 1)))))
 ";
 
-fn callback(x: i64, _y: i64, _z: i64) -> i64 {
-    if x == 1 {
+fn callback(x: BigInt, _y: BigInt, _z: BigInt) -> BigInt {
+    if x == 1.to_bigint().unwrap() {
         syscall::svc::switch_world();
-        0
+        0.to_bigint().unwrap()
     } else {
-        -1
+        (-1).to_bigint().unwrap()
     }
 }
 
