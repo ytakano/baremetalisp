@@ -6,6 +6,7 @@ use blisp;
 use core::alloc::Layout;
 use memalloc::Allocator;
 use num_bigint::{BigInt, ToBigInt};
+use num_traits::{One, Zero};
 
 #[global_allocator]
 static mut GLOBAL: Allocator = Allocator::new();
@@ -22,11 +23,11 @@ const GLOBAL_CODE: &str = "
 ";
 
 fn callback(x: BigInt, _y: BigInt, _z: BigInt) -> BigInt {
-    if x == 1.to_bigint().unwrap() {
+    if x == One::one() {
         syscall::svc::switch_world();
-        0.to_bigint().unwrap()
+        Zero::zero()
     } else {
-        (-1).to_bigint().unwrap()
+        -1.to_bigint().unwrap()
     }
 }
 

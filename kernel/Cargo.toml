@@ -10,8 +10,13 @@ edition = "2018"
 blisp = { git = "https://github.com/ytakano/blisp.git" }
 memalloc = { git = "https://github.com/ytakano/memalloc.git", branch = "main", features=["buddy_32m"] }
 synctools = { git = "https://github.com/ytakano/synctools.git", branch = "main" }
-num-bigint = { version = "0.3.1", default-features = false }
+num-bigint = { git = "https://github.com/ytakano/num-bigint.git", default-features = false, features = ["libm"] }
 libm = "0.2.1"
+
+[dependencies.num-traits]
+version = "0.2.14"
+default-features = false
+features = ["libm"]
 
 [profile.dev]
 opt-level = 2
