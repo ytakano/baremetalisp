@@ -71,7 +71,15 @@ fn repl_uart(ctx: &blisp::semantics::Context) -> ! {
         match result {
             Ok(rs) => {
                 for r in &rs {
-                    uart::puts(r);
+                    match r {
+                        Ok(msg) => {
+                            uart::puts(&msg);
+                        }
+                        Err(e) => {
+                            let msg = format!("error: {}", e);
+                            uart::puts(&msg);
+                        }
+                    }
                 }
             }
             Err(e) => {
