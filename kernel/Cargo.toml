@@ -7,9 +7,11 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-blisp = { git = "https://github.com/ytakano/blisp.git" }
 memalloc = { git = "https://github.com/ytakano/memalloc.git", branch = "main", features=["buddy_32m"] }
 synctools = { git = "https://github.com/ytakano/synctools.git", branch = "main" }
+
+[dependencies.blisp]
+version = "0.2.0"
 
 [dependencies.libm]
 version = "0.2.1"
