@@ -1,8 +1,9 @@
 use core::mem::size_of;
 use core::mem::transmute;
 use core::ptr::{read_volatile, write_volatile};
+use synctools::mcs::{MCSLock, MCSLockGuard};
 
-use crate::aarch64::{cache, lock};
+use crate::aarch64::cache;
 use crate::driver::defs;
 use crate::driver::topology;
 
@@ -43,7 +44,7 @@ pub(super) struct NonCpuPwrDomainNode {
     level: u8,
 
     // For indexing the psci_lock array
-    lock_var: lock::LockVar,
+    lock_var: MCSLock<()>,
 }
 
 pub(super) struct CpuPwrDomainNode {
@@ -57,7 +58,7 @@ pub(super) struct CpuPwrDomainNode {
     // parent power domains. Hence this node does not include a bakery
     // lock. A spinlock is required by the CPU_ON handler to prevent a race
     // when multiple CPUs try to turn ON the same target CPU.
-    cpu_lock: lock::LockVar,
+    cpu_lock: MCSLock<()>,
 }
 
 /// Structure used to store per-cpu information relevant to the PSCI service.
@@ -100,19 +101,11 @@ def_static!(PSCI_CPU_DATA: [PsciCpuData; topology::CORE_COUNT]);
 static mut REQ_LOCAL_PWR_STATES: [u8; defs::MAX_PWR_LVL as usize * topology::CORE_COUNT] =
     [0; defs::MAX_PWR_LVL as usize * topology::CORE_COUNT];
 
-pub(super) fn non_cpu_pd_lock(idx: usize) -> lock::SpinLock<'static> {
+pub(super) fn non_cpu_pd_lock(idx: usize) -> MCSLockGuard<'static, ()> {
     unsafe { NON_CPU_PD_NODES[idx].lock_var.lock() }
 }
 
-pub(super) unsafe fn non_cpu_pd_force_lock(idx: usize) {
-    NON_CPU_PD_NODES[idx].lock_var.force_lock();
-}
-
-pub(super) unsafe fn non_cpu_pd_force_unlock(idx: usize) {
-    NON_CPU_PD_NODES[idx].lock_var.force_unlock();
-}
-
-pub(super) fn cpu_lock(idx: usize) -> lock::SpinLock<'static> {
+pub(super) fn cpu_lock(idx: usize) -> MCSLockGuard<'static, ()> {
     unsafe { CPU_PD_NODES[idx].cpu_lock.lock() }
 }
 

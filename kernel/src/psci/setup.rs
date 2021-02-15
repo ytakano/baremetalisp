@@ -164,9 +164,7 @@ pub(super) fn init_warmboot() {
     let parent_nodes = &common::get_parent_pwr_domain_nodes(idx)[0..end_pwrlvl as usize];
 
     // lock parents
-    for i in parent_nodes {
-        unsafe { data::non_cpu_pd_force_lock(*i) };
-    }
+    let _locks = parent_nodes.iter().map(|i| data::non_cpu_pd_lock(*i));
 
     let state_info = common::get_target_local_pwr_states(end_pwrlvl);
 
@@ -193,12 +191,6 @@ pub(super) fn init_warmboot() {
     // Set the requested and target state of this CPU and all the higher
     // power domains which are ancestors of this CPU to run.
     set_pwr_domains_to_run(end_pwrlvl);
-
-    // This loop releases the lock corresponding to each power level
-    // in the reverse order to which they were acquired.
-    for i in parent_nodes.iter().rev() {
-        unsafe { data::non_cpu_pd_force_unlock(*i) };
-    }
 }
 
 /// Routine to return the maximum power level to traverse to after a cpu has

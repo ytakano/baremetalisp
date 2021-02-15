@@ -43,7 +43,7 @@ pub(crate) fn start(target_cpu: usize, ep: EntryPointInfo) -> PsciResult {
     }
 
     // Protect against multiple CPUs trying to turn ON the same target CPU
-    data::cpu_lock(idx);
+    let _lock = data::cpu_lock(idx);
 
     // Generic management: Ensure that the cpu is off to be
     // turned on.

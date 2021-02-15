@@ -31,29 +31,23 @@ pub(super) fn start(end_pwrlvl: usize) {
     // psci_cpu_pd_nodes) can cause coherency issues on some platforms.
     let parent_nodes = &common::get_parent_pwr_domain_nodes(idx)[0..end_pwrlvl];
 
-    // This function acquires the lock corresponding to each power
-    // level so that by the time all locks are taken, the system topology
-    // is snapshot and state management can be done safely.
-    for i in parent_nodes {
-        unsafe { data::non_cpu_pd_force_lock(*i) };
-    }
+    {
+        // This function acquires the lock corresponding to each power
+        // level so that by the time all locks are taken, the system topology
+        // is snapshot and state management can be done safely.
+        let _locks = parent_nodes.iter().map(|i| data::non_cpu_pd_lock(*i));
 
-    // This function is passed the requested state info and
-    // it returns the negotiated state info for each power level upto
-    // the end level specified.
-    common::do_state_coordination(end_pwrlvl, &mut state_info);
+        // This function is passed the requested state info and
+        // it returns the negotiated state info for each power level upto
+        // the end level specified.
+        common::do_state_coordination(end_pwrlvl, &mut state_info);
 
-    // Plat. management: Perform platform specific actions to turn this
-    // cpu off e.g. exit cpu coherency, program the power controller etc.
-    driver::psci::pwr_domain_off(&state_info);
+        // Plat. management: Perform platform specific actions to turn this
+        // cpu off e.g. exit cpu coherency, program the power controller etc.
+        driver::psci::pwr_domain_off(&state_info);
 
-    data::set_cpu_aff_info_state(idx, data::AffInfoState::StateOff);
-    data::flush_cache_cpu_state(idx);
-
-    // Release the locks corresponding to each power level in the
-    // reverse order to which they were acquired.
-    for i in parent_nodes.iter().rev() {
-        unsafe { data::non_cpu_pd_force_unlock(*i) };
+        data::set_cpu_aff_info_state(idx, data::AffInfoState::StateOff);
+        data::flush_cache_cpu_state(idx);
     }
 
     let max_off_lvl = common::find_max_off_lvl(&state_info);
