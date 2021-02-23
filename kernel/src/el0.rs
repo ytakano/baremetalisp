@@ -5,7 +5,7 @@ use alloc::boxed::Box;
 use blisp;
 use core::alloc::Layout;
 use memalloc::Allocator;
-use num_bigint::{BigInt, ToBigInt};
+use num_bigint::BigInt;
 use num_traits::{One, Zero};
 
 #[global_allocator]
@@ -13,21 +13,24 @@ static mut GLOBAL: Allocator = Allocator::new();
 
 const GLOBAL_CODE: &str = "
 ; switch to normal world
-(export switch-world () (IO (-> () Int))
+(export switch-world () (IO (-> () (Option Int)))
     (call-rust 1 0 0))
 
 (export factorial (n) (Pure (-> (Int) Int))
+    (factorial' n 1))
+
+(defun factorial' (n total) (Pure (-> (Int Int) Int))
     (if (<= n 0)
-        1
-        (* n (factorial (- n 1)))))
+        total
+        (factorial' (- n 1) (* n total))))
 ";
 
-fn callback(x: BigInt, _y: BigInt, _z: BigInt) -> BigInt {
-    if x == One::one() {
+fn callback(x: &BigInt, _y: &BigInt, _z: &BigInt) -> Option<BigInt> {
+    if *x == One::one() {
         syscall::svc::switch_world();
-        Zero::zero()
+        Some(Zero::zero())
     } else {
-        -1.to_bigint().unwrap()
+        None
     }
 }
 
