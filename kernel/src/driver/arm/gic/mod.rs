@@ -1,6 +1,6 @@
 use core::ptr::{read_volatile, write_volatile};
 
-pub mod v2;
+pub(crate) mod v2;
 
 // Constants to categorise interrupts
 pub(crate) const MIN_SGI_ID: u32 = 0;

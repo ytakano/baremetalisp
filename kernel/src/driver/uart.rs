@@ -5,24 +5,28 @@ use super::device::raspi::uart;
 use super::device::allwinner::uart;
 
 use alloc::vec::Vec;
+use synctools::mcs;
 
 const UART_CLOCK: u64 = 48000000;
 const UART_BAUD: u64 = 115200;
+
+static mut LOCK: mcs::MCSLock<()> = mcs::MCSLock::new(());
 
 fn send(c: u32) {
     uart::send(c);
 }
 
-pub fn recv() -> u32 {
+fn recv() -> u32 {
     return uart::recv();
 }
 
-pub fn init() {
+pub(crate) fn init() {
     uart::init(UART_CLOCK, UART_BAUD);
 }
 
 /// print characters to serial console
-pub fn puts(s: &str) {
+pub(crate) fn puts(s: &str) {
+    let _lock = unsafe { LOCK.lock() };
     for c in s.bytes() {
         send(c as u32);
         if c == '\n' as u8 {
@@ -32,7 +36,8 @@ pub fn puts(s: &str) {
 }
 
 /// print a 64-bit value in hexadecimal to serial console
-pub fn hex(h: u64) {
+pub(crate) fn hex(h: u64) {
+    let _lock = unsafe { LOCK.lock() };
     for i in (0..61).step_by(4).rev() {
         let mut n = (h >> i) & 0xF;
         n += if n > 9 { 0x37 } else { 0x30 };
@@ -41,7 +46,8 @@ pub fn hex(h: u64) {
 }
 
 /// print a 32-bit value in hexadecimal to serial console
-pub fn hex32(h: u32) {
+pub(crate) fn hex32(h: u32) {
+    let _lock = unsafe { LOCK.lock() };
     for i in (0..29).step_by(4).rev() {
         let mut n = (h >> i) & 0xF;
         n += if n > 9 { 0x37 } else { 0x30 };
@@ -50,7 +56,8 @@ pub fn hex32(h: u32) {
 }
 
 /// print a 64-bit value in decimal to serial console
-pub fn decimal(mut h: u64) {
+pub(crate) fn decimal(mut h: u64) {
+    let _lock = unsafe { LOCK.lock() };
     let mut num = [0; 32];
 
     if h == 0 {
@@ -72,7 +79,7 @@ pub fn decimal(mut h: u64) {
     }
 }
 
-pub fn read_line() -> Vec<u8> {
+pub(crate) fn read_line() -> Vec<u8> {
     let mut res = Vec::new();
 
     loop {

@@ -102,7 +102,7 @@ pub struct GICv2DriverData {
 }
 
 impl GICv2DriverData {
-    pub fn new_gicd_gicc(gicd_base: usize, gicc_base: usize) -> GICv2DriverData {
+    pub(crate) fn new_gicd_gicc(gicd_base: usize, gicc_base: usize) -> GICv2DriverData {
         GICv2DriverData {
             gicd_base: gicd_base,
             gicc_base: gicc_base,
@@ -138,7 +138,7 @@ fn gicd_read_itargetsr(base: usize, id: u32) -> u32 {
 }
 
 /// Initialize the ARM GICv2 driver with the provided platform inputs
-pub fn driver_init(driver_data: &GICv2DriverData) {
+pub(crate) fn driver_init(driver_data: &GICv2DriverData) {
     // Ensure that this is a GICv2 system
     let pidr2 = gicd_read_pidr2(driver_data.gicd_base);
     let ver = (pidr2 >> gic::PIDR2_ARCH_REV_SHIFT) & gic::PIDR2_ARCH_REV_MASK;
@@ -177,7 +177,7 @@ fn get_interrupt_props() -> &'static [InterruptProp] {
 /// Global gic distributor init which will be done by the primary cpu after a
 /// cold boot. It marks out the secure SPIs, PPIs & SGIs and enables them. It
 /// then enables the secure GIC distributor interface.
-pub fn distif_init() {
+pub(crate) fn distif_init() {
     // Disable the distributor before going further
     let base = get_gicd_base();
     let ctlr = gic::gicd_read_ctlr(base);
@@ -250,7 +250,7 @@ fn secure_spis_configure_props(gicd_base: usize, interrupt_props: &'static [Inte
 
 /// Per cpu gic distributor setup which will be done by all cpus after a cold
 /// boot/hotplug. This marks out the secure SPIs and PPIs & enables them.
-pub fn pcpu_distif_init() {
+pub(crate) fn pcpu_distif_init() {
     let base = get_gicd_base();
     if base == 0 {
         panic!("gicd_base is 0");
@@ -311,7 +311,7 @@ fn secure_ppi_sgi_setup_props(gicd_base: usize, interrupt_props: &[InterruptProp
 
 /// Enable secure interrupts and use FIQs to route them. Disable legacy bypass
 /// and set the priority mask register to allow all interrupts to trickle in.
-pub fn cpuif_enable() {
+pub(crate) fn cpuif_enable() {
     // Enable the Group 0 interrupts, FIQEn and disable Group 0/1
     // bypass.
     let val = gic::CTLR_ENABLE_G0_BIT
@@ -344,7 +344,7 @@ fn gicc_read_ctlr(base: usize) -> u32 {
 
 /// Place the cpu interface in a state where it can never make a cpu exit wfi as
 /// as result of an asserted interrupt. This is critical for powering down a cpu
-pub fn cpuif_disable() {
+pub(crate) fn cpuif_disable() {
     // Disable secure, non-secure interrupts and disable their bypass
     let base = get_gicc_base();
     let val = gicc_read_ctlr(base) & !(gic::CTLR_ENABLE_G0_BIT | CTLR_ENABLE_G1_BIT)

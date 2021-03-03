@@ -11,7 +11,7 @@ memalloc = { git = "https://github.com/ytakano/memalloc.git", branch = "main", f
 synctools = { git = "https://github.com/ytakano/synctools.git", branch = "main" }
 
 [dependencies.blisp]
-version = "0.3.0"
+version = "0.3.4"
 
 [dependencies.libm]
 version = "0.2.1"

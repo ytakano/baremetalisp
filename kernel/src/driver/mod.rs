@@ -1,12 +1,12 @@
 pub(crate) mod arm;
-pub mod defs;
-pub mod delays;
+pub(crate) mod defs;
+pub(crate) mod delays;
 mod device;
-pub mod memory;
-pub mod psci;
+pub(crate) mod memory;
+pub(crate) mod psci;
 mod setup;
-pub mod topology;
-pub mod uart;
+pub(crate) mod topology;
+pub(crate) mod uart;
 
 #[cfg(feature = "pine64")]
 mod mhu;

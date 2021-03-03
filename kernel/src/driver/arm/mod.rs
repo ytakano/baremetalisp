@@ -1,4 +1,4 @@
-pub mod gic;
+pub(crate) mod gic;
 
 #[cfg(feature = "pine64")]
-pub mod scpi;
+pub(crate) mod scpi;
