@@ -26,7 +26,7 @@ ASM_FILE_DEP=asm/device/raspi.S asm/device/pine64.S asm/cache_helper.S
 ASM_FILE=asm/boot.S
 ASM_OBJ=boot.o
 
-TARGET=aarch64-unknown-none
+TARGET=aarch64-unknown-none-softfloat
 
 RUSTLIB=target/$(TARGET)/release/libbaremetalisp.a
 RUSTFLAGS=$(RUSTC_MISC_ARGS)

@@ -3,10 +3,11 @@ use super::defs;
 use super::memory;
 use super::power;
 use crate::aarch64;
-use crate::driver::arm::{gic, scpi};
+use crate::driver::arm::scpi;
 use crate::driver::{psci, topology};
 use crate::psci::common::{is_local_state_off, is_local_state_retn, is_local_state_run};
 use crate::psci::PsciResult;
+use gic::v2::GICv2;
 
 pub(in crate::driver) fn init() {
     cpu::init();
@@ -65,7 +66,11 @@ pub(in crate::driver) fn pwr_domain_off(target_state: &psci::PsciPowerState) {
     let system_pwr_state = target_state[defs::SYSTEM_PWR_LVL as usize];
 
     if is_local_state_off(cpu_pwr_state) {
-        gic::v2::cpuif_disable();
+        let gic = GICv2::new(
+            memory::SUNXI_GICD_BASE as usize,
+            memory::SUNXI_GICC_BASE as usize,
+        );
+        gic.cpuif_disable();
     }
 
     let mpidr = aarch64::cpu::mpidr_el1::get() as usize;
@@ -84,13 +89,18 @@ pub(in crate::driver) fn pwr_domain_suspend_pwrdown_early(_target_state: &psci::
 pub(in crate::driver) fn pwr_domain_suspend(_target_state: &psci::PsciPowerState) {}
 
 pub(in crate::driver) fn pwr_domain_on_finish(target_state: &psci::PsciPowerState) {
+    let gic = GICv2::new(
+        memory::SUNXI_GICD_BASE as usize,
+        memory::SUNXI_GICC_BASE as usize,
+    );
+
     if is_local_state_off(target_state[defs::SYSTEM_PWR_LVL as usize]) {
-        gic::v2::distif_init();
+        gic.distif_init(&[]);
     }
 
     if is_local_state_off(target_state[defs::CPU_PWR_LVL as usize]) {
-        gic::v2::pcpu_distif_init();
-        gic::v2::cpuif_enable();
+        gic.pcpu_distif_init(&[]);
+        gic.cpuif_enable();
     }
 }
 

@@ -4,9 +4,10 @@ use super::{axp, cpu, memory, rsb};
 use super::{init_platform_r_twi, read_soc_id, SoCID};
 use crate::aarch64;
 use crate::bits;
-use crate::driver::arm::{gic, scpi};
+use crate::driver::arm::scpi;
 use crate::driver::{delays, uart};
 use crate::print_msg;
+use gic::v2::GICv2;
 
 static mut PMIC: PMICType = PMICType::UNKNOWN;
 
@@ -65,7 +66,11 @@ pub(super) fn init() {
 }
 
 pub fn system_off() {
-    gic::v2::cpuif_disable();
+    let gic = GICv2::new(
+        memory::SUNXI_GICD_BASE as usize,
+        memory::SUNXI_GICC_BASE as usize,
+    );
+    gic.cpuif_disable();
 
     if cpu::scpi_available() {
         // Send the power down request to the SCP
@@ -212,7 +217,11 @@ fn sunxi_turn_off_soc(socid: SoCID) {
 }
 
 pub(super) fn system_reset() {
-    gic::v2::cpuif_disable();
+    let gic = GICv2::new(
+        memory::SUNXI_GICD_BASE as usize,
+        memory::SUNXI_GICC_BASE as usize,
+    );
+    gic.cpuif_disable();
 
     if cpu::scpi_available() {
         // Send the system reset request to the SCP

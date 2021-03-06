@@ -104,13 +104,19 @@ pub fn lower_el_aarch64_sync_el3(ctx: *mut GpRegs, sp: usize) {
 }
 
 #[no_mangle]
-pub fn lower_el_aarch64_irq_el3(_ctx: *mut GpRegs, _sp: usize) {}
+pub fn lower_el_aarch64_irq_el3(_ctx: *mut GpRegs, _sp: usize) {
+    driver::uart::puts("EL3 exception: IRQ\n");
+}
 
 #[no_mangle]
-pub fn lower_el_aarch64_fiq_el3(_ctx: *mut GpRegs, _sp: usize) {}
+pub fn lower_el_aarch64_fiq_el3(_ctx: *mut GpRegs, _sp: usize) {
+    driver::uart::puts("EL3 exception: FIQ\n");
+}
 
 #[no_mangle]
-pub fn lower_el_aarch64_serror_el3(_ctx: *mut GpRegs, _sp: usize) {}
+pub fn lower_el_aarch64_serror_el3(_ctx: *mut GpRegs, _sp: usize) {
+    driver::uart::puts("EL3 exception: Error\n");
+}
 
 // from lower EL (AArch32)
 #[no_mangle]
@@ -189,10 +195,14 @@ pub fn lower_el_aarch64_sync_el2(ctx: *mut GpRegs, _sp: usize) {
 }
 
 #[no_mangle]
-pub fn lower_el_aarch64_irq_el2(_ctx: *mut GpRegs, _sp: usize) {}
+pub fn lower_el_aarch64_irq_el2(_ctx: *mut GpRegs, _sp: usize) {
+    driver::uart::puts("EL2 exception: IRQ\n");
+}
 
 #[no_mangle]
-pub fn lower_el_aarch64_fiq_el2(_ctx: *mut GpRegs, _sp: usize) {}
+pub fn lower_el_aarch64_fiq_el2(_ctx: *mut GpRegs, _sp: usize) {
+    driver::uart::puts("EL2 exception: FIQ\n");
+}
 
 #[no_mangle]
 pub fn lower_el_aarch64_serror_el2(_ctx: *mut GpRegs, _sp: usize) {
@@ -275,13 +285,19 @@ pub fn lower_el_aarch64_sync_el1(ctx: *mut GpRegs, sp: usize) {
 }
 
 #[no_mangle]
-pub fn lower_el_aarch64_irq_el1(_ctx: *mut GpRegs, _sp: usize) {}
+pub fn lower_el_aarch64_irq_el1(_ctx: *mut GpRegs, _sp: usize) {
+    driver::uart::puts("EL1 exception: IRQ\n");
+}
 
 #[no_mangle]
-pub fn lower_el_aarch64_fiq_el1(_ctx: *mut GpRegs, _sp: usize) {}
+pub fn lower_el_aarch64_fiq_el1(_ctx: *mut GpRegs, _sp: usize) {
+    driver::uart::puts("EL1 exception: FIQ\n");
+}
 
 #[no_mangle]
-pub fn lower_el_aarch64_serror_el1(_ctx: *mut GpRegs, _sp: usize) {}
+pub fn lower_el_aarch64_serror_el1(_ctx: *mut GpRegs, _sp: usize) {
+    driver::uart::puts("EL1 exception: Error\n");
+}
 
 // from lower EL (AArch32)
 #[no_mangle]

@@ -6,8 +6,8 @@ use super::power;
 use super::psci;
 use super::security;
 use super::{read_soc_id, SoCID};
-use crate::driver::arm::gic;
 use crate::{aarch64, print_msg};
+use gic::v2::GICv2;
 
 pub(in crate::driver) fn early_platform_setup() {}
 
@@ -19,15 +19,25 @@ pub(in crate::driver) fn platform_setup() {
     // see https://github.com/ARM-software/arm-trusted-firmware/blob/007be5ecd14542a5da8533c14293faa1c44c3a7e/plat/allwinner/common/sunxi_bl31_setup.c#L137-L147
 
     // Configure the interrupt controller
-    let driver_data = gic::v2::GICv2DriverData::new_gicd_gicc(
+    let gic = GICv2::new(
         memory::SUNXI_GICD_BASE as usize,
         memory::SUNXI_GICC_BASE as usize,
     );
 
-    gic::v2::driver_init(&driver_data);
-    gic::v2::distif_init();
-    gic::v2::pcpu_distif_init();
-    gic::v2::cpuif_enable();
+    // TODO:
+    /*
+    let prop = gic::InterruptProp {
+        inter_num: 32, // UART0
+        inter_grp: gic::InterruptGrp::Group0,
+        inter_pri: 255,
+        inter_cfg: gic::InterruptCfg::EdgeTrigger,
+    };*/
+
+    gic.distif_init(&[]);
+    gic.pcpu_distif_init(&[]);
+    gic.cpuif_enable();
+
+    crate::driver::uart::puts("Initialized GIC\n");
 
     security::init();
 

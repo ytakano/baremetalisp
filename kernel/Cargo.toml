@@ -8,7 +8,7 @@ edition = "2018"
 
 [dependencies]
 memalloc = { git = "https://github.com/ytakano/memalloc.git", branch = "main", features=["buddy_32m"] }
-synctools = { git = "https://github.com/ytakano/synctools.git", branch = "main" }
+gic = { git = "https://github.com/ytakano/gic.git" }
 
 [dependencies.blisp]
 version = "0.3.4"
@@ -17,13 +17,16 @@ version = "0.3.4"
 version = "0.2.1"
 
 [dependencies.num-bigint]
-version = "0.3.1"
+version = "0.3.2"
 default-features = false
 
 [dependencies.num-traits]
 version = "0.2.14"
 default-features = false
 features = ["libm"]
+
+[dependencies.synctools]
+version = "0.1.0"
 
 [profile.dev]
 opt-level = 2
