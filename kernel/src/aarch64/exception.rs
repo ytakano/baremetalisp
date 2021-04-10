@@ -1,9 +1,11 @@
 use super::context::GpRegs;
 use super::cpu;
 use super::syscall;
-use crate::driver;
+use crate::{driver, print_msg};
 
 const ESR_EL1_EC_MASK: u64 = 0b111111 << 26;
+const ESR_EL1_EC_UNKNOWN: u64 = 0b000000 << 26;
+const ESR_EL1_EC_WFI_OR_WFE: u64 = 0b000001 << 26;
 const ESR_EL1_EC_SVC32: u64 = 0b010001 << 26;
 const ESR_EL1_EC_SVC64: u64 = 0b010101 << 26;
 const ESR_LE1_EC_DATA: u64 = 0b100100 << 26;
@@ -255,6 +257,7 @@ pub fn curr_el_spx_sync_el1(ctx: *mut GpRegs, _sp: usize) {
     driver::uart::puts("\nESR = 0x");
     driver::uart::hex(cpu::esr_el1::get() as u64);
     driver::uart::puts("\n");
+    driver::delays::forever();
 }
 
 #[no_mangle]
@@ -274,13 +277,22 @@ pub fn curr_el_spx_serror_el1(_ctx: *mut GpRegs, _sp: usize) {
 
 // from lower EL (AArch64)
 #[no_mangle]
-pub fn lower_el_aarch64_sync_el1(ctx: *mut GpRegs, sp: usize) {
+pub fn lower_el_aarch64_sync_el1(ctx: *mut GpRegs, _sp: usize) {
     let r = unsafe { &*ctx };
     let esr = cpu::esr_el1::get();
-    if esr & ESR_EL1_EC_MASK == ESR_EL1_EC_SVC64 {
-        syscall::svc::handle64(esr & 0xff, r, sp);
-    } else {
-        panic!("unexpected exception from EL0 to EL1");
+    driver::uart::puts("EL1 exception: Sync lower AArch64\nELR = ");
+    driver::uart::hex(r.elr);
+    driver::uart::puts("\nSPSR = 0x");
+    driver::uart::hex(r.spsr as u64);
+    driver::uart::puts("\nESR = 0x");
+    driver::uart::hex(esr);
+    driver::uart::puts("\n");
+
+    let ec = esr & ESR_EL1_EC_MASK;
+    match ec {
+        ESR_EL1_EC_WFI_OR_WFE => print_msg("EL1 Exception", "WFI or WFE"),
+        ESR_EL1_EC_SVC64 => print_msg("EL1 Exception", "Supervisor Call (64bit)"),
+        _ => print_msg("EL1 Exception", "unknown"),
     }
 }
 

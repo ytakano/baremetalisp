@@ -466,7 +466,7 @@ pub fn set_regs() {
 }
 
 /// initialize transition tables
-pub fn init() -> Option<(TTable, (TTable, TTable))> {
+pub fn init() -> Option<(Option<TTable>, (TTable, TTable))> {
     let addr = get_memory_map();
 
     addr.print();
@@ -489,9 +489,9 @@ pub fn init() -> Option<(TTable, (TTable, TTable))> {
     }
 
     let table_firm = if cpu::get_current_el() == 2 {
-        init_el2(&addr)
+        Some(init_el2(&addr))
     } else {
-        init_el3(&addr)
+        None
     };
 
     let table_el1 = init_el1(&addr);
@@ -871,8 +871,9 @@ fn init_el1(addr: &Addr) -> (TTable, TTable) {
         KERN_TTBR1_LV3_TABLE_NUM,
     );
 
-    // kernel stack
-    let mut stack_end = addr.stack_el1_end;
+    // map firmware stack
+    let mut stack_end = get_stack_firm_end();
+    let stack_start = get_stack_firm_start();
     let flag = FLAG_L3_XN
         | FLAG_L3_PXN
         | FLAG_L3_AF
@@ -880,15 +881,36 @@ fn init_el1(addr: &Addr) -> (TTable, TTable) {
         | FLAG_L3_SH_RW_N
         | FLAG_L3_ATTR_MEM
         | 0b11;
-    while stack_end < addr.stack_el1_start {
+    while stack_end < stack_start {
         table1.map(stack_end, stack_end, flag);
         stack_end += PAGESIZE;
     }
 
     for i in 0..NUM_CPU {
-        let addr = addr.stack_el1_end + i * addr.stack_size;
+        let addr = stack_end + i * addr.stack_size;
         table1.unmap(addr);
     }
+
+    /*
+        // kernel stack
+        let mut stack_end = addr.stack_el1_end;
+        let flag = FLAG_L3_XN
+            | FLAG_L3_PXN
+            | FLAG_L3_AF
+            | FLAG_L3_ISH
+            | FLAG_L3_SH_RW_N
+            | FLAG_L3_ATTR_MEM
+            | 0b11;
+        while stack_end < addr.stack_el1_start {
+            table1.map(stack_end, stack_end, flag);
+            stack_end += PAGESIZE;
+        }
+
+        for i in 0..NUM_CPU {
+            let addr = addr.stack_el1_end + i * addr.stack_size;
+            table1.unmap(addr);
+        }
+    */
 
     // map transition table for TTBR0
     let mut tt_start = addr.tt_el1_ttbr0_start;
@@ -962,6 +984,12 @@ fn set_reg_el1(ttbr0: usize, ttbr1: usize) {
 
     let sctlr = cpu::sctlr_el1::get();
     let sctlr = update_sctlr(sctlr) & !(1 << 4); // clear SA0
+
+    let sp = cpu::get_sp();
+    cpu::set_sp(sp + EL1_ADDR_OFFSET);
+    cpu::dsb_ish();
+    cpu::isb();
+
     cpu::sctlr_el1::set(sctlr);
 
     cpu::dsb_sy();

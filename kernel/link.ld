@@ -19,7 +19,7 @@ SECTIONS
     }
     . = ALIGN(1024 * 64);
 
-    /* 8MiB space for EL3 or El2 */
+    /* 8MiB space for EL1 or El2 */
     __stack_firm_end   = .;
     __stack_firm_start = __stack_firm_end + #STACKSIZE# * #NUMCPU#;
 

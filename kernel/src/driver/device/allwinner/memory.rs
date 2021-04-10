@@ -29,6 +29,7 @@ pub(in crate::driver) const SUNXI_SCP_SIZE: u32 = 0x4000;
 // Memory-mapped devices
 pub(in crate::driver) const SUNXI_CPU_MBIST_BASE: u32 = 0x01502000;
 pub(in crate::driver) const SUNXI_CPUCFG_BASE: u32 = 0x01700000;
+pub(in crate::driver) const SUNXI_GENER_CTRL_REG0: u32 = 0x01700028;
 pub(in crate::driver) const SUNXI_SYSCON_BASE: u32 = 0x01c00000;
 pub(in crate::driver) const SUNXI_DMA_BASE: u32 = 0x01c02000;
 pub(in crate::driver) const SUNXI_KEYMEM_BASE: u32 = 0x01c0b000;

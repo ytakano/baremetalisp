@@ -27,6 +27,8 @@ use core::panic::PanicInfo;
 #[no_mangle]
 pub fn entry() -> ! {
     // Program the counter frequency
+
+    /*
     if aarch64::cpu::get_current_el() == 3 {
         aarch64::cpu::cntfrq_el0::set(driver::defs::SYSCNT_FRQ as u64);
     }
@@ -34,6 +36,7 @@ pub fn entry() -> ! {
     if aarch64::cpu::get_current_el() == 3 {
         aarch64::cpu::init_cptr_el3(); // enable NEON
     }
+    */
 
     if driver::topology::core_pos() == 0 {
         init_primary();
@@ -69,30 +72,12 @@ fn init_primary() {
     };
     driver::init();
 
-    // examples
-    // driver::psci::pwr_domain_on(1); // wake up CPU #1 (Pine64)
-    // driver::delays::wait_milisec(10);
-
-    // aarch64::cpu::start_non_primary(); // wake up non-primary CPUs (Raspi)
-
     match aarch64::cpu::get_current_el() {
-        3 => {
-            psci::init();
-            aarch64::context::init_secure();
-            aarch64::context::init_el2_regs();
-            print_msg("PSCI", "enabled");
-            boot::run();
-            el3::el3_to_el1();
-        }
-        2 => {
-            print_msg("Warning", "execution level is not EL3");
-            print_msg("PSCI", "disabled");
-            boot::run();
-            aarch64::context::init_el2_regs();
-            el2::el2_to_el1();
+        1 => {
+            el1::el1_entry();
         }
         _ => {
-            panic!("execution level is not EL3");
+            panic!("unknown execution level");
         }
     }
 }

@@ -11,13 +11,13 @@ memalloc = { git = "https://github.com/ytakano/memalloc.git", branch = "main", f
 gic = { git = "https://github.com/ytakano/gic.git" }
 
 [dependencies.blisp]
-version = "0.3.4"
+version = "0.3.8"
 
 [dependencies.libm]
 version = "0.2.1"
 
 [dependencies.num-bigint]
-version = "0.3.2"
+version = "0.4.0"
 default-features = false
 
 [dependencies.num-traits]

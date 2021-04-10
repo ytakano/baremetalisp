@@ -452,6 +452,16 @@ pub fn get_current_el() -> u32 {
     ((el >> 2) & 0x3) as u32
 }
 
+pub fn get_sp() -> u64 {
+    let sp: u64;
+    unsafe { asm!("mov {}, sp", lateout(reg) sp) };
+    sp
+}
+
+pub fn set_sp(sp: u64) {
+    unsafe { asm!("mov sp, {}", in(reg) sp) };
+}
+
 pub fn get_armv8_5_mte_support() -> u64 {
     (id_aa64pfr1_el1::get() >> ID_AA64PFR1_EL1_MTE_SHIFT) & ID_AA64PFR1_EL1_MTE_MASK
 }

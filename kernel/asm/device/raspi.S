@@ -106,50 +106,13 @@
 #define GICD_IGROUPR        0x80
 
 _start:
-#ifndef NOEL3
-#ifdef raspi4
-    /*
-     * LOCAL_CONTROL:
-     * Bit 9 clear: Increment by 1 (vs. 2).
-     * Bit 8 clear: Timer source is 19.2MHz crystal (vs. APB).
-     */
-    mov     x0, LOCAL_CONTROL
-    str     wzr, [x0]
-    /* LOCAL_PRESCALER; divide-by (0x80000000 / register_val) == 1 */
-    mov     w1, 0x80000000
-    str     w1, [x0, #(LOCAL_PRESCALER - LOCAL_CONTROL)]
-
-    /* Set L2 read/write cache latency to 3 */
-    mrs     x0, L2CTLR_EL1
-    mov     x1, #0x22
-    orr     x0, x0, x1
-    msr     L2CTLR_EL1, x0
-
-    /* Set up CNTFRQ_EL0 */
-    ldr     x0, =OSC_FREQ
-    msr     CNTFRQ_EL0, x0
-
-    /* Set up CNTVOFF_el2 */
-    msr     CNTVOFF_el2, xzr
-
-    /* Set up SCR */
-    mov     x0, #SCR_VAL
-    msr     SCR_EL3, x0
-
-    /* Set SMPEN */
-    mov     x0, #CPUECTLR_EL1_SMPEN
-    msr     CPUECTLR_EL1, x0
-
 #ifdef GIC
     bl      setup_gic
 #endif
-#endif // NOEL3
 
     // enable FP/SIMD on EL2
     // mov     x0, #(0x32FF)
     // msr     CPTR_EL2, x0
-
-#endif // raspi4
 
     // disable all interrupt (daif at bits 9..6)
     msr     DAIFSet, #0x0f
@@ -161,7 +124,7 @@ _start:
     mov     x4, #(STACKSIZE)
     mul     x3, x2, x4
     sub     x1, x1, x3
-    mov     sp, x1
+    mov     x10, x1 // save stack pointer
 
     cbnz    x2, .L4
 
@@ -191,22 +154,32 @@ _start:
     ldr     x0, =0x30c50830
     msr     sctlr_el2, x0
 
-    msr     hcr_el2, xzr
+    mrs     x0, hcr_el2
+    orr     x0, x0, #(1 << 31) // AArch64
+    orr     x0, x0, #(1 << 1)  // SWIO hardwired on Pi3
+    msr     hcr_el2, x0
 
-#ifdef raspi4
-    ldr     x1, =exception_vector_el3
-    msr     vbar_el3, x1
+    // enable CNTP for EL1
+    mrs     x0, cnthctl_el2
+    orr     x0, x0, #3
+    msr     cnthctl_el2, x0
+    msr     cntvoff_el2, x0
 
-    mrs     x1, scr_el3
-    orr     x1, x1, #0b1000 // EA
-    msr     scr_el3, x1
-#endif
     msr     DAIFClr, #0x0f // enable all interrupt
 
-    bl      entry
+    // change execution level to EL1
+    msr     sp_el1, x10  // set stack pointer
+    mov     x0, #0b101   // EL1h
+    msr     spsr_el2, x0
+    adr     x0, .L5      // set entry point
+    msr     elr_el2, x0
+    eret
 .L5:
+
+    bl      entry
+.L6:
     wfe
-    b       .L5
+    b       .L6
 
 #ifdef GIC
 

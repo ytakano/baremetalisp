@@ -24,9 +24,13 @@ pub(crate) fn init() {
     uart::init(UART_CLOCK, UART_BAUD);
 }
 
+fn lock() -> Option<mcs::MCSLockGuard<'static, ()>> {
+    Some(unsafe { LOCK.lock() })
+}
+
 /// print characters to serial console
 pub(crate) fn puts(s: &str) {
-    let _lock = unsafe { LOCK.lock() };
+    let _lock = lock();
     for c in s.bytes() {
         send(c as u32);
         if c == '\n' as u8 {
@@ -37,7 +41,7 @@ pub(crate) fn puts(s: &str) {
 
 /// print a 64-bit value in hexadecimal to serial console
 pub(crate) fn hex(h: u64) {
-    let _lock = unsafe { LOCK.lock() };
+    let _lock = lock();
     for i in (0..61).step_by(4).rev() {
         let mut n = (h >> i) & 0xF;
         n += if n > 9 { 0x37 } else { 0x30 };
@@ -47,7 +51,7 @@ pub(crate) fn hex(h: u64) {
 
 /// print a 32-bit value in hexadecimal to serial console
 pub(crate) fn hex32(h: u32) {
-    let _lock = unsafe { LOCK.lock() };
+    let _lock = lock();
     for i in (0..29).step_by(4).rev() {
         let mut n = (h >> i) & 0xF;
         n += if n > 9 { 0x37 } else { 0x30 };
@@ -57,7 +61,7 @@ pub(crate) fn hex32(h: u32) {
 
 /// print a 64-bit value in decimal to serial console
 pub(crate) fn decimal(mut h: u64) {
-    let _lock = unsafe { LOCK.lock() };
+    let _lock = lock();
     let mut num = [0; 32];
 
     if h == 0 {

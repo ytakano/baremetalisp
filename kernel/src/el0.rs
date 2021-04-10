@@ -42,7 +42,7 @@ fn run_lisp() {
             match blisp::typing(&exprs) {
                 Ok(mut ctx) => {
                     // register callback function
-                    ctx.set_callback(Box::new(callback));
+                    ctx.set_callback(Box::new(|x, y, z| callback(x, y, z)));
 
                     repl_uart(&ctx);
 
@@ -95,6 +95,8 @@ fn repl_uart(ctx: &blisp::semantics::Context) -> ! {
 
 #[no_mangle]
 pub fn el0_entry_core_0() -> ! {
+    crate::print_msg("EL0", "Entered");
+
     // initialize memory allocator
     let addr = mmu::get_memory_map();
     let size = addr.el0_heap_end - addr.el0_heap_start;

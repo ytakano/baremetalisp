@@ -11,7 +11,7 @@ extern "C" {
 
 #[no_mangle]
 pub fn el1_entry() -> ! {
-    cpu::init_cpacr_el1(); // enable NEON
+    //cpu::init_cpacr_el1(); // enable NEON
 
     let addr = mmu::get_memory_map();
     let aff = topology::core_pos() as u64;

@@ -51,46 +51,43 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+ /* Copyright (c) 2015, Linaro Limited */
+
 .section .init, "x"
 .global _start
 
-#define BIT(x) (1 << (x))
+#define BIT32(nr) (1 << (nr))
 
-#define OSC_FREQ            24000000
+#define SCTLR_M    BIT32(0)
+#define SCTLR_A    BIT32(1)
+#define SCTLR_C    BIT32(2)
+#define SCTLR_SA   BIT32(3)
+#define SCTLR_I    BIT32(12)
+#define SCTLR_WXN  BIT32(19)
+#define SCTLR_SPAN BIT32(23)
 
-#define SCR_RW              BIT(10)
-#define SCR_HCE             BIT(8) // enable hyper visor call
-#define SCR_SMD             BIT(7) // disable secure monitor call
-#define SCR_RES1_5          BIT(5)
-#define SCR_RES1_4          BIT(4)
-#define SCR_NS              BIT(0)
-#define SCR_VAL (SCR_RW | SCR_RES1_5 | SCR_RES1_4)
-
-#define CPUECTLR_EL1        S3_1_C15_C2_1
-#define CPUECTLR_EL1_SMPEN  BIT(6)
+#define DAIFBIT_FIQ  BIT32(0)
+#define DAIFBIT_IRQ  BIT32(1)
+#define DAIFBIT_ABT  BIT32(2)
+#define DAIFBIT_DBG  BIT32(3)
+#define DAIFBIT_ALL  (DAIFBIT_FIQ | DAIFBIT_IRQ | DAIFBIT_ABT | DAIFBIT_DBG)
 
 _start:
-    /* Set up CNTFRQ_EL0 */
-    ldr     x0, =OSC_FREQ
-    msr     CNTFRQ_EL0, x0
+    mov     x19, x0         /* Save pagable part address */
+    mov     x20, x2         /* Save DT address */
 
-    /* Set up CNTVOFF_el2 */
-    msr     CNTVOFF_el2, xzr
+    // set exception vector
+    ldr     x0, =exception_vector_el1
+    msr     vbar_el1, x0
 
-    /* Set up SCR */
-    mov     x0, #SCR_VAL
-    msr     SCR_EL3, x0
-
-    /* Set SMPEN */
-    mov     x0, #CPUECTLR_EL1_SMPEN
-    msr     CPUECTLR_EL1, x0
-
-    // enable FP/SIMD on EL2
-    // mov     x0, #(0x32FF)
-    // msr     CPTR_EL2, x0
-
-    // disable all interrupt (daif at bits 9..6)
-    msr     DAIFSet, #0x0f
+    // Set up SCTLR_EL1
+    isb
+    mrs     x0, sctlr_el1
+    orr     x0, x0, #SCTLR_I    // Instruction access Cacheability control
+    orr     x0, x0, #SCTLR_SA   // SP Alignment check enable
+    orr     x0, x0, #SCTLR_SPAN // Set Priviledged Access Never when ARMv8.1-PAN is implemented, otherwise RES1
+    msr     sctlr_el1, x0
+    isb
 
     // set stack before _start
     ldr     x1, =__stack_firm_start
@@ -115,30 +112,8 @@ _start:
     cbnz    w2, .L3
 
 .L4:
-    // set exception vector
-    ldr     x1, =exception_vector_el1
-    msr     vbar_el1, x1
-
-    ldr     x1, =exception_vector_el2
-    msr     vbar_el2, x1
-
-    /*
-     * Set up sctlr_el2
-     * All set bits below are res1. LE, no WXN/I/SA/C/A/M
-     */
-    ldr     x0, =0x30c50830
-    msr     sctlr_el2, x0
-
-    msr     hcr_el2, xzr
-
-    ldr     x1, =exception_vector_el3
-    msr     vbar_el3, x1
-
-    mrs     x1, scr_el3
-    orr     x1, x1, #0b1000 // EA
-    msr     scr_el3, x1
-
-    msr     DAIFClr, #0x0f // enable all interrupt
+    // Enable aborts now that we can receive exceptions
+    msr     daifclr, #DAIFBIT_ABT
 
     bl      entry
 .L5:
