@@ -11,9 +11,6 @@ mod boot;
 mod driver;
 mod el0;
 mod el1;
-mod el2;
-mod el3;
-mod psci;
 
 #[macro_use]
 extern crate alloc;
@@ -60,8 +57,11 @@ pub fn print_msg(key: &str, val: &str) {
 
 /// initialization for the primary CPU
 fn init_primary() {
-    aarch64::mmu::init_memory_map();
+    if aarch64::cpu::get_current_el() != 1 {
+        panic!("unsupported execution level");
+    }
 
+    aarch64::mmu::init_memory_map();
     driver::early_init();
 
     match aarch64::mmu::init() {
@@ -70,16 +70,10 @@ fn init_primary() {
             panic!("failed to initialize MMU");
         }
     };
-    driver::init();
 
-    match aarch64::cpu::get_current_el() {
-        1 => {
-            el1::el1_entry();
-        }
-        _ => {
-            panic!("unknown execution level");
-        }
-    }
+    driver::init();
+    boot::run();
+    el1::el1_entry();
 }
 
 /// initialization for secondary CPUs
@@ -90,115 +84,11 @@ fn init_secondary() -> ! {
     aarch64::mmu::set_regs();
 
     match aarch64::cpu::get_current_el() {
-        3 => {
-            aarch64::cpu::init_cptr_el3();
-            psci::init_warmboot();
-            aarch64::context::init_secure();
-            aarch64::context::init_el2_regs();
-
-            driver::uart::puts("booted and initialized CPU #");
-            driver::uart::decimal(driver::topology::core_pos() as u64);
-            driver::uart::puts("\n");
-
-            el3::el3_to_el1();
-        }
-        2 => {
-            aarch64::context::init_el2_regs();
-        }
-        _ => {
-            panic!("execution level is not EL3");
-        }
-    }
-
-    driver::delays::forever()
-}
-
-//-----------------------------------------------------------------------------
-// normal world functions
-#[no_mangle]
-pub fn ns_entry() -> ! {
-    unsafe {
-        asm!(
-            "ldr x1, =__ram_start
-             mov x2, #1024 * 1024 * 256
-             mrs x3, mpidr_el1 // read cpu id
-             and x3, x3, #0xFF
-             mov x4, #1024 * 1024 * 2
-             mul x3, x3, x4
-             add x2, x2, x3
-             add x1, x1, x2
-             mov sp, x1"
-        );
-    }
-    non_secure()
-}
-
-pub fn wake_up_cpu(n: u64) {
-    driver::uart::puts("\nwaking CPU #");
-    driver::uart::decimal(n);
-    driver::uart::puts("\n");
-    unsafe {
-        let x0: u64 = psci::PSCI_CPU_ON_AARCH64 as u64;
-        asm!(
-            "mov x0, {}
-             mov x1, {} // CPU #
-             adr x2, ns_entry // set entry point
-             mov x3, xzr
-             smc #0",
-            in(reg) x0,
-            in(reg) n,
-        );
+        1 => driver::delays::forever(),
+        _ => panic!("unsupported execution level"),
     }
 }
 
-pub fn non_secure() -> ! {
-    driver::uart::puts("Hello Normal World from CPU #");
-    driver::uart::decimal(driver::topology::core_pos() as u64);
-    driver::uart::puts("\n");
-
-    // test code for CPU on
-    if driver::topology::core_pos() == 0 {
-        // wake CPUs
-        wake_up_cpu(1);
-        driver::delays::wait_milisec(200);
-        wake_up_cpu(2);
-        driver::delays::wait_milisec(200);
-        wake_up_cpu(3);
-        driver::delays::wait_milisec(200);
-
-        aarch64::syscall::smc::to_secure();
-    } else {
-        driver::uart::puts("\n");
-        /*
-        unsafe {
-            let x0: u64 = psci::PSCI_CPU_OFF as u64;
-            asm!(
-                "mov x0, {}
-                     smc #0",
-                in(reg) x0,
-            );
-        }*/
-        driver::delays::forever();
-    }
-
-    /*
-    // test code for shutdown
-    unsafe {
-        let x0: u64 = psci::PSCI_SYSTEM_RESET as u64;
-        asm!(
-            "mov x0, {}
-             smc #0",
-            in(reg) x0
-        );
-    }*/
-
-    loop {
-        aarch64::syscall::smc::to_secure();
-        driver::uart::puts("Hello Normal World from CPU #");
-        driver::uart::decimal(driver::topology::core_pos() as u64);
-        driver::uart::puts("\n");
-    }
-}
 //-----------------------------------------------------------------------------
 
 #[lang = "eh_personality"]

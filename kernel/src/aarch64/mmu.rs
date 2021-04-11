@@ -453,12 +453,6 @@ fn set_sctlr(sctlr: u64) {
 pub fn set_regs() {
     let addr = get_memory_map();
 
-    if cpu::get_current_el() == 2 {
-        set_reg_el2(addr.tt_firm_start as usize);
-    } else {
-        set_reg_el3(addr.tt_firm_start as usize);
-    };
-
     set_reg_el1(
         addr.tt_el1_ttbr0_start as usize,
         addr.tt_el1_ttbr1_start as usize,
@@ -466,7 +460,7 @@ pub fn set_regs() {
 }
 
 /// initialize transition tables
-pub fn init() -> Option<(Option<TTable>, (TTable, TTable))> {
+pub fn init() -> Option<(TTable, TTable)> {
     let addr = get_memory_map();
 
     addr.print();
@@ -488,15 +482,7 @@ pub fn init() -> Option<(Option<TTable>, (TTable, TTable))> {
         return None;
     }
 
-    let table_firm = if cpu::get_current_el() == 2 {
-        Some(init_el2(&addr))
-    } else {
-        None
-    };
-
-    let table_el1 = init_el1(&addr);
-
-    Some((table_firm, table_el1))
+    Some(init_el1(&addr))
 }
 
 fn get_mair() -> u64 {
@@ -534,236 +520,6 @@ fn update_sctlr(sctlr: u64) -> u64 {
         1 <<  1
             // clear A
         )
-}
-
-fn init_firm(addr: &Addr) -> TTable {
-    let mut table = TTable::new(addr.tt_firm_start, FIRM_LV2_TABLE_NUM, FIRM_LV3_TABLE_NUM);
-
-    // map ROM
-    if addr.rom_start != addr.rom_end {
-        let mut rom_start = addr.rom_start;
-        let flag = FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_R_N | FLAG_L3_ATTR_MEM | 0b11;
-        while rom_start < addr.rom_end {
-            table.map(rom_start, rom_start, flag);
-            rom_start += PAGESIZE;
-        }
-    }
-
-    // map SRAM
-    if addr.sram_start != addr.sram_end {
-        let mut sram_start = addr.sram_start;
-        let flag = FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_MEM | 0b11;
-        while sram_start < addr.sram_end {
-            table.map(sram_start, sram_start, flag);
-            sram_start += PAGESIZE;
-        }
-    }
-
-    // map .init and .text section
-    let mut ram_start = get_ram_start();
-    let data_start = get_data_start();
-    let flag = FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_R_R | FLAG_L3_ATTR_MEM | 0b11;
-    while ram_start < data_start {
-        table.map(ram_start, ram_start, flag);
-        ram_start += PAGESIZE;
-    }
-
-    // map .data
-    let mut data_start = get_data_start();
-    let bss_start = get_bss_start();
-    let flag = FLAG_L3_XN
-        | FLAG_L3_PXN
-        | FLAG_L3_AF
-        | FLAG_L3_ISH
-        | FLAG_L3_SH_RW_RW
-        | FLAG_L3_ATTR_MEM
-        | 0b11;
-    while data_start < bss_start {
-        table.map(data_start, data_start, flag);
-        data_start += PAGESIZE;
-    }
-
-    // map .bss section
-    let mut bss_start = get_bss_start();
-    let end = get_stack_firm_end();
-    let flag = FLAG_L3_XN
-        | FLAG_L3_PXN
-        | FLAG_L3_AF
-        | FLAG_L3_ISH
-        | FLAG_L3_SH_RW_RW
-        | FLAG_L3_ATTR_MEM
-        | 0b11;
-    while bss_start < end {
-        table.map(bss_start, bss_start, flag);
-        bss_start += PAGESIZE;
-    }
-
-    // map firmware stack
-    let mut stack_end = get_stack_firm_end();
-    let stack_start = get_stack_firm_start();
-    let flag = FLAG_L3_XN
-        | FLAG_L3_PXN
-        | FLAG_L3_AF
-        | FLAG_L3_ISH
-        | FLAG_L3_SH_RW_N
-        | FLAG_L3_ATTR_MEM
-        | 0b11;
-    while stack_end < stack_start {
-        table.map(stack_end, stack_end, flag);
-        stack_end += PAGESIZE;
-    }
-
-    for i in 0..NUM_CPU {
-        let stack_end = get_stack_firm_end();
-        let addr = stack_end + i * addr.stack_size;
-        table.unmap(addr);
-    }
-
-    // map non cached memory
-    let mut no_cache_start = addr.no_cache_start;
-    let flag = FLAG_L3_XN
-        | FLAG_L3_PXN
-        | FLAG_L3_AF
-        | FLAG_L3_ISH
-        | FLAG_L3_SH_RW_N
-        | FLAG_L3_ATTR_MEM
-        | 0b11;
-    while no_cache_start < addr.no_cache_end {
-        table.map(no_cache_start, no_cache_start, flag);
-        no_cache_start += PAGESIZE;
-    }
-
-    // map transition table for EL2
-    let mut tt_firm_start = addr.tt_firm_start;
-    let flag = FLAG_L3_XN
-        | FLAG_L3_PXN
-        | FLAG_L3_AF
-        | FLAG_L3_ISH
-        | FLAG_L3_SH_RW_N
-        | FLAG_L3_ATTR_MEM
-        | FLAG_L3_ATTR_NC
-        | 0b11;
-    while tt_firm_start < addr.tt_firm_end {
-        table.map(tt_firm_start, tt_firm_start, flag);
-        tt_firm_start += PAGESIZE;
-    }
-
-    // map transition table for EL1 TTBR0
-    let mut tt_start = addr.tt_el1_ttbr0_start;
-    let flag = FLAG_L3_XN
-        | FLAG_L3_PXN
-        | FLAG_L3_AF
-        | FLAG_L3_ISH
-        | FLAG_L3_SH_RW_N
-        | FLAG_L3_ATTR_MEM
-        | FLAG_L3_ATTR_NC
-        | 0b11;
-    while tt_start < addr.tt_el1_ttbr0_end {
-        table.map(tt_start, tt_start, flag);
-        tt_start += PAGESIZE;
-    }
-
-    // map transition table for EL1 TTBR1
-    let mut tt_start = addr.tt_el1_ttbr1_start;
-    let flag = FLAG_L3_XN
-        | FLAG_L3_PXN
-        | FLAG_L3_AF
-        | FLAG_L3_ISH
-        | FLAG_L3_SH_RW_N
-        | FLAG_L3_ATTR_MEM
-        | FLAG_L3_ATTR_NC
-        | 0b11;
-    while tt_start < addr.tt_el1_ttbr1_end {
-        table.map(tt_start, tt_start, flag);
-        tt_start += PAGESIZE;
-    }
-
-    // map device memory
-    let mut device_addr = DEVICE_MEM_START;
-    let flag = FLAG_L3_NS
-        | FLAG_L3_XN
-        | FLAG_L3_PXN
-        | FLAG_L3_AF
-        | FLAG_L3_OSH
-        | FLAG_L3_SH_RW_RW
-        | FLAG_L3_ATTR_DEV
-        | 0b11;
-    while device_addr < DEVICE_MEM_END {
-        table.map(device_addr, device_addr, flag);
-        device_addr += PAGESIZE;
-    }
-
-    table
-}
-
-/// set up EL3's page table, 64KB page, level 2 and 3 translation tables,
-/// assume 2MiB stack space per CPU
-fn init_el3(addr: &Addr) -> TTable {
-    let table = init_firm(addr);
-    set_reg_el3(addr.tt_firm_start as usize);
-    table
-}
-
-fn set_reg_el3(ttbr: usize) {
-    // first, set Memory Attributes array, indexed by PT_MEM, PT_DEV, PT_NC in our example
-    cpu::mair_el3::set(get_mair());
-
-    // next, specify mapping characteristics in translate control register
-    cpu::tcr_el3::set(get_tcr());
-
-    // tell the MMU where our translation tables are.
-    cpu::ttbr0_el3::set(ttbr as u64 | 1);
-
-    // finally, toggle some bits in system control register to enable page translation
-    cpu::dsb_ish();
-    cpu::isb();
-
-    let sctlr = cpu::sctlr_el3::get();
-    let sctlr = update_sctlr(sctlr);
-    cpu::sctlr_el3::set(sctlr);
-
-    cpu::dsb_sy();
-    cpu::isb();
-}
-
-fn init_el2(addr: &Addr) -> TTable {
-    let mut table = init_firm(addr);
-
-    let flag = FLAG_L3_XN
-        | FLAG_L3_PXN
-        | FLAG_L3_AF
-        | FLAG_L3_ISH
-        | FLAG_L3_SH_RW_N
-        | FLAG_L3_ATTR_MEM
-        | FLAG_L3_ATTR_NC
-        | 0b11;
-    table.map(0, 0, flag);
-
-    set_reg_el2(addr.tt_firm_start as usize);
-
-    table
-}
-
-fn set_reg_el2(ttbr: usize) {
-    // first, set Memory Attributes array, indexed by PT_MEM, PT_DEV, PT_NC in our example
-    cpu::mair_el2::set(get_mair());
-
-    // next, specify mapping characteristics in translate control register
-    cpu::tcr_el2::set(get_tcr());
-
-    // tell the MMU where our translation tables are.
-    cpu::ttbr0_el2::set(ttbr as u64 | 1);
-
-    // finally, toggle some bits in system control register to enable page translation
-    cpu::dsb_ish();
-    cpu::isb();
-
-    let sctlr = cpu::sctlr_el2::get();
-    let sctlr = update_sctlr(sctlr);
-    cpu::sctlr_el2::set(sctlr);
-
-    cpu::dsb_sy();
-    cpu::isb();
 }
 
 /// set up EL1's page table, 64KB page, level 2 and 3 translation tables,
@@ -890,27 +646,6 @@ fn init_el1(addr: &Addr) -> (TTable, TTable) {
         let addr = stack_end + i * addr.stack_size;
         table1.unmap(addr);
     }
-
-    /*
-        // kernel stack
-        let mut stack_end = addr.stack_el1_end;
-        let flag = FLAG_L3_XN
-            | FLAG_L3_PXN
-            | FLAG_L3_AF
-            | FLAG_L3_ISH
-            | FLAG_L3_SH_RW_N
-            | FLAG_L3_ATTR_MEM
-            | 0b11;
-        while stack_end < addr.stack_el1_start {
-            table1.map(stack_end, stack_end, flag);
-            stack_end += PAGESIZE;
-        }
-
-        for i in 0..NUM_CPU {
-            let addr = addr.stack_el1_end + i * addr.stack_size;
-            table1.unmap(addr);
-        }
-    */
 
     // map transition table for TTBR0
     let mut tt_start = addr.tt_el1_ttbr0_start;

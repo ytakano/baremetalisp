@@ -18,9 +18,9 @@ fn print_el() {
     match aarch64::mmu::enabled() {
         Some(m) => {
             if m {
-                print_msg("MMU", "enabled");
+                print_msg("MMU", "Enabled");
             } else {
-                print_msg("MMU", "disabled");
+                print_msg("MMU", "Disabled");
             }
         }
         None => {

@@ -2,15 +2,8 @@ use core::ptr::{read_volatile, write_volatile};
 
 use crate::bits;
 
-pub(in crate::driver) mod axp;
-pub(in crate::driver) mod cpu;
 pub(in crate::driver) mod defs;
-pub(in crate::driver) mod mbox;
 pub(in crate::driver) mod memory;
-pub(in crate::driver) mod mhu;
-pub(in crate::driver) mod power;
-pub(in crate::driver) mod psci;
-pub(in crate::driver) mod rsb;
 pub(in crate::driver) mod security;
 pub(in crate::driver) mod setup;
 pub(in crate::driver) mod topology;
