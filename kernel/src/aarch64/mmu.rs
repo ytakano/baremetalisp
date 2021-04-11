@@ -12,12 +12,6 @@ pub const EL1_ADDR_OFFSET: u64 = 0x3FFFFF << 42;
 
 // level 2 table x 1 (for 4TiB space)
 // level 3 table x 8 (for 512MiB x 8 = 4GiB space)
-pub const FIRM_LV2_TABLE_NUM: usize = 1;
-pub const FIRM_LV3_TABLE_NUM: usize = 8;
-pub const FIRM_TABLE_NUM: usize = FIRM_LV2_TABLE_NUM + FIRM_LV3_TABLE_NUM;
-
-// level 2 table x 1 (for 4TiB space)
-// level 3 table x 8 (for 512MiB x 8 = 4GiB space)
 pub const KERN_TTBR0_LV2_TABLE_NUM: usize = 1;
 pub const KERN_TTBR0_LV3_TABLE_NUM: usize = 8;
 pub const KERN_TTBR0_TABLE_NUM: usize = KERN_TTBR0_LV2_TABLE_NUM + KERN_TTBR0_LV3_TABLE_NUM;
@@ -31,8 +25,6 @@ pub const KERN_TTBR1_TABLE_NUM: usize = KERN_TTBR1_LV2_TABLE_NUM + KERN_TTBR1_LV
 static mut MEMORY_MAP: Addr = Addr {
     no_cache_start: 0,
     no_cache_end: 0,
-    tt_firm_start: 0,
-    tt_firm_end: 0,
     tt_el1_ttbr0_start: 0,
     tt_el1_ttbr0_end: 0,
     tt_el1_ttbr1_start: 0,
@@ -42,8 +34,6 @@ static mut MEMORY_MAP: Addr = Addr {
     sram_start: 0,
     sram_end: 0,
     stack_size: 0,
-    stack_el1_end: 0,
-    stack_el1_start: 0,
     stack_el0_end: 0,
     stack_el0_start: 0,
     el0_heap_start: 0,
@@ -57,8 +47,8 @@ extern "C" {
     static __data_end: u64;
     static __bss_start: u64;
     static __bss_end: u64;
-    static __stack_firm_end: u64;
-    static __stack_firm_start: u64;
+    static __stack_el1_end: u64;
+    static __stack_el1_start: u64;
 }
 
 pub fn get_free_mem_start() -> u64 {
@@ -69,12 +59,12 @@ pub fn get_ram_start() -> u64 {
     unsafe { &__ram_start as *const u64 as u64 }
 }
 
-pub fn get_stack_firm_start() -> u64 {
-    unsafe { &__stack_firm_start as *const u64 as u64 }
+pub fn get_stack_el1_start() -> u64 {
+    unsafe { &__stack_el1_start as *const u64 as u64 }
 }
 
-pub fn get_stack_firm_end() -> u64 {
-    unsafe { &__stack_firm_end as *const u64 as u64 }
+pub fn get_stack_el1_end() -> u64 {
+    unsafe { &__stack_el1_end as *const u64 as u64 }
 }
 
 pub fn get_bss_start() -> u64 {
@@ -146,18 +136,11 @@ pub struct TTable {
     num_lv3: usize,
 }
 
-pub struct VMTables {
-    el1: &'static mut [u64],
-    firm: &'static mut [u64],
-}
-
 // logical address information
 pub struct Addr {
     // must be same as physical
     pub no_cache_start: u64,
     pub no_cache_end: u64,
-    pub tt_firm_start: u64,
-    pub tt_firm_end: u64,
     pub tt_el1_ttbr0_start: u64,
     pub tt_el1_ttbr0_end: u64,
     pub tt_el1_ttbr1_start: u64,
@@ -170,8 +153,6 @@ pub struct Addr {
     pub stack_size: u64,
 
     // independent from physical
-    pub stack_el1_end: u64,
-    pub stack_el1_start: u64,
     pub stack_el0_end: u64,
     pub stack_el0_start: u64,
     pub el0_heap_start: u64,
@@ -183,12 +164,8 @@ impl Addr {
         self.no_cache_start = get_free_mem_start();
         self.no_cache_end = self.no_cache_start + PAGESIZE * NUM_CPU;
 
-        // MMU's transition table for firmware
-        self.tt_firm_start = self.no_cache_end;
-        self.tt_firm_end = self.tt_firm_start + PAGESIZE * FIRM_TABLE_NUM as u64;
-
         // MMU's transition table #0 for EL1
-        self.tt_el1_ttbr0_start = self.tt_firm_end;
+        self.tt_el1_ttbr0_start = self.no_cache_end;
         self.tt_el1_ttbr0_end = self.tt_el1_ttbr0_start + PAGESIZE * KERN_TTBR0_TABLE_NUM as u64;
 
         // MMU's transition table #1 for EL1
@@ -201,12 +178,8 @@ impl Addr {
         self.stack_size = 32 * PAGESIZE;
         let stack_size_total = self.stack_size * NUM_CPU;
 
-        // EL1's stack
-        self.stack_el1_end = self.tt_el1_ttbr1_end;
-        self.stack_el1_start = self.stack_el1_end + stack_size_total;
-
         // EL0's stack
-        self.stack_el0_end = self.stack_el1_start;
+        self.stack_el0_end = self.tt_el1_ttbr1_end;
         self.stack_el0_start = self.stack_el0_end + stack_size_total;
 
         // heap memory for EL0
@@ -267,13 +240,13 @@ impl Addr {
         driver::uart::hex(addr);
         driver::uart::puts("\n");
 
-        let addr = get_stack_firm_end();
-        driver::uart::puts("__stack_firm_end   = 0x");
+        let addr = get_stack_el1_end();
+        driver::uart::puts("__stack_el1_end    = 0x");
         driver::uart::hex(addr);
         driver::uart::puts("\n");
 
-        let addr = get_stack_firm_start();
-        driver::uart::puts("__stack_firm_start = 0x");
+        let addr = get_stack_el1_start();
+        driver::uart::puts("__stack_el1_start  = 0x");
         driver::uart::hex(addr);
         driver::uart::puts("\n");
 
@@ -283,14 +256,6 @@ impl Addr {
 
         driver::uart::puts("no_cache_end       = 0x");
         driver::uart::hex(self.no_cache_end as u64);
-        driver::uart::puts("\n");
-
-        driver::uart::puts("tt_firm_start      = 0x");
-        driver::uart::hex(self.tt_firm_start as u64);
-        driver::uart::puts("\n");
-
-        driver::uart::puts("tt_firm_end        = 0x");
-        driver::uart::hex(self.tt_firm_end as u64);
         driver::uart::puts("\n");
 
         driver::uart::puts("tt_el1_ttbr0_start = 0x");
@@ -307,14 +272,6 @@ impl Addr {
 
         driver::uart::puts("tt_el1_ttbr1_end   = 0x");
         driver::uart::hex(self.tt_el1_ttbr1_end as u64);
-        driver::uart::puts("\n");
-
-        driver::uart::puts("stack_el1_end      = 0x");
-        driver::uart::hex(self.stack_el1_end as u64);
-        driver::uart::puts("\n");
-
-        driver::uart::puts("stack_el1_start    = 0x");
-        driver::uart::hex(self.stack_el1_start as u64);
         driver::uart::puts("\n");
 
         driver::uart::puts("stack_el0_end      = 0x");
@@ -558,7 +515,7 @@ fn init_el1(addr: &Addr) -> (TTable, TTable) {
 
     // map .bss section
     let mut bss_start = get_bss_start();
-    let end = get_stack_firm_end();
+    let end = get_stack_el1_end();
     let flag = FLAG_L3_XN
         | FLAG_L3_PXN
         | FLAG_L3_AF
@@ -627,9 +584,9 @@ fn init_el1(addr: &Addr) -> (TTable, TTable) {
         KERN_TTBR1_LV3_TABLE_NUM,
     );
 
-    // map firmware stack
-    let mut stack_end = get_stack_firm_end();
-    let stack_start = get_stack_firm_start();
+    // map EL1 stack
+    let mut stack_end = get_stack_el1_end();
+    let stack_start = get_stack_el1_start();
     let flag = FLAG_L3_XN
         | FLAG_L3_PXN
         | FLAG_L3_AF

@@ -19,11 +19,11 @@ SECTIONS
     }
     . = ALIGN(1024 * 64);
 
-    /* 8MiB space for EL1 or El2 */
-    __stack_firm_end   = .;
-    __stack_firm_start = __stack_firm_end + #STACKSIZE# * #NUMCPU#;
+    /* 8MiB space for EL1 */
+    __stack_el1_end   = .;
+    __stack_el1_start = __stack_el1_end + #STACKSIZE# * #NUMCPU#;
 
-    __free_mem_start = __stack_firm_start;
+    __free_mem_start = __stack_el1_start;
 
    /DISCARD/ : { *(.comment) *(.gnu*) *(.note*) *(.eh_frame*) }
 }

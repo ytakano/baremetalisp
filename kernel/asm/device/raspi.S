@@ -118,7 +118,7 @@ _start:
     msr     DAIFSet, #0x0f
 
     // set stack before _start
-    ldr     x1, =__stack_firm_start
+    ldr     x1, =__stack_el1_start
     mrs     x2, mpidr_el1 // read cpu id
     and     x2, x2, #0xFF
     mov     x4, #(STACKSIZE)
