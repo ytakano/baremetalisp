@@ -4,4 +4,4 @@
     #include "device/pine64.S"
 #endif
 
-#include "cache_helper.S"
+#include "smc64.S"

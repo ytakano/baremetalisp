@@ -11,6 +11,7 @@ mod boot;
 mod driver;
 mod el0;
 mod el1;
+mod smc;
 
 #[macro_use]
 extern crate alloc;
@@ -78,9 +79,6 @@ fn init_primary() {
 
 /// initialization for secondary CPUs
 fn init_secondary() -> ! {
-    aarch64::cache::invalidate_l1_cache();
-    aarch64::cache::invalidate_l2_cache();
-    aarch64::cache::invalidate_icache();
     aarch64::mmu::set_regs();
 
     match aarch64::cpu::get_current_el() {

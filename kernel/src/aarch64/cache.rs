@@ -4,27 +4,6 @@ use super::mmu::PAGESIZE;
 
 const LEVEL_SHIFT: u64 = 1;
 
-extern "C" {
-    fn dcsw_op_level1(x0: u64);
-    fn dcsw_op_level2(x0: u64);
-}
-
-pub fn invalidate_l1_cache() {
-    unsafe { dcsw_op_level1(cpu::DCISW) };
-}
-
-pub fn invalidate_l2_cache() {
-    unsafe { dcsw_op_level2(cpu::DCISW) };
-}
-
-pub fn flush_l1_cache() {
-    unsafe { dcsw_op_level1(cpu::DCCISW) };
-}
-
-pub fn flush_l2_cache() {
-    unsafe { dcsw_op_level2(cpu::DCCISW) };
-}
-
 /// Enable intra-cluster coherency
 pub fn enable_smp() {
     let flag: u64 = cpu::ECTLR_SMP_BIT;
