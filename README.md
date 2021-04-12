@@ -20,8 +20,6 @@ ctrl-a k (kill)
 
 ## Dependencies
 
-I have developed some libraries for the OS.
-
 ### Trusted Firmware binary
 
 - sunxi-a64-h5-spl.bin
@@ -29,7 +27,7 @@ I have developed some libraries for the OS.
 
 and customized BL31 image, which is compiled from [ATF](https://github.com/ARM-software/arm-trusted-firmware)
 
-```
+```text
 $ make PLAT=sun50i_a64 SPD=opteed bl31
 ```
 
@@ -53,3 +51,45 @@ A library for synchronization.
 A memory allocator crate, which uses buddy and slab allocator.
 
 - https://github.com/ytakano/memalloc
+
+## Boot Image
+
+Under Construction
+
+### SCP
+
+- or1k tool chain (for x86-64 only)
+  - https://musl.cc/or1k-linux-musl-cross.tgz
+- https://github.com/crust-firmware/crust
+
+```text
+$ export PATH="$PATH:/path/to/or1k-linux-musl-cross/bin/
+$ git clone https://github.com/crust-firmware/crust
+$ cd crust
+$ export CROSS_COMPILE=or1k-linux-musl-
+$ make pinephone_defconfig
+$ make scp
+$ ls build/scp/scp.bin
+scp.bin
+```
+
+### u-boot
+
+For x86-64.
+
+```tex
+$ export CROSS_COMPILE=aarch64-linux-gnu-
+$ export ARCH=arm64
+```
+
+```text
+$ git clone https://gitlab.com/pine64-org/u-boot.git
+$ cd u-boot
+$ git fetch origin v2021.04
+$ git checkout v2021.04
+$ cp /path/to/bl31.bin .
+$ cp /path/to/scp.bin .
+$ make distclean
+$ make pinephone_defconfig
+$ make all
+```

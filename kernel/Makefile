@@ -62,8 +62,8 @@ kernel8.img: baremetalisp
 # for USB boot of Pine64
 SUNXI_FEL=sunxi-fel
 boot64:
-	sudo ${SUNXI_FEL} spl sunxi-a64-h5-spl.bin
-	sudo ${SUNXI_FEL} write 0x44000 bl31.bin
+	sudo ${SUNXI_FEL} spl ../bin/sunxi-a64-h5-spl.bin
+	sudo ${SUNXI_FEL} write 0x44000 ../bin/bl31.bin
 	sudo ${SUNXI_FEL} write ${INITADDR} kernel8.img
 	sudo ${SUNXI_FEL} reset64 0x44000
 
