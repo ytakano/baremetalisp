@@ -26,3 +26,33 @@ pub fn thread_handle_std_smc(
 
 #[no_mangle]
 pub fn thread_handle_fast_smc(_args: &mut ThreadSmcArgs) {}
+
+#[no_mangle]
+pub fn thread_cpu_off_handler(_a0: u32, _a1: u32) -> u32 {
+    0
+}
+
+#[no_mangle]
+pub fn thread_cpu_resume_handler(_a0: u32, _a1: u32) -> u32 {
+    0
+}
+
+#[no_mangle]
+pub fn thread_cpu_suspend_handler(_a0: u32, _a1: u32) -> u32 {
+    0
+}
+
+#[no_mangle]
+pub fn itr_core_handler() {
+    todo! {}
+}
+
+#[no_mangle]
+pub fn thread_system_off_handler(_a0: u32, _a1: u32) -> u32 {
+    0
+}
+
+#[no_mangle]
+pub fn thread_system_reset_handler(_a0: u32, _a1: u32) -> u32 {
+    0
+}

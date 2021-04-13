@@ -12,6 +12,7 @@ mod driver;
 mod el0;
 mod el1;
 mod smc;
+mod thread;
 
 #[macro_use]
 extern crate alloc;
@@ -23,23 +24,13 @@ use core::panic::PanicInfo;
 
 /// entry point from assembly code
 #[no_mangle]
-pub fn entry() -> ! {
-    // Program the counter frequency
-
-    /*
-    if aarch64::cpu::get_current_el() == 3 {
-        aarch64::cpu::cntfrq_el0::set(driver::defs::SYSCNT_FRQ as u64);
-    }
-
-    if aarch64::cpu::get_current_el() == 3 {
-        aarch64::cpu::init_cptr_el3(); // enable NEON
-    }
-    */
-
+pub fn entry() {
     if driver::topology::core_pos() == 0 {
         init_primary();
     } else {
+        // called from vector_cpu_on_entry
         init_secondary();
+        return;
     }
 
     driver::delays::forever()
@@ -78,13 +69,13 @@ fn init_primary() {
 }
 
 /// initialization for secondary CPUs
-fn init_secondary() -> ! {
-    aarch64::mmu::set_regs();
-
+fn init_secondary() {
     match aarch64::cpu::get_current_el() {
-        1 => driver::delays::forever(),
+        1 => (),
         _ => panic!("unsupported execution level"),
     }
+
+    aarch64::mmu::set_regs();
 }
 
 //-----------------------------------------------------------------------------

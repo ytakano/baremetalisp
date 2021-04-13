@@ -11,7 +11,7 @@ pub fn el1_entry() -> ! {
     let addr = mmu::get_memory_map();
     let aff = topology::core_pos() as u64;
     let stack = addr.stack_el0_start - addr.stack_size * aff;
-    let entry = if topology::core_pos() == 0 {
+    let entry = if aff == 0 {
         el0_entry_core_0
     } else {
         el0_entry_core_x

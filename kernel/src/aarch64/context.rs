@@ -35,7 +35,8 @@ pub struct GpRegs {
     pub x30: u64,  // link register
     pub elr: u64,  // exception link register
     pub spsr: u32, // saved program status register
-    _unused: [u8; 12],
+    _unused: [u8; 4],
+    pub sp: u64, // stack pointer
 }
 
 impl GpRegs {
@@ -74,7 +75,8 @@ impl GpRegs {
             x30: 0,
             elr: 0,
             spsr: 0,
-            _unused: [0; 12],
+            _unused: [0; 4],
+            sp: 0,
         }
     }
 }

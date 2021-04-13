@@ -1,5 +1,5 @@
 use crate::aarch64::{mmu, syscall};
-use crate::driver::{delays, uart};
+use crate::driver::uart;
 
 use alloc::boxed::Box;
 use blisp;
@@ -117,7 +117,7 @@ pub fn el0_entry_core_0() -> ! {
     // let p = 0x400000000 as *mut u64;
     // unsafe { *p = 10 };
 
-    delays::forever()
+    loop {}
 }
 
 #[no_mangle]
@@ -135,5 +135,5 @@ fn on_oom(layout: Layout) -> ! {
     uart::puts("memory allocation error: size = ");
     uart::decimal(size);
     uart::puts("\n");
-    delays::forever()
+    loop {}
 }

@@ -44,11 +44,50 @@ vector_fast_smc_entry:
     b       .       /* SMC should not return */
 
 vector_cpu_on_entry:
+    b       _start
+    mov     x1, x0
+    ldr     x0, =TEESMC_OPTEED_RETURN_ON_DONE
+    smc     #0
+    b       .       /* SMC should not return */
+
 vector_cpu_off_entry:
+    bl      thread_cpu_off_handler
+    mov     x1, x0
+    ldr     x0, =TEESMC_OPTEED_RETURN_OFF_DONE
+    smc     #0
+    b       .       /* SMC should not return */
+
 vector_cpu_resume_entry:
+    bl      thread_cpu_resume_handler
+    mov     x1, x0
+    ldr     x0, =TEESMC_OPTEED_RETURN_RESUME_DONE
+    smc     #0
+    b       .       /* SMC should not return */
+
 vector_cpu_suspend_entry:
+    bl      thread_cpu_suspend_handler
+    mov     x1, x0
+    ldr     x0, =TEESMC_OPTEED_RETURN_SUSPEND_DONE
+    smc     #0
+    b       .       /* SMC should not return */
+
 vector_fiq_entry:
+    /* Secure Monitor received a FIQ and passed control to us. */
+    bl      itr_core_handler
+    ldr     x0, =TEESMC_OPTEED_RETURN_FIQ_DONE
+    smc     #0
+    b       .       /* SMC should not return */
+
 vector_system_off_entry:
+    bl      thread_system_off_handler
+    mov     x1, x0
+    ldr     x0, =TEESMC_OPTEED_RETURN_SYSTEM_OFF_DONE
+    smc     #0
+    b       .       /* SMC should not return */
+
 vector_system_reset_entry:
+    bl      thread_system_reset_handler
+    mov     x1, x0
+    ldr     x0, =TEESMC_OPTEED_RETURN_SYSTEM_RESET_DONE
     smc     #0
     b       .       /* SMC should not return */
