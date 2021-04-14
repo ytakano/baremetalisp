@@ -1,8 +1,13 @@
 use crate::aarch64::context::GpRegs;
+use crate::aarch64::mmu;
 use crate::driver::topology::CORE_COUNT;
+
+use alloc::alloc;
+use core::ptr::null_mut;
 use synctools::mcs::MCSLock;
 
 const THREAD_MAX: usize = 256;
+const STACK_SIZE: usize = 2 * 1024 * 1024;
 
 static mut THREAD_TABLE: MCSLock<[Thread; THREAD_MAX]> = MCSLock::new([Thread::new(0); THREAD_MAX]);
 static mut ACTIVES: [Option<u8>; CORE_COUNT] = [None; CORE_COUNT];
@@ -54,6 +59,7 @@ struct Thread {
     regs: GpRegs,
     state: State,
     next: Option<u8>,
+    stack: *mut u8,
     id: u8,
 }
 
@@ -63,9 +69,15 @@ impl Thread {
             regs: GpRegs::new(),
             state: State::Dead,
             next: None,
+            stack: null_mut(),
             id,
         }
     }
+}
+
+extern "C" {
+    fn el0_entry_core_0();
+    fn el0_entry_core_x();
 }
 
 pub fn spawn() -> Option<u8> {
@@ -86,8 +98,20 @@ pub fn spawn() -> Option<u8> {
     }
 
     let id0 = id.unwrap();
+    let idu = id0 as usize;
 
-    tbl[id0 as usize].state = State::Ready;
+    // allocate stack
+    let layout = alloc::Layout::from_size_align(STACK_SIZE, mmu::PAGESIZE as usize).unwrap();
+    tbl[idu].stack = unsafe { alloc::alloc(layout) };
+
+    // initialize
+    tbl[idu].state = State::Ready;
+    tbl[idu].next = None;
+    tbl[idu].id = id0;
+    tbl[idu].regs.spsr = 0; // EL0t
+    tbl[idu].regs.elr = el0_entry_core_0 as *const () as u64;
+
+    // TODO: set canary
 
     // enqueue this to Ready queue
     let mut ready = unsafe { READY.lock() };

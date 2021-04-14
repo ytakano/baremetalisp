@@ -1,15 +1,10 @@
-use crate::aarch64::{mmu, syscall};
+use crate::aarch64::syscall;
 use crate::driver::uart;
 
 use alloc::boxed::Box;
 use blisp;
-use core::alloc::Layout;
-use memalloc::Allocator;
 use num_bigint::BigInt;
 use num_traits::{One, Zero};
-
-#[global_allocator]
-static mut GLOBAL: Allocator = Allocator::new();
 
 const GLOBAL_CODE: &str = "
 ; switch to normal world
@@ -97,15 +92,6 @@ fn repl_uart(ctx: &blisp::semantics::Context) -> ! {
 pub fn el0_entry_core_0() -> ! {
     crate::print_msg("EL0", "Entered");
 
-    // initialize memory allocator
-    let addr = mmu::get_memory_map();
-    let size = addr.el0_heap_end - addr.el0_heap_start;
-    let mid = (addr.el0_heap_start + (size >> 1)) as usize;
-    unsafe {
-        GLOBAL.init_slab(addr.el0_heap_start as usize, (size >> 1) as usize);
-        GLOBAL.init_buddy(mid);
-    }
-
     //memalloc::init(addr.el0_heap_start as usize, mid, mid);
 
     uart::puts("global code:\n");
@@ -127,13 +113,4 @@ pub fn el0_entry_core_x() -> ! {
     loop {
         syscall::svc::switch_world();
     }
-}
-
-#[alloc_error_handler]
-fn on_oom(layout: Layout) -> ! {
-    let size = layout.size() as u64;
-    uart::puts("memory allocation error: size = ");
-    uart::decimal(size);
-    uart::puts("\n");
-    loop {}
 }
