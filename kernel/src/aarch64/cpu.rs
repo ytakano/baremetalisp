@@ -326,20 +326,6 @@ pub enum EL {
     EL3h = 0b1101,
 }
 
-pub fn spsr64(el: EL, daif: u64) -> u64 {
-    ((MODE_RW_64 << MODE_RW_SHIFT) | el as u64 | (((daif) & SPSR_DAIF_MASK) << SPSR_DAIF_SHIFT))
-        & (!(SPSR_SSBS_BIT_AARCH64))
-}
-
-pub fn spsr32(mode: u64, isa: u64, endian: u64, aif: u64) -> u64 {
-    ((MODE_RW_32 << MODE_RW_SHIFT)
-        | (((mode) & MODE32_MASK) << MODE32_SHIFT)
-        | (((isa) & SPSR_T_MASK) << SPSR_T_SHIFT)
-        | (((endian) & SPSR_E_MASK) << SPSR_E_SHIFT)
-        | (((aif) & SPSR_AIF_MASK) << SPSR_AIF_SHIFT))
-        & (!(SPSR_SSBS_BIT_AARCH32))
-}
-
 /// enable FP/SIMD on EL3
 pub fn init_cptr_el3() {
     let val: u64 = 1 << 8; // enable FP/SIMD
@@ -367,6 +353,8 @@ macro_rules! sysreg {
         }
     }
 }
+
+sysreg!(daif);
 
 sysreg!(cntp_ctl_el0);
 sysreg!(cntp_cval_el0);

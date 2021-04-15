@@ -22,6 +22,8 @@ pub const KERN_TTBR1_LV2_TABLE_NUM: usize = 1;
 pub const KERN_TTBR1_LV3_TABLE_NUM: usize = 4;
 pub const KERN_TTBR1_TABLE_NUM: usize = KERN_TTBR1_LV2_TABLE_NUM + KERN_TTBR1_LV3_TABLE_NUM;
 
+pub const STACK_SIZE: u64 = 32 * PAGESIZE; // 2MiB
+
 static mut MEMORY_MAP: Addr = Addr {
     no_cache_start: 0,
     no_cache_end: 0,
@@ -175,7 +177,7 @@ impl Addr {
         self.tt_el1_ttbr1_end = self.tt_el1_ttbr1_start + PAGESIZE * KERN_TTBR1_TABLE_NUM as u64;
 
         // 2MiB stack for each
-        self.stack_size = 32 * PAGESIZE;
+        self.stack_size = STACK_SIZE;
         let stack_size_total = self.stack_size * NUM_CPU;
 
         // EL0's stack

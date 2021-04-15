@@ -7,10 +7,6 @@ use num_bigint::BigInt;
 use num_traits::{One, Zero};
 
 const GLOBAL_CODE: &str = "
-; switch to normal world
-(export switch-world () (IO (-> () (Option Int)))
-    (call-rust 1 0 0))
-
 (export factorial (n) (Pure (-> (Int) Int))
     (factorial' n 1))
 
@@ -89,7 +85,7 @@ fn repl_uart(ctx: &blisp::semantics::Context) -> ! {
 }
 
 #[no_mangle]
-pub fn el0_entry_core_0() -> ! {
+pub fn el0_entry() -> ! {
     crate::print_msg("EL0", "Entered");
 
     //memalloc::init(addr.el0_heap_start as usize, mid, mid);
@@ -104,13 +100,4 @@ pub fn el0_entry_core_0() -> ! {
     // unsafe { *p = 10 };
 
     loop {}
-}
-
-#[no_mangle]
-pub fn el0_entry_core_x() -> ! {
-    // TODO:
-    // currently, secondary CPUs do nothing
-    loop {
-        syscall::svc::switch_world();
-    }
 }

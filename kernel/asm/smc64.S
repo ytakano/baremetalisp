@@ -1,6 +1,13 @@
 #include "teesmc_optee.h"
 
 .global thread_vector_table
+.global smc_done
+
+smc_done:
+    mov     w1, w0
+    ldr     x0, =TEESMC_OPTEED_RETURN_CALL_DONE
+    smc     #0
+    b       .       /* SMC should not return */
 
 thread_vector_table:
     b       vector_std_smc_entry
@@ -15,11 +22,7 @@ thread_vector_table:
 
 vector_std_smc_entry:
     bl      thread_handle_std_smc
-
-    mov     w1, w0
-    ldr     x0, =TEESMC_OPTEED_RETURN_CALL_DONE
-    smc     #0
-    b       .       /* SMC should not return */
+    b       smc_done
 
 vector_fast_smc_entry:
     sub     sp, sp, #16 * 4
