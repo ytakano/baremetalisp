@@ -4,30 +4,30 @@ use crate::driver::uart;
 use alloc::boxed::Box;
 use blisp;
 use num_bigint::BigInt;
-use num_traits::{One, Zero};
+use num_traits::{FromPrimitive, ToPrimitive};
 
-const GLOBAL_CODE: &str = "
-(export factorial (n) (Pure (-> (Int) Int))
-    (factorial' n 1))
+const APPS: &'static [&'static str] = &[include_str!("init.lisp")];
 
-(defun factorial' (n total) (Pure (-> (Int Int) Int))
-    (if (<= n 0)
-        total
-        (factorial' (- n 1) (* n total))))
-";
-
-fn callback(x: &BigInt, _y: &BigInt, _z: &BigInt) -> Option<BigInt> {
-    if *x == One::one() {
-        syscall::svc::switch_world();
-        Some(Zero::zero())
-    } else {
-        None
+fn callback(x: &BigInt, y: &BigInt, _z: &BigInt) -> Option<BigInt> {
+    let c = x.to_isize()?;
+    match c {
+        0 => {
+            // call spawn
+            let app = y.to_usize()?;
+            let n = syscall::spawn(app)?;
+            let n = BigInt::from_u8(n)?;
+            Some(n)
+        }
+        _ => None,
     }
 }
 
-fn run_lisp() {
+fn run_lisp(s: &str) {
+    uart::puts(s);
+    uart::puts("\n");
+
     // initialize
-    match blisp::init(GLOBAL_CODE) {
+    match blisp::init(s) {
         Ok(exprs) => {
             // typing
             match blisp::typing(&exprs) {
@@ -84,20 +84,22 @@ fn repl_uart(ctx: &blisp::semantics::Context) -> ! {
     }
 }
 
+fn get_app(id: usize) -> Option<&'static str> {
+    if id >= APPS.len() {
+        None
+    } else {
+        Some(APPS[id])
+    }
+}
+
 #[no_mangle]
-pub fn el0_entry() -> ! {
-    crate::print_msg("EL0", "Entered");
-
-    //memalloc::init(addr.el0_heap_start as usize, mid, mid);
-
-    uart::puts("global code:\n");
-    uart::puts(GLOBAL_CODE);
-    uart::puts("\n");
-
-    run_lisp();
-
-    // let p = 0x400000000 as *mut u64;
-    // unsafe { *p = 10 };
+pub fn el0_entry(app: usize) -> ! {
+    if let Some(s) = get_app(app) {
+        run_lisp(s);
+    } else {
+        // exit
+        todo! {}
+    }
 
     loop {}
 }

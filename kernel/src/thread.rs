@@ -14,6 +14,22 @@ static mut THREAD_TABLE: [Thread; THREAD_MAX] = [Thread::new(0); THREAD_MAX];
 static mut ACTIVES: [Option<u8>; CORE_COUNT] = [None; CORE_COUNT];
 static mut READY: ThreadQ = ThreadQ(None);
 
+fn lock<'t>(node: &'t mut MCSNode<()>) -> MCSLockGuard<'t, ()> {
+    unsafe { LOCK.lock(node) }
+}
+
+fn get_thread_table() -> &'static mut [Thread; THREAD_MAX] {
+    unsafe { &mut THREAD_TABLE }
+}
+
+fn get_actives() -> &'static mut [Option<u8>; CORE_COUNT] {
+    unsafe { &mut ACTIVES }
+}
+
+fn get_readyq() -> &'static mut ThreadQ {
+    unsafe { &mut READY }
+}
+
 struct ThreadQ(Option<(u8, u8)>);
 
 impl ThreadQ {
@@ -101,7 +117,6 @@ impl Drop for InterMask {
 
 extern "C" {
     fn el0_entry();
-    fn smc_done(arg: u64);
 }
 
 pub fn init() {
@@ -110,9 +125,9 @@ pub fn init() {
 
     // aqcuire lock
     let mut node = MCSNode::new();
-    let lock = unsafe { LOCK.lock(&mut node) };
+    let lock = lock(&mut node);
 
-    let tbl = unsafe { &mut THREAD_TABLE };
+    let tbl = get_thread_table();
 
     // allocate stack
     let layout = alloc::Layout::from_size_align(STACK_SIZE, mmu::PAGESIZE as usize).unwrap();
@@ -129,7 +144,7 @@ pub fn init() {
     // TODO: set canary
 
     // enqueue the thread to Ready queue
-    unsafe { READY.enqueue(0, tbl) };
+    get_readyq().enqueue(0, tbl);
 
     schedule2(mask, lock);
 }
@@ -140,9 +155,9 @@ pub fn spawn() {
 
     // aqcuire lock
     let mut node = MCSNode::new();
-    let _lock = unsafe { LOCK.lock(&mut node) };
+    let _lock = lock(&mut node);
 
-    let tbl = unsafe { &mut THREAD_TABLE };
+    let tbl = get_thread_table();
 
     // find empty slot
     let mut _id: Option<u8> = None;
@@ -158,20 +173,21 @@ pub fn spawn() {
 
 fn schedule2(mask: InterMask, lock: MCSLockGuard<()>) {
     // get next
-    let tbl = unsafe { &mut THREAD_TABLE };
-    let ready = unsafe { &mut READY };
+    let tbl = get_thread_table();
+    let ready = get_readyq();
     let next = ready.deque(tbl);
     let aff = core_pos();
 
     if let Some(next) = next {
         // move the current thread to Ready queue
-        if let Some(current) = unsafe { &ACTIVES[aff] } {
-            tbl[*current as usize].state = State::Ready;
-            ready.enqueue(*current, tbl);
+        let actives = get_actives();
+        if let Some(current) = actives[aff] {
+            tbl[current as usize].state = State::Ready;
+            ready.enqueue(current, tbl);
         }
 
         // make the next thread Active
-        unsafe { ACTIVES[aff] = Some(next) };
+        actives[aff] = Some(next);
         tbl[next as usize].state = State::Active;
 
         lock.unlock();
@@ -183,19 +199,7 @@ fn schedule2(mask: InterMask, lock: MCSLockGuard<()>) {
         lock.unlock();
         mask.unmask();
 
-        // switch to normal world
-        let start = mmu::get_stack_el1_start();
-        let aff = core_pos() as u64;
-        let sp = start - mmu::STACK_SIZE * aff;
-
-        unsafe {
-            asm! {
-                "mov     sp, {}
-                 mov     x0, #0
-                 b       smc_done",
-                in(reg) sp
-            }
-        }
+        crate::aarch64::smc::done();
     }
 }
 
@@ -205,7 +209,7 @@ pub fn schedule() {
 
     // aqcuire lock
     let mut node = MCSNode::new();
-    let lock = unsafe { LOCK.lock(&mut node) };
+    let lock = lock(&mut node);
 
     schedule2(mask, lock);
 }
