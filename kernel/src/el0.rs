@@ -97,8 +97,8 @@ pub fn el0_entry(app: usize) -> ! {
     if let Some(s) = get_app(app) {
         run_lisp(s);
     } else {
-        // exit
-        todo! {}
+        uart::puts("spawn and exit");
+        syscall::exit();
     }
 
     loop {}

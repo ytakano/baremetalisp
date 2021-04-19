@@ -175,7 +175,7 @@ pub fn lower_el_aarch64_sync_el1(ctx: *mut GpRegs, _sp: usize) {
         ESR_EL1_EC_WFI_OR_WFE => print_msg("EL1 Exception", "WFI or WFE"),
         ESR_EL1_EC_SVC64 => {
             print_msg("EL1 Exception", "Supervisor Call (64bit)");
-            let n = syscall::handle64(r.x0, r.x1, r.x2);
+            let n = syscall::handle64(r.x0, r.x1, r.x2, r);
             r.x0 = n as u64;
         }
         _ => print_msg("EL1 Exception", "unknown"),

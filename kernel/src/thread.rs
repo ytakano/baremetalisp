@@ -13,6 +13,7 @@ static mut LOCK: MCSLock<()> = MCSLock::new(());
 static mut THREAD_TABLE: [Thread; THREAD_MAX] = [Thread::new(0); THREAD_MAX];
 static mut ACTIVES: [Option<u8>; CORE_COUNT] = [None; CORE_COUNT];
 static mut READY: ThreadQ = ThreadQ(None);
+static mut FREE_STACK: [Option<*mut u8>; CORE_COUNT] = [None; CORE_COUNT];
 
 fn lock<'t>(node: &'t mut MCSNode<()>) -> MCSLockGuard<'t, ()> {
     unsafe { LOCK.lock(node) }
@@ -28,6 +29,10 @@ fn get_actives() -> &'static mut [Option<u8>; CORE_COUNT] {
 
 fn get_readyq() -> &'static mut ThreadQ {
     unsafe { &mut READY }
+}
+
+fn get_free_stack() -> &'static mut [Option<*mut u8>; CORE_COUNT] {
+    unsafe { &mut FREE_STACK }
 }
 
 struct ThreadQ(Option<(u8, u8)>);
@@ -129,19 +134,8 @@ pub fn init() {
 
     let tbl = get_thread_table();
 
-    // allocate stack
-    let layout = alloc::Layout::from_size_align(STACK_SIZE, mmu::PAGESIZE as usize).unwrap();
-    tbl[0].stack = unsafe { alloc::alloc(layout) };
-
-    // initialize
-    tbl[0].state = State::Ready;
-    tbl[0].next = None;
-    tbl[0].id = 0;
-    tbl[0].regs.spsr = 0; // EL0t
-    tbl[0].regs.elr = el0_entry as *const () as u64;
-    tbl[0].regs.sp = tbl[0].stack as u64;
-
-    // TODO: set canary
+    // initialize init thread
+    init_thread(0);
 
     // enqueue the thread to Ready queue
     get_readyq().enqueue(0, tbl);
@@ -149,26 +143,99 @@ pub fn init() {
     schedule2(mask, lock);
 }
 
-pub fn spawn() {
-    // disable FIQ and IRQ
-    let _mask = InterMask::new();
+fn init_thread(id: usize) {
+    let tbl = get_thread_table();
+
+    // allocate stack
+    let layout = alloc::Layout::from_size_align(STACK_SIZE, mmu::PAGESIZE as usize).unwrap();
+    tbl[id].stack = unsafe { alloc::alloc(layout) };
+
+    // initialize
+    tbl[id].state = State::Ready;
+    tbl[id].next = None;
+    tbl[id].id = 0;
+    tbl[id].regs.spsr = 0; // EL0t
+    tbl[id].regs.elr = el0_entry as *const () as u64;
+    tbl[id].regs.sp = tbl[id].stack as u64;
+
+    // TODO: set canary
+}
+
+pub fn spawn(app: u64, regs: Option<&GpRegs>) -> Option<u8> {
+    gc_stack(); // garbage collection
+
+    // disable FIQ, IRQ, Abort, Debug
+    let mask = InterMask::new();
 
     // aqcuire lock
     let mut node = MCSNode::new();
-    let _lock = lock(&mut node);
+    let lock = lock(&mut node);
 
     let tbl = get_thread_table();
 
     // find empty slot
-    let mut _id: Option<u8> = None;
+    let mut id: Option<u8> = None;
     for i in 0..THREAD_MAX {
         if let State::Dead = tbl[i].state {
-            _id = Some(i as u8);
+            id = Some(i as u8);
             break;
         }
     }
 
-    todo! {}
+    let id = id?;
+
+    // initialize thread
+    init_thread(id as usize);
+    get_readyq().enqueue(id, tbl);
+    tbl[id as usize].regs.x0 = app;
+
+    // save current thread's context
+    let aff = core_pos();
+    match (get_actives()[aff], regs) {
+        (Some(idx), Some(r)) => {
+            let i = idx as usize;
+            tbl[i].regs = *r;
+            tbl[i].regs.x0 = id as u64; // set return value
+        }
+        (None, None) => (),
+        _ => panic!("invalid state"),
+    }
+
+    schedule2(mask, lock);
+    unreachable!()
+}
+
+pub fn exit() {
+    gc_stack(); // garbage collection
+
+    // disable FIQ, IRQ, Abort, Debug
+    let mask = InterMask::new();
+
+    // aqcuire lock
+    let mut node = MCSNode::new();
+    let lock = lock(&mut node);
+
+    let tbl = get_thread_table();
+
+    let aff = core_pos();
+    let actives = get_actives();
+    if let Some(current) = actives[aff] {
+        tbl[current as usize].state = State::Dead;
+        get_free_stack()[aff] = Some(tbl[current as usize].stack); // stack to be freed
+    }
+
+    actives[aff] = None;
+
+    schedule2(mask, lock);
+}
+
+fn gc_stack() {
+    let aff = core_pos();
+    if let Some(stack) = get_free_stack()[aff] {
+        let layout = alloc::Layout::from_size_align(STACK_SIZE, mmu::PAGESIZE as usize).unwrap();
+        unsafe { alloc::dealloc(stack, layout) };
+        get_free_stack()[aff] = None;
+    }
 }
 
 fn schedule2(mask: InterMask, lock: MCSLockGuard<()>) {
