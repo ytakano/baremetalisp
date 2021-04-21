@@ -83,7 +83,7 @@ impl GpRegs {
         }
     }
 
-    pub fn context_switch(&self) {
+    pub fn context_switch(&self) -> ! {
         let start = mmu::get_stack_el1_start();
         let aff = topology::core_pos() as u64;
         let sp = start - mmu::STACK_SIZE * aff + mmu::EL1_ADDR_OFFSET;
@@ -123,6 +123,8 @@ impl GpRegs {
                 in(reg) sp
             }
         }
+
+        unreachable!()
     }
 }
 

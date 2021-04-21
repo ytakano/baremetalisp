@@ -5,7 +5,7 @@ extern "C" {
     fn smc_done(arg: u64);
 }
 
-pub fn done() {
+pub fn done() -> ! {
     // switch to normal world
     let start = mmu::get_stack_el1_start();
     let aff = core_pos() as u64;
@@ -19,4 +19,6 @@ pub fn done() {
             in(reg) sp
         }
     }
+
+    unreachable!()
 }

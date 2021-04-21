@@ -1,5 +1,5 @@
-use crate::aarch64::syscall;
 use crate::driver::uart;
+use crate::syscall;
 
 use alloc::boxed::Box;
 use blisp;
@@ -9,14 +9,23 @@ use num_traits::{FromPrimitive, ToPrimitive};
 const APPS: &'static [&'static str] = &[include_str!("init.lisp")];
 
 fn callback(x: &BigInt, y: &BigInt, _z: &BigInt) -> Option<BigInt> {
-    let c = x.to_isize()?;
+    let c = x.to_u64()?;
     match c {
-        0 => {
+        syscall::SYS_SPAWN => {
             // call spawn
             let app = y.to_usize()?;
             let n = syscall::spawn(app)?;
             let n = BigInt::from_u8(n)?;
             Some(n)
+        }
+        syscall::SYS_SCHED => {
+            syscall::sched_yield();
+            None
+        }
+        syscall::SYS_GETPID => {
+            let id = syscall::getpid();
+            let id = BigInt::from_u8(id)?;
+            Some(id)
         }
         _ => None,
     }

@@ -124,6 +124,8 @@ extern "C" {
     fn el0_entry();
 }
 
+/// Initialize the first thread.
+/// It is often called the init process.
 pub fn init() {
     // disable FIQ, IRQ, Abort, Debug
     let mask = InterMask::new();
@@ -159,9 +161,12 @@ fn init_thread(id: usize) {
     tbl[id].regs.sp = tbl[id].stack as u64;
 
     // TODO: set canary
+    // TODO: allocate thread's heap
 }
 
-pub fn spawn(app: u64, regs: Option<&GpRegs>) -> Option<u8> {
+/// Spawn a new thread.
+/// If successful this function is unreachable, otherwise (fail) this returns normally.
+pub fn spawn(app: u64, regs: Option<&GpRegs>) -> Option<()> {
     gc_stack(); // garbage collection
 
     // disable FIQ, IRQ, Abort, Debug
@@ -202,10 +207,11 @@ pub fn spawn(app: u64, regs: Option<&GpRegs>) -> Option<u8> {
     }
 
     schedule2(mask, lock);
-    unreachable!()
 }
 
-pub fn exit() {
+/// exit thread
+/// this function is always unreachable
+pub fn exit() -> ! {
     gc_stack(); // garbage collection
 
     // disable FIQ, IRQ, Abort, Debug
@@ -226,6 +232,9 @@ pub fn exit() {
 
     actives[aff] = None;
 
+    // TODO: unset canary
+    // TODO: deallocate thread's heap
+
     schedule2(mask, lock);
 }
 
@@ -238,7 +247,7 @@ fn gc_stack() {
     }
 }
 
-fn schedule2(mask: InterMask, lock: MCSLockGuard<()>) {
+fn schedule2(mask: InterMask, lock: MCSLockGuard<()>) -> ! {
     // get next
     let tbl = get_thread_table();
     let ready = get_readyq();
@@ -270,8 +279,9 @@ fn schedule2(mask: InterMask, lock: MCSLockGuard<()>) {
     }
 }
 
-pub fn schedule() {
-    // disable FIQ and IRQ
+/// Yielding.
+pub fn schedule() -> ! {
+    // disable FIQ, IRQ, Abort, Debug
     let mask = InterMask::new();
 
     // aqcuire lock
@@ -279,4 +289,14 @@ pub fn schedule() {
     let lock = lock(&mut node);
 
     schedule2(mask, lock);
+}
+
+pub fn get_id() -> u8 {
+    let aff = core_pos();
+
+    // disable FIQ, IRQ, Abort, Debug
+    let _mask = InterMask::new();
+
+    let actives = get_actives();
+    actives[aff].unwrap()
 }

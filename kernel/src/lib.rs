@@ -12,6 +12,7 @@ mod driver;
 mod el0;
 mod el1;
 mod smc;
+mod syscall;
 mod thread;
 
 #[macro_use]
