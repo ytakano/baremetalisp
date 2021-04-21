@@ -35,7 +35,7 @@ fn get_free_stack() -> &'static mut [Option<*mut u8>; CORE_COUNT] {
     unsafe { &mut FREE_STACK }
 }
 
-struct ProcessQ(Option<(u8, u8)>);
+struct ProcessQ(Option<(u8, u8)>); // (head, tail)
 
 impl ProcessQ {
     fn enqueue(&mut self, id: u8, tbl: &mut [Process; PROCESS_MAX]) {
@@ -155,7 +155,7 @@ fn init_process(id: usize) {
     // initialize
     tbl[id].state = State::Ready;
     tbl[id].next = None;
-    tbl[id].id = 0;
+    tbl[id].id = id as u8;
     tbl[id].regs.spsr = 0; // EL0t
     tbl[id].regs.elr = el0_entry as *const () as u64;
     tbl[id].regs.sp = tbl[id].stack as u64;
@@ -195,18 +195,10 @@ pub fn spawn(app: u64, regs: Option<&GpRegs>) -> Option<()> {
     tbl[id as usize].regs.x0 = app;
 
     // save current process's context
-    let aff = core_pos();
-    match (get_actives()[aff], regs) {
-        (Some(idx), Some(r)) => {
-            let i = idx as usize;
-            tbl[i].regs = *r;
-            tbl[i].regs.x0 = id as u64; // set return value
-        }
-        (None, None) => (),
-        _ => panic!("invalid state"),
-    }
+    save_context(id as u64, &regs);
 
     schedule2(mask, lock);
+    unreachable!()
 }
 
 /// exit process
@@ -236,6 +228,7 @@ pub fn exit() -> ! {
     // TODO: deallocate process's heap
 
     schedule2(mask, lock);
+    unreachable!()
 }
 
 fn gc_stack() {
@@ -247,16 +240,16 @@ fn gc_stack() {
     }
 }
 
-fn schedule2(mask: InterMask, lock: MCSLockGuard<()>) -> ! {
+fn schedule2(mask: InterMask, lock: MCSLockGuard<()>) {
     // get next
     let tbl = get_process_table();
     let ready = get_readyq();
+    let actives = get_actives();
     let next = ready.deque(tbl);
     let aff = core_pos();
 
     if let Some(next) = next {
         // move the current process to Ready queue
-        let actives = get_actives();
         if let Some(current) = actives[aff] {
             tbl[current as usize].state = State::Ready;
             ready.enqueue(current, tbl);
@@ -271,7 +264,7 @@ fn schedule2(mask: InterMask, lock: MCSLockGuard<()>) -> ! {
 
         // context switch
         tbl[next as usize].regs.context_switch();
-    } else {
+    } else if None == actives[aff] {
         lock.unlock();
         mask.unmask();
 
@@ -280,13 +273,16 @@ fn schedule2(mask: InterMask, lock: MCSLockGuard<()>) -> ! {
 }
 
 /// Yielding.
-pub fn schedule() -> ! {
+pub fn schedule(regs: &GpRegs) {
     // disable FIQ, IRQ, Abort, Debug
     let mask = InterMask::new();
 
     // aqcuire lock
     let mut node = MCSNode::new();
     let lock = lock(&mut node);
+
+    // save current process's context
+    save_context(0, &Some(regs));
 
     schedule2(mask, lock);
 }
@@ -300,4 +296,20 @@ pub fn get_id() -> u8 {
 
     let actives = get_actives();
     actives[aff].unwrap()
+}
+
+/// save current process's context
+fn save_context(retval: u64, regs: &Option<&GpRegs>) {
+    let tbl = get_process_table();
+    let aff = core_pos();
+    match (get_actives()[aff], regs) {
+        (Some(idx), Some(r)) => {
+            let i = idx as usize;
+            tbl[i].regs = **r;
+            tbl[i].regs.x0 = retval as u64; // set return value
+            tbl[i].regs.sp = cpu::sp_el0::get(); // save stack pointer
+        }
+        (None, None) => (),
+        _ => panic!("invalid state"),
+    }
 }

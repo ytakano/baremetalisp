@@ -5,7 +5,7 @@
     (let ((_ (call-rust 3 0 0)))
         []))
 
-(export gettid () (IO (-> () Int))
+(export getpid () (IO (-> () Int))
     (match (call-rust 4 0 0)
         ((Some id) id)
         (_ 0))) ; unreachable

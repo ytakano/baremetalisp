@@ -103,10 +103,11 @@ fn get_app(id: usize) -> Option<&'static str> {
 
 #[no_mangle]
 pub fn el0_entry(app: usize) -> ! {
+    uart::puts("entered EL0\n");
     if let Some(s) = get_app(app) {
         run_lisp(s);
     } else {
-        uart::puts("spawn and exit");
+        uart::puts("no such application\n");
         syscall::exit();
     }
 

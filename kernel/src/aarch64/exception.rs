@@ -162,23 +162,24 @@ pub fn curr_el_spx_serror_el1(_ctx: *mut GpRegs, _sp: usize) {
 pub fn lower_el_aarch64_sync_el1(ctx: *mut GpRegs, _sp: usize) {
     let r = unsafe { &mut *ctx };
     let esr = cpu::esr_el1::get();
-    driver::uart::puts("EL1 exception: Sync lower AArch64\nELR = ");
-    driver::uart::hex(r.elr);
-    driver::uart::puts("\nSPSR = 0x");
-    driver::uart::hex(r.spsr as u64);
-    driver::uart::puts("\nESR = 0x");
-    driver::uart::hex(esr);
-    driver::uart::puts("\n");
 
     let ec = esr & ESR_EL1_EC_MASK;
     match ec {
         ESR_EL1_EC_WFI_OR_WFE => print_msg("EL1 Exception", "WFI or WFE"),
         ESR_EL1_EC_SVC64 => {
-            print_msg("EL1 Exception", "Supervisor Call (64bit)");
             let n = syscall::handle64(r.x0, r.x1, r.x2, r);
             r.x0 = n as u64;
         }
-        _ => print_msg("EL1 Exception", "unknown"),
+        _ => {
+            driver::uart::puts("EL1 exception: Sync lower AArch64\nELR = ");
+            driver::uart::hex(r.elr);
+            driver::uart::puts("\nSPSR = 0x");
+            driver::uart::hex(r.spsr as u64);
+            driver::uart::puts("\nESR = 0x");
+            driver::uart::hex(esr);
+            driver::uart::puts("\n");
+            print_msg("EL1 Exception", "unknown")
+        }
     }
 }
 
