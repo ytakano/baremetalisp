@@ -11,9 +11,9 @@ mod boot;
 mod driver;
 mod el0;
 mod el1;
+mod process;
 mod smc;
 mod syscall;
-mod thread;
 
 #[macro_use]
 extern crate alloc;

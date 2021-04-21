@@ -6,39 +6,39 @@ use alloc::alloc;
 use core::ptr::null_mut;
 use synctools::mcs::{MCSLock, MCSLockGuard, MCSNode};
 
-const THREAD_MAX: usize = 256;
+const PROCESS_MAX: usize = 256;
 const STACK_SIZE: usize = 2 * 1024 * 1024;
 
 static mut LOCK: MCSLock<()> = MCSLock::new(());
-static mut THREAD_TABLE: [Thread; THREAD_MAX] = [Thread::new(0); THREAD_MAX];
+static mut PROCESS_TABLE: [Process; PROCESS_MAX] = [Process::new(0); PROCESS_MAX];
 static mut ACTIVES: [Option<u8>; CORE_COUNT] = [None; CORE_COUNT];
-static mut READY: ThreadQ = ThreadQ(None);
+static mut READYQ: ProcessQ = ProcessQ(None);
 static mut FREE_STACK: [Option<*mut u8>; CORE_COUNT] = [None; CORE_COUNT];
 
 fn lock<'t>(node: &'t mut MCSNode<()>) -> MCSLockGuard<'t, ()> {
     unsafe { LOCK.lock(node) }
 }
 
-fn get_thread_table() -> &'static mut [Thread; THREAD_MAX] {
-    unsafe { &mut THREAD_TABLE }
+fn get_process_table() -> &'static mut [Process; PROCESS_MAX] {
+    unsafe { &mut PROCESS_TABLE }
 }
 
 fn get_actives() -> &'static mut [Option<u8>; CORE_COUNT] {
     unsafe { &mut ACTIVES }
 }
 
-fn get_readyq() -> &'static mut ThreadQ {
-    unsafe { &mut READY }
+fn get_readyq() -> &'static mut ProcessQ {
+    unsafe { &mut READYQ }
 }
 
 fn get_free_stack() -> &'static mut [Option<*mut u8>; CORE_COUNT] {
     unsafe { &mut FREE_STACK }
 }
 
-struct ThreadQ(Option<(u8, u8)>);
+struct ProcessQ(Option<(u8, u8)>);
 
-impl ThreadQ {
-    fn enqueue(&mut self, id: u8, tbl: &mut [Thread; THREAD_MAX]) {
+impl ProcessQ {
+    fn enqueue(&mut self, id: u8, tbl: &mut [Process; PROCESS_MAX]) {
         match self.0 {
             Some((h, t)) => {
                 tbl[t as usize].next = Some(id);
@@ -50,7 +50,7 @@ impl ThreadQ {
         }
     }
 
-    fn deque(&mut self, tbl: &mut [Thread; THREAD_MAX]) -> Option<u8> {
+    fn deque(&mut self, tbl: &mut [Process; PROCESS_MAX]) -> Option<u8> {
         match self.0 {
             Some((h, t)) => {
                 let hidx = h as usize;
@@ -77,7 +77,7 @@ pub enum State {
 }
 
 #[derive(Copy, Clone)]
-struct Thread {
+struct Process {
     regs: GpRegs,
     state: State,
     next: Option<u8>,
@@ -85,9 +85,9 @@ struct Thread {
     id: u8,
 }
 
-impl Thread {
-    pub const fn new(id: u8) -> Thread {
-        Thread {
+impl Process {
+    pub const fn new(id: u8) -> Process {
+        Process {
             regs: GpRegs::new(),
             state: State::Dead,
             next: None,
@@ -124,7 +124,7 @@ extern "C" {
     fn el0_entry();
 }
 
-/// Initialize the first thread.
+/// Initialize the first process.
 /// It is often called the init process.
 pub fn init() {
     // disable FIQ, IRQ, Abort, Debug
@@ -134,19 +134,19 @@ pub fn init() {
     let mut node = MCSNode::new();
     let lock = lock(&mut node);
 
-    let tbl = get_thread_table();
+    let tbl = get_process_table();
 
-    // initialize init thread
-    init_thread(0);
+    // initialize the init process
+    init_process(0);
 
-    // enqueue the thread to Ready queue
+    // enqueue the process to Ready queue
     get_readyq().enqueue(0, tbl);
 
     schedule2(mask, lock);
 }
 
-fn init_thread(id: usize) {
-    let tbl = get_thread_table();
+fn init_process(id: usize) {
+    let tbl = get_process_table();
 
     // allocate stack
     let layout = alloc::Layout::from_size_align(STACK_SIZE, mmu::PAGESIZE as usize).unwrap();
@@ -161,10 +161,10 @@ fn init_thread(id: usize) {
     tbl[id].regs.sp = tbl[id].stack as u64;
 
     // TODO: set canary
-    // TODO: allocate thread's heap
+    // TODO: allocate process's heap
 }
 
-/// Spawn a new thread.
+/// Spawn a new process.
 /// If successful this function is unreachable, otherwise (fail) this returns normally.
 pub fn spawn(app: u64, regs: Option<&GpRegs>) -> Option<()> {
     gc_stack(); // garbage collection
@@ -176,11 +176,11 @@ pub fn spawn(app: u64, regs: Option<&GpRegs>) -> Option<()> {
     let mut node = MCSNode::new();
     let lock = lock(&mut node);
 
-    let tbl = get_thread_table();
+    let tbl = get_process_table();
 
     // find empty slot
     let mut id: Option<u8> = None;
-    for i in 0..THREAD_MAX {
+    for i in 0..PROCESS_MAX {
         if let State::Dead = tbl[i].state {
             id = Some(i as u8);
             break;
@@ -189,12 +189,12 @@ pub fn spawn(app: u64, regs: Option<&GpRegs>) -> Option<()> {
 
     let id = id?;
 
-    // initialize thread
-    init_thread(id as usize);
+    // initialize process
+    init_process(id as usize);
     get_readyq().enqueue(id, tbl);
     tbl[id as usize].regs.x0 = app;
 
-    // save current thread's context
+    // save current process's context
     let aff = core_pos();
     match (get_actives()[aff], regs) {
         (Some(idx), Some(r)) => {
@@ -209,7 +209,7 @@ pub fn spawn(app: u64, regs: Option<&GpRegs>) -> Option<()> {
     schedule2(mask, lock);
 }
 
-/// exit thread
+/// exit process
 /// this function is always unreachable
 pub fn exit() -> ! {
     gc_stack(); // garbage collection
@@ -221,7 +221,7 @@ pub fn exit() -> ! {
     let mut node = MCSNode::new();
     let lock = lock(&mut node);
 
-    let tbl = get_thread_table();
+    let tbl = get_process_table();
 
     let aff = core_pos();
     let actives = get_actives();
@@ -233,7 +233,7 @@ pub fn exit() -> ! {
     actives[aff] = None;
 
     // TODO: unset canary
-    // TODO: deallocate thread's heap
+    // TODO: deallocate process's heap
 
     schedule2(mask, lock);
 }
@@ -249,20 +249,20 @@ fn gc_stack() {
 
 fn schedule2(mask: InterMask, lock: MCSLockGuard<()>) -> ! {
     // get next
-    let tbl = get_thread_table();
+    let tbl = get_process_table();
     let ready = get_readyq();
     let next = ready.deque(tbl);
     let aff = core_pos();
 
     if let Some(next) = next {
-        // move the current thread to Ready queue
+        // move the current process to Ready queue
         let actives = get_actives();
         if let Some(current) = actives[aff] {
             tbl[current as usize].state = State::Ready;
             ready.enqueue(current, tbl);
         }
 
-        // make the next thread Active
+        // make the next process Active
         actives[aff] = Some(next);
         tbl[next as usize].state = State::Active;
 
@@ -291,6 +291,7 @@ pub fn schedule() -> ! {
     schedule2(mask, lock);
 }
 
+/// Get the process ID.
 pub fn get_id() -> u8 {
     let aff = core_pos();
 

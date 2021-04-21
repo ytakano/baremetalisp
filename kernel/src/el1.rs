@@ -1,7 +1,7 @@
 use crate::aarch64::mmu;
 use crate::driver::topology;
 use crate::driver::uart;
-use crate::thread;
+use crate::process;
 
 use core::alloc::Layout;
 use memalloc::Allocator;
@@ -28,8 +28,8 @@ pub fn el1_entry() {
             GLOBAL.init_buddy(mid);
         }
 
-        // spawn init thread
-        thread::init();
+        // spawn the init process
+        process::init();
     }
 
     return;
