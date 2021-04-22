@@ -214,9 +214,6 @@ pub const SPSR_M_MASK: u64 = 0x1;
 pub const SPSR_M_AARCH64: u64 = 0x0;
 pub const SPSR_M_AARCH32: u64 = 0x1;
 
-pub const SPSR_EL_SHIFT: u64 = 2;
-pub const SPSR_EL_WIDTH: u64 = 2;
-
 pub const SPSR_SSBS_BIT_AARCH64: u64 = 1 << 12;
 pub const SPSR_SSBS_BIT_AARCH32: u64 = 1 << 23;
 

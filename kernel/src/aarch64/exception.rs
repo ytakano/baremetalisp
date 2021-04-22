@@ -108,7 +108,7 @@ pub fn lower_el_aarch32_serror_el2(_ctx: *mut GpRegs, _sp: usize) {}
 
 // EL1
 
-// from the current EL using the current SP0
+// from the current EL using the SP_EL0
 #[no_mangle]
 pub fn curr_el_sp0_sync_el1(_ctx: *mut GpRegs, _sp: usize) {
     driver::uart::puts("EL1 exception: SP0 Sync\n");
@@ -129,6 +129,7 @@ pub fn curr_el_sp0_serror_el1(_ctx: *mut GpRegs, _sp: usize) {
     driver::uart::puts("EL1 exception: SP0 Error\n");
 }
 
+// from the current EL using the SP_EL1
 #[no_mangle]
 pub fn curr_el_spx_sync_el1(ctx: *mut GpRegs, _sp: usize) {
     let r = unsafe { &*ctx };
@@ -167,7 +168,7 @@ pub fn lower_el_aarch64_sync_el1(ctx: *mut GpRegs, _sp: usize) {
     match ec {
         ESR_EL1_EC_WFI_OR_WFE => print_msg("EL1 Exception", "WFI or WFE"),
         ESR_EL1_EC_SVC64 => {
-            let n = syscall::handle64(r.x0, r.x1, r.x2, r);
+            let n = syscall::handle64(r);
             r.x0 = n as u64;
         }
         _ => {

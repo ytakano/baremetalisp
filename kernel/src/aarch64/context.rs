@@ -1,5 +1,6 @@
-use crate::aarch64::mmu;
-use crate::driver::topology;
+extern "C" {
+    fn save_context(ptr: *const GpRegs) -> usize;
+}
 
 /// General Purpose Registers
 #[derive(Copy, Clone)]
@@ -84,14 +85,9 @@ impl GpRegs {
     }
 
     pub fn context_switch(&self) -> ! {
-        let start = mmu::get_stack_el1_start();
-        let aff = topology::core_pos() as u64;
-        let sp = start - mmu::STACK_SIZE * aff + mmu::EL1_ADDR_OFFSET;
-
         unsafe {
             asm! {
                 "mov     x0, {}
-                 mov     sp, {}
 
                  ldp     lr,  x2,  [x0, #16 * 15]
                  ldr     w3,       [x0, #16 * 16]
@@ -99,7 +95,7 @@ impl GpRegs {
 
                  msr     elr_el1, x2
                  msr     spsr_el1, x3
-                 msr     sp_el0, x4
+                 mov     sp, x4
 
                  ldp     x2,  x3,  [x0, #16 * 1]
                  ldp     x4,  x5,  [x0, #16 * 2]
@@ -118,13 +114,18 @@ impl GpRegs {
 
                  ldp     x0,  x1,  [x0, #16 * 0]
 
-                 eret",
-                in(reg) self as *const GpRegs,
-                in(reg) sp
+                 ret",
+                in(reg) self as *const GpRegs
             }
         }
 
         unreachable!()
+    }
+
+    /// Return 0 if context is saved.
+    /// Return 1 if context switching is performed.
+    pub fn save_context(&mut self) -> usize {
+        unsafe { save_context(self as *const GpRegs) }
     }
 }
 

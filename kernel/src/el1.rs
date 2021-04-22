@@ -13,8 +13,9 @@ extern "C" {
     fn el0_entry();
 }
 
-#[no_mangle]
 pub fn el1_entry() {
+    uart::puts("entered EL1t\n");
+
     let aff = topology::core_pos() as u64;
 
     // spawn init process

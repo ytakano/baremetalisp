@@ -2,15 +2,18 @@ use crate::{process, syscall};
 
 use super::context::GpRegs;
 
-pub(super) fn handle64(id: u64, arg1: u64, _arg2: u64, regs: &GpRegs) -> i64 {
-    match id {
+pub(super) fn handle64(regs: &GpRegs) -> i64 {
+    match regs.x0 {
         syscall::SYS_SPAWN => {
-            process::spawn(arg1, Some(regs));
-            -1
+            if let Some(pid) = process::spawn(regs.x1) {
+                pid as i64
+            } else {
+                -1
+            }
         }
         syscall::SYS_EXIT => process::exit(),
         syscall::SYS_SCHED => {
-            process::schedule(regs);
+            process::schedule();
             0
         }
         syscall::SYS_GETPID => process::get_id() as i64,

@@ -168,8 +168,9 @@ _start:
     msr     DAIFClr, #0x0f // enable all interrupt
 
     // change execution level to EL1
-    msr     sp_el1, x10  // set stack pointer
-    mov     x0, #0b101   // EL1h
+    msr     sp_el0, x10  // set stack pointer
+    msr     sp_el1, x10
+    mov     x0, #0b100   // EL1t
     msr     spsr_el2, x0
     adr     x0, .L5      // set entry point
     msr     elr_el2, x0
@@ -344,12 +345,16 @@ exception_vector_el1:
 
     // from lower EL (AArch64)
     .balign 0x80
+    msr     spsel, #0 // Select SP_EL0
     CALL_WITH_CONTEXT lower_el_aarch64_sync_el1 ELR_EL1 SPSR_EL1
     .balign 0x80
+    msr     spsel, #0 // Select SP_EL0
     CALL_WITH_CONTEXT lower_el_aarch64_irq_el1 ELR_EL1 SPSR_EL1
     .balign 0x80
+    msr     spsel, #0 // Select SP_EL0
     CALL_WITH_CONTEXT lower_el_aarch64_fiq_el1 ELR_EL1 SPSR_EL1
     .balign 0x80
+    msr     spsel, #0 // Select SP_EL0
     CALL_WITH_CONTEXT lower_el_aarch64_serror_el1 ELR_EL1 SPSR_EL1
 
     // from lower EL (AArch32)

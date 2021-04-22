@@ -80,6 +80,9 @@ _start:
     ldr     x0, =exception_vector_el1
     msr     vbar_el1, x0
 
+    // Select SP_EL0
+    msr     spsel, #0
+
     // Set up SCTLR_EL1
     isb
     mrs     x0, sctlr_el1
@@ -96,7 +99,11 @@ _start:
     mov     x4, #(STACKSIZE)
     mul     x3, x2, x4
     sub     x1, x1, x3
-    mov     sp, x1
+    mov     sp, x1 // set sp_el1
+
+    // Select SP_EL0
+    msr     spsel, #0
+    mov     sp, x1 // set sp_el0
 
     cbnz    x2, .L4
 
@@ -214,12 +221,16 @@ exception_vector_el1:
 
     // from lower EL (AArch64)
     .balign 0x80
+    msr     spsel, #0 // Select SP_EL0
     CALL_WITH_CONTEXT lower_el_aarch64_sync_el1 ELR_EL1 SPSR_EL1
     .balign 0x80
+    msr     spsel, #0 // Select SP_EL0
     CALL_WITH_CONTEXT lower_el_aarch64_irq_el1 ELR_EL1 SPSR_EL1
     .balign 0x80
+    msr     spsel, #0 // Select SP_EL0
     CALL_WITH_CONTEXT lower_el_aarch64_fiq_el1 ELR_EL1 SPSR_EL1
     .balign 0x80
+    msr     spsel, #0 // Select SP_EL0
     CALL_WITH_CONTEXT lower_el_aarch64_serror_el1 ELR_EL1 SPSR_EL1
 
     // from lower EL (AArch32)
