@@ -1,4 +1,5 @@
-pub(crate) mod semaphore;
+pub mod ringq;
+mod semaphore;
 
 use crate::aarch64::context::GpRegs;
 use crate::aarch64::{cpu, mmu};
@@ -42,6 +43,10 @@ struct ProcessQ(Option<(u8, u8)>); // (head, tail)
 impl ProcessQ {
     fn new() -> ProcessQ {
         ProcessQ(None)
+    }
+
+    fn is_empty(&self) -> bool {
+        self.0.is_none()
     }
 
     fn enqueue(&mut self, id: u8, tbl: &mut [Process; PROCESS_MAX]) {
