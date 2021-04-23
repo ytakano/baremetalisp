@@ -1,3 +1,5 @@
+pub(crate) mod semaphore;
+
 use crate::aarch64::context::GpRegs;
 use crate::aarch64::{cpu, mmu};
 use crate::driver::topology::{core_pos, CORE_COUNT};
@@ -38,6 +40,10 @@ fn get_free_stack() -> &'static mut [Option<*mut u8>; CORE_COUNT] {
 struct ProcessQ(Option<(u8, u8)>); // (head, tail)
 
 impl ProcessQ {
+    fn new() -> ProcessQ {
+        ProcessQ(None)
+    }
+
     fn enqueue(&mut self, id: u8, tbl: &mut [Process; PROCESS_MAX]) {
         match self.0 {
             Some((h, t)) => {
@@ -74,6 +80,7 @@ pub enum State {
     Ready,
     Active,
     Dead,
+    SemWait,
 }
 
 #[derive(Copy, Clone)]
