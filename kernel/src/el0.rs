@@ -24,7 +24,7 @@ fn callback(x: &BigInt, y: &BigInt, _z: &BigInt) -> Option<BigInt> {
         }
         syscall::SYS_GETPID => {
             let id = syscall::getpid();
-            let id = BigInt::from_u8(id)?;
+            let id = BigInt::from_u32(id)?;
             Some(id)
         }
         _ => None,

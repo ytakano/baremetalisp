@@ -80,7 +80,7 @@ pub fn sched_yield() {
 }
 
 /// Get the process ID.
-pub fn getpid() -> u8 {
+pub fn getpid() -> u32 {
     let id = syscall!(SYS_GETPID);
-    id as u8
+    id as u32
 }

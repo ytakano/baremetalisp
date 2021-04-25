@@ -33,7 +33,7 @@ impl Semaphore {
             while *n > 0 {
                 if let Some(id) = self.procs.deque(tbl) {
                     tbl[id as usize].state = State::SemWait;
-                    readyq.enqueue(id, tbl);
+                    readyq.enque(id, tbl);
                     *n -= 1;
                 } else {
                     break;
@@ -71,7 +71,7 @@ impl Semaphore {
             // make current thread SemWait
             if let Some(id) = actives[aff] {
                 tbl[id as usize].state = State::SemWait;
-                self.procs.enqueue(id, tbl);
+                self.procs.enque(id, tbl);
             }
 
             actives[aff] = None;
