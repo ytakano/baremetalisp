@@ -15,7 +15,7 @@ fn callback(x: &BigInt, y: &BigInt, _z: &BigInt) -> Option<BigInt> {
             // call spawn
             let app = y.to_usize()?;
             let n = syscall::spawn(app)?;
-            let n = BigInt::from_u8(n)?;
+            let n = BigInt::from_u32(n)?;
             Some(n)
         }
         syscall::SYS_SCHED => {

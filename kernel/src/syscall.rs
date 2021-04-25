@@ -59,12 +59,12 @@ macro_rules! syscall {
 }
 
 /// Create a new process.
-pub fn spawn(app: usize) -> Option<u8> {
+pub fn spawn(app: usize) -> Option<u32> {
     let ret = syscall!(SYS_SPAWN, app);
     if ret < 0 {
         None
     } else {
-        Some(ret as u8)
+        Some(ret as u32)
     }
 }
 
