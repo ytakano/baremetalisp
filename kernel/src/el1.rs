@@ -24,6 +24,7 @@ pub fn el1_entry() {
         let addr = mmu::get_memory_map();
         let size = addr.el0_heap_end - addr.el0_heap_start;
         let mid = (addr.el0_heap_start + (size >> 1)) as usize;
+
         unsafe {
             GLOBAL.init_slab(addr.el0_heap_start as usize, (size >> 1) as usize);
             GLOBAL.init_buddy(mid);

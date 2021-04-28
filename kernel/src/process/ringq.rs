@@ -20,8 +20,11 @@ impl<T: Send, const N: usize> RingQ<T, N> {
     const BIT_MASK: usize = N - 1;
 
     fn new() -> Self {
+        crate::driver::uart::puts("RingQ::new() 0\n");
+
         // check N == 2^x
         assert!((N != 0) && (N & (N - 1)) == 0);
+        crate::driver::uart::puts("RingQ::new() 1\n");
 
         RingQ {
             buf: unsafe { MaybeUninit::uninit().assume_init() },
@@ -55,10 +58,14 @@ impl<T: Send, const N: usize> RingQ<T, N> {
 
 impl<T: Send, const N: usize> Chan<T, N> {
     pub(super) fn new(pid: u8) -> (Sender<T, N>, Receiver<T, N>) {
+        crate::driver::uart::puts("Chan::new() 0\n");
+
         let ch = Chan {
             q: MCSLock::new(RingQ::new()),
             pid,
         };
+
+        crate::driver::uart::puts("Chan::new() 1\n");
 
         let ch = Arc::new(ch);
 
@@ -79,16 +86,17 @@ impl<T: Send, const N: usize> Sender<T, N> {
         let _ = q.enque(v)?;
 
         // notify to the receiver
-        let tbl = get_process_table();
-        if tbl[self.ch.pid as usize].state == State::Recv {
-            let mut node = MCSNode::new();
-            let _lock = lock(&mut node);
-
-            tbl[self.ch.pid as usize].state = State::Ready;
-            let readyq = get_readyq();
-            readyq.enque(self.ch.pid, tbl);
+        let mut node = MCSNode::new();
+        let mut proc_info = PROC_INFO.lock(&mut node);
+        let (tbl, readyq) = proc_info.get_mut();
+        if let Some(entry) = tbl[self.ch.pid as usize].as_mut() {
+            if entry.state == State::Recv {
+                entry.state = State::Ready;
+                readyq.enque(self.ch.pid, tbl);
+            }
         }
 
+        proc_info.unlock();
         q.unlock();
         mask.unmask();
 
@@ -116,9 +124,16 @@ impl<T: Send, const N: usize> Receiver<T, N> {
                     // make this thread's state Recv
                     let aff = core_pos();
                     let actives = get_actives();
-                    let tbl = get_process_table();
                     let current = actives[aff].unwrap(); // must be active
-                    tbl[current as usize].state = State::Recv;
+
+                    let mut node = MCSNode::new();
+                    let mut proc_info = PROC_INFO.lock(&mut node);
+
+                    if let Some(entry) = proc_info.table[current as usize].as_mut() {
+                        entry.state = State::Recv;
+                    } else {
+                        panic!("no current process");
+                    }
                     actives[aff] = None;
                 }
 

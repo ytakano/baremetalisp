@@ -1,6 +1,6 @@
 mod int;
-mod ringq;
-mod semaphore;
+//mod ringq;
+//mod semaphore;
 
 use crate::aarch64::context::GpRegs;
 use crate::aarch64::mmu;
@@ -9,41 +9,47 @@ use crate::driver::topology::{core_pos, CORE_COUNT};
 use int::InterMask;
 
 use alloc::alloc;
-use core::{
-    mem::{size_of, transmute},
-    ptr::null_mut,
-};
+use arr_macro::arr;
+use core::ptr::null_mut;
 use synctools::mcs::{MCSLock, MCSLockGuard, MCSNode};
 
 const PROCESS_MAX: usize = 256;
 const STACK_SIZE: usize = 2 * 1024 * 1024;
 const QUEUE_SIZE: usize = 8;
 
-static mut LOCK: MCSLock<()> = MCSLock::new(());
 static mut ACTIVES: [Option<u8>; CORE_COUNT] = [None; CORE_COUNT];
-static mut READYQ: ProcessQ = ProcessQ(None);
 static mut FREE_STACK: [Option<*mut u8>; CORE_COUNT] = [None; CORE_COUNT];
 
-static mut PROCESS_TABLE_BUF: [u8; size_of::<[Process; PROCESS_MAX]>()] =
-    [0; size_of::<[Process; PROCESS_MAX]>()];
+static PROC_INFO: MCSLock<ProcInfo> = MCSLock::new(ProcInfo::new());
 
-fn lock<'t>(node: &'t mut MCSNode<()>) -> MCSLockGuard<'t, ()> {
-    unsafe { LOCK.lock(node) }
+struct ProcInfo {
+    table: [Option<Process>; PROCESS_MAX],
+    readyq: ProcessQ,
 }
 
-fn get_process_table() -> &'static mut [Process; PROCESS_MAX] {
-    unsafe {
-        let tbl = transmute(&mut PROCESS_TABLE_BUF);
-        tbl
+impl ProcInfo {
+    const fn new() -> ProcInfo {
+        ProcInfo {
+            table: arr![None; 256], // PROCESS_MAX == 256
+            readyq: ProcessQ::new(),
+        }
+    }
+
+    fn get_mut(&mut self) -> (&mut [Option<Process>; PROCESS_MAX], &mut ProcessQ) {
+        (&mut self.table, &mut self.readyq)
+    }
+
+    unsafe fn get_ctx(&self, i: usize) -> *mut GpRegs {
+        if let Some(entry) = self.table[i].as_ref() {
+            &(entry.regs) as *const GpRegs as *mut GpRegs
+        } else {
+            panic!("no such process");
+        }
     }
 }
 
 fn get_actives() -> &'static mut [Option<u8>; CORE_COUNT] {
     unsafe { &mut ACTIVES }
-}
-
-fn get_readyq() -> &'static mut ProcessQ {
-    unsafe { &mut READYQ }
 }
 
 fn get_free_stack() -> &'static mut [Option<*mut u8>; CORE_COUNT] {
@@ -53,7 +59,7 @@ fn get_free_stack() -> &'static mut [Option<*mut u8>; CORE_COUNT] {
 struct ProcessQ(Option<(u8, u8)>); // (head, tail)
 
 impl ProcessQ {
-    fn new() -> ProcessQ {
+    const fn new() -> ProcessQ {
         ProcessQ(None)
     }
 
@@ -61,10 +67,14 @@ impl ProcessQ {
         self.0.is_none()
     }
 
-    fn enque(&mut self, id: u8, tbl: &mut [Process; PROCESS_MAX]) {
+    fn enque(&mut self, id: u8, tbl: &mut [Option<Process>; PROCESS_MAX]) {
         match self.0 {
             Some((h, t)) => {
-                tbl[t as usize].next = Some(id);
+                if let Some(entry) = tbl[t as usize].as_mut() {
+                    entry.next = Some(id);
+                } else {
+                    return;
+                }
                 self.0 = Some((h, id));
             }
             None => {
@@ -73,19 +83,23 @@ impl ProcessQ {
         }
     }
 
-    fn deque(&mut self, tbl: &mut [Process; PROCESS_MAX]) -> Option<u8> {
+    fn deque(&mut self, tbl: &mut [Option<Process>; PROCESS_MAX]) -> Option<u8> {
         match self.0 {
             Some((h, t)) => {
                 let hidx = h as usize;
-                if let Some(next) = tbl[hidx].next {
-                    self.0 = Some((next, t));
-                } else {
-                    assert_eq!(h, t);
-                    self.0 = None;
-                }
+                if let Some(entry) = tbl[hidx].as_mut() {
+                    if let Some(next) = entry.next {
+                        self.0 = Some((next, t));
+                    } else {
+                        assert_eq!(h, t);
+                        self.0 = None;
+                    }
 
-                tbl[hidx].next = None;
-                Some(tbl[hidx].id)
+                    entry.next = None;
+                    Some(entry.id)
+                } else {
+                    None
+                }
             }
             None => None,
         }
@@ -98,7 +112,6 @@ pub enum State {
     Active,
     Recv,
     SemWait,
-    Dead,
 }
 
 struct Process {
@@ -106,8 +119,8 @@ struct Process {
     state: State,
     next: Option<u8>,
     stack: *mut u8,
-    tx: Option<ringq::Sender<u32, QUEUE_SIZE>>,
-    rx: Option<ringq::Receiver<u32, QUEUE_SIZE>>,
+    //tx: Option<ringq::Sender<u32, QUEUE_SIZE>>,
+    //rx: Option<ringq::Receiver<u32, QUEUE_SIZE>>,
     id: u8,
     cnt: u16,
 }
@@ -116,11 +129,11 @@ impl Process {
     pub fn new(id: u8) -> Process {
         Process {
             regs: GpRegs::new(),
-            state: State::Dead,
+            state: State::Ready,
             next: None,
             stack: null_mut(),
-            tx: None,
-            rx: None,
+            //tx: None,
+            //rx: None,
             id: id,
             cnt: 0,
         }
@@ -145,19 +158,24 @@ pub fn init() {
     // disable FIQ, IRQ, Abort, Debug
     let mask = InterMask::new();
 
-    // aqcuire lock
-    let mut node = MCSNode::new();
-    let lock = lock(&mut node);
+    //let (tx, rx) = ringq::Chan::<u32, QUEUE_SIZE>::new(0 as u8);
 
-    let tbl = get_process_table();
+    // allocate stack
+    let layout = alloc::Layout::from_size_align(STACK_SIZE, mmu::PAGESIZE as usize).unwrap();
+    let stack = unsafe { alloc::alloc(layout) };
+
+    // let tbl = get_process_table();
+    let mut node = MCSNode::new();
+    let mut proc_info = PROC_INFO.lock(&mut node);
 
     // initialize the init process
-    init_process(0);
+    init_process(0, &mut proc_info, stack);
 
     // enque the process to Ready queue
-    get_readyq().enque(0, tbl);
+    let (tbl, readyq) = proc_info.get_mut();
+    readyq.enque(0, tbl);
 
-    schedule2(mask, lock);
+    schedule2(mask, proc_info);
 }
 
 #[no_mangle]
@@ -165,35 +183,30 @@ fn goto_el0() {
     unsafe { asm!("eret") }
 }
 
-fn init_process(id: usize) {
-    let tbl = get_process_table();
-    for entry in tbl.iter_mut() {
-        entry.state = State::Dead;
-    }
-
-    // allocate stack
-    let layout = alloc::Layout::from_size_align(STACK_SIZE, mmu::PAGESIZE as usize).unwrap();
-    tbl[id].stack = unsafe { alloc::alloc(layout) };
+fn init_process(id: usize, proc_info: &mut MCSLockGuard<ProcInfo>, stack: *mut u8) {
+    let tbl = &mut proc_info.table;
 
     // initialize
-    tbl[id].state = State::Ready;
-    tbl[id].next = None;
-    tbl[id].id = id as u8;
-    tbl[id].regs.spsr = 0; // EL0t
-    tbl[id].regs.elr = el0_entry as u64;
-    tbl[id].regs.sp = tbl[id].stack as u64;
-    tbl[id].regs.x30 = goto_el0 as u64;
-    tbl[id].cnt += 1;
+    let mut proc = Process::new(0);
+    proc.state = State::Ready;
+    proc.next = None;
+    proc.id = id as u8;
+    proc.regs.spsr = 0; // EL0t
+    proc.regs.elr = el0_entry as u64;
+    proc.regs.sp = stack as u64;
+    proc.regs.x30 = goto_el0 as u64;
+    proc.cnt += 1;
+    proc.stack = stack;
 
+    tbl[id] = Some(proc);
+    //tbl[id].tx = Some(tx);
+    //tbl[id].rx = Some(rx);
+
+    /*
     let (tx, rx) = ringq::Chan::<u32, QUEUE_SIZE>::new(id as u8);
-    tbl[id].tx = Some(tx);
-    tbl[id].rx = Some(rx);
-
-    //let b = Box::new(ringq::Chan::<u32, 8>::new(id as u8));
-    //let ptr = Box::into_raw(b);
-    //unsafe { Box::from_raw(ptr) };
-    //tbl[id].q = ptr;
-
+        tbl[id].tx = Some(tx);
+        tbl[id].rx = Some(rx);
+    */
     // TODO: set canary
     // TODO: allocate process's heap
 }
@@ -206,16 +219,23 @@ pub fn spawn(app: u64) -> Option<u32> {
     // disable FIQ, IRQ, Abort, Debug
     let mask = InterMask::new();
 
+    // create channel
+    //let (tx, rx) = ringq::Chan::<u32, QUEUE_SIZE>::new(0 as u8);
+
+    // allocate stack
+    let layout = alloc::Layout::from_size_align(STACK_SIZE, mmu::PAGESIZE as usize).unwrap();
+    let stack = unsafe { alloc::alloc(layout) };
+
     // aqcuire lock
     let mut node = MCSNode::new();
-    let lock = lock(&mut node);
+    let mut proc_info = PROC_INFO.lock(&mut node);
 
-    let tbl = get_process_table();
+    let tbl = &proc_info.table;
 
     // find empty slot
     let mut id: Option<u8> = None;
     for i in 0..PROCESS_MAX {
-        if let State::Dead = tbl[i].state {
+        if let None = tbl[i] {
             id = Some(i as u8);
             break;
         }
@@ -224,13 +244,22 @@ pub fn spawn(app: u64) -> Option<u32> {
     let id = id?;
 
     // initialize process
-    init_process(id as usize);
-    get_readyq().enque(id, tbl);
-    tbl[id as usize].regs.x0 = app;
+    init_process(id as usize, &mut proc_info, stack);
 
-    schedule2(mask, lock);
+    let (tbl, readyq) = proc_info.get_mut();
+    readyq.enque(id, tbl);
+    let pid = {
+        if let Some(entry) = proc_info.table[id as usize].as_mut() {
+            entry.regs.x0 = app;
+            entry.get_pid()
+        } else {
+            return None;
+        }
+    };
 
-    Some(tbl[id as usize].get_pid())
+    schedule2(mask, proc_info);
+
+    Some(pid)
 }
 
 /// exit process
@@ -243,17 +272,19 @@ pub fn exit() -> ! {
 
     // aqcuire lock
     let mut node = MCSNode::new();
-    let lock = lock(&mut node);
+    let mut proc_info = PROC_INFO.lock(&mut node);
 
-    let tbl = get_process_table();
+    let tbl = &mut proc_info.table;
 
     let aff = core_pos();
     let actives = get_actives();
     if let Some(current) = actives[aff] {
-        tbl[current as usize].state = State::Dead;
-        tbl[current as usize].tx = None;
-        tbl[current as usize].rx = None;
-        get_free_stack()[aff] = Some(tbl[current as usize].stack); // stack to be freed
+        if let Some(entry) = tbl[current as usize].as_mut() {
+            get_free_stack()[aff] = Some(entry.stack); // stack to be freed
+        }
+        tbl[current as usize] = None;
+        //        tbl[current as usize].tx = None;
+        //        tbl[current as usize].rx = None;
     }
 
     actives[aff] = None;
@@ -261,7 +292,7 @@ pub fn exit() -> ! {
     // TODO: unset canary
     // TODO: deallocate process's heap
 
-    schedule2(mask, lock);
+    schedule2(mask, proc_info);
     unreachable!()
 }
 
@@ -274,43 +305,65 @@ fn gc_stack() {
     }
 }
 
-fn schedule2(mask: InterMask, lock: MCSLockGuard<()>) {
+fn schedule2(mask: InterMask, mut proc_info: MCSLockGuard<ProcInfo>) {
     // get next
-    let tbl = get_process_table();
-    let ready = get_readyq();
+    let (tbl, readyq) = proc_info.get_mut();
     let actives = get_actives();
-    let next = ready.deque(tbl);
+    let next = readyq.deque(tbl);
     let aff = core_pos();
 
     if let Some(next) = next {
+        let next_ctx;
+
         // move the current process to Ready queue
         if let Some(current) = actives[aff] {
-            tbl[current as usize].state = State::Ready;
-            ready.enque(current, tbl);
+            if let Some(entry) = tbl[current as usize].as_mut() {
+                entry.state = State::Ready;
+            } else {
+                return;
+            }
+
+            readyq.enque(current, tbl);
 
             // make the next process Active
             actives[aff] = Some(next);
-            tbl[next as usize].state = State::Active;
+            if let Some(entry) = tbl[next as usize].as_mut() {
+                entry.state = State::Active;
+            } else {
+                return;
+            }
 
-            lock.unlock();
+            next_ctx = unsafe { proc_info.get_ctx(next as usize) };
+            let current_ctx = unsafe { proc_info.get_ctx(current as usize) };
+
+            proc_info.unlock();
             mask.unmask();
 
-            if tbl[current as usize].regs.save_context() > 0 {
-                return;
+            unsafe {
+                if (*current_ctx).save_context() > 0 {
+                    return;
+                }
             }
         } else {
             // make the next process Active
             actives[aff] = Some(next);
-            tbl[next as usize].state = State::Active;
+            if let Some(entry) = tbl[next as usize].as_mut() {
+                entry.state = State::Active;
+            } else {
+                return;
+            }
+            next_ctx = unsafe { proc_info.get_ctx(next as usize) };
 
-            lock.unlock();
+            proc_info.unlock();
             mask.unmask();
         }
 
         // context switch
-        tbl[next as usize].regs.context_switch();
+        unsafe {
+            (*next_ctx).context_switch();
+        }
     } else if None == actives[aff] {
-        lock.unlock();
+        proc_info.unlock();
         mask.unmask();
 
         crate::aarch64::smc::done();
@@ -324,9 +377,9 @@ pub fn schedule() {
 
     // aqcuire lock
     let mut node = MCSNode::new();
-    let lock = lock(&mut node);
+    let proc_info = PROC_INFO.lock(&mut node);
 
-    schedule2(mask, lock);
+    schedule2(mask, proc_info);
 }
 
 /// Get the process ID.
@@ -338,5 +391,12 @@ pub fn get_id() -> u32 {
 
     let actives = get_actives();
     let id = actives[aff].unwrap();
-    get_process_table()[id as usize].get_pid()
+
+    let mut node = MCSNode::new();
+    let proc_info = PROC_INFO.lock(&mut node);
+    if let Some(entry) = proc_info.table[id as usize].as_ref() {
+        entry.get_pid()
+    } else {
+        0
+    }
 }
