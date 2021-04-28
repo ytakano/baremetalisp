@@ -56,6 +56,9 @@ link.ld.$(BSP): link.ld
 baremetalisp: $(RUSTLIB) $(MMU_OBJ) $(ASM_OBJ) link.ld.$(BSP)
 	$(LD) --gc-sections -m aarch64elf -nostdlib -T link.ld.$(BSP) -o baremetalisp $(ASM_OBJ) $(RUSTLIB)
 
+clippy:
+	cargo clippy --features $(BSP)
+
 kernel8.img: baremetalisp
 	rust-objcopy -O binary baremetalisp kernel8.img
 

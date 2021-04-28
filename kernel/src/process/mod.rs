@@ -1,5 +1,5 @@
 mod int;
-//mod ringq;
+mod ringq;
 //mod semaphore;
 
 use crate::aarch64::context::GpRegs;
@@ -8,14 +8,13 @@ use crate::driver::topology::{core_pos, CORE_COUNT};
 
 use int::InterMask;
 
-use alloc::alloc;
+use ::alloc::alloc;
 use arr_macro::arr;
 use core::ptr::null_mut;
 use synctools::mcs::{MCSLock, MCSLockGuard, MCSNode};
 
 const PROCESS_MAX: usize = 256;
 const STACK_SIZE: usize = 2 * 1024 * 1024;
-const QUEUE_SIZE: usize = 8;
 
 static mut ACTIVES: [Option<u8>; CORE_COUNT] = [None; CORE_COUNT];
 static mut FREE_STACK: [Option<*mut u8>; CORE_COUNT] = [None; CORE_COUNT];
@@ -119,8 +118,8 @@ struct Process {
     state: State,
     next: Option<u8>,
     stack: *mut u8,
-    //tx: Option<ringq::Sender<u32, QUEUE_SIZE>>,
-    //rx: Option<ringq::Receiver<u32, QUEUE_SIZE>>,
+    tx: *const ringq::Chan<u32>,
+    rx: *const ringq::Chan<u32>,
     id: u8,
     cnt: u16,
 }
@@ -132,9 +131,9 @@ impl Process {
             state: State::Ready,
             next: None,
             stack: null_mut(),
-            //tx: None,
-            //rx: None,
-            id: id,
+            tx: null_mut(),
+            rx: null_mut(),
+            id,
             cnt: 0,
         }
     }
@@ -158,7 +157,7 @@ pub fn init() {
     // disable FIQ, IRQ, Abort, Debug
     let mask = InterMask::new();
 
-    //let (tx, rx) = ringq::Chan::<u32, QUEUE_SIZE>::new(0 as u8);
+    let (tx, rx) = ringq::Chan::<u32>::new(0);
 
     // allocate stack
     let layout = alloc::Layout::from_size_align(STACK_SIZE, mmu::PAGESIZE as usize).unwrap();
@@ -169,7 +168,7 @@ pub fn init() {
     let mut proc_info = PROC_INFO.lock(&mut node);
 
     // initialize the init process
-    init_process(0, &mut proc_info, stack);
+    init_process(0, &mut proc_info, stack, tx.into_raw(), rx.into_raw());
 
     // enque the process to Ready queue
     let (tbl, readyq) = proc_info.get_mut();
@@ -183,7 +182,13 @@ fn goto_el0() {
     unsafe { asm!("eret") }
 }
 
-fn init_process(id: usize, proc_info: &mut MCSLockGuard<ProcInfo>, stack: *mut u8) {
+fn init_process(
+    id: usize,
+    proc_info: &mut MCSLockGuard<ProcInfo>,
+    stack: *mut u8,
+    tx: *const ringq::Chan<u32>,
+    rx: *const ringq::Chan<u32>,
+) {
     let tbl = &mut proc_info.table;
 
     // initialize
@@ -197,16 +202,11 @@ fn init_process(id: usize, proc_info: &mut MCSLockGuard<ProcInfo>, stack: *mut u
     proc.regs.x30 = goto_el0 as u64;
     proc.cnt += 1;
     proc.stack = stack;
+    proc.tx = tx;
+    proc.rx = rx;
 
     tbl[id] = Some(proc);
-    //tbl[id].tx = Some(tx);
-    //tbl[id].rx = Some(rx);
 
-    /*
-    let (tx, rx) = ringq::Chan::<u32, QUEUE_SIZE>::new(id as u8);
-        tbl[id].tx = Some(tx);
-        tbl[id].rx = Some(rx);
-    */
     // TODO: set canary
     // TODO: allocate process's heap
 }
@@ -220,7 +220,7 @@ pub fn spawn(app: u64) -> Option<u32> {
     let mask = InterMask::new();
 
     // create channel
-    //let (tx, rx) = ringq::Chan::<u32, QUEUE_SIZE>::new(0 as u8);
+    let (tx, rx) = ringq::Chan::<u32>::new(0);
 
     // allocate stack
     let layout = alloc::Layout::from_size_align(STACK_SIZE, mmu::PAGESIZE as usize).unwrap();
@@ -234,8 +234,9 @@ pub fn spawn(app: u64) -> Option<u32> {
 
     // find empty slot
     let mut id: Option<u8> = None;
-    for i in 0..PROCESS_MAX {
-        if let None = tbl[i] {
+    //    for i in 0..PROCESS_MAX {
+    for (i, item) in tbl.iter().enumerate().take(PROCESS_MAX) {
+        if item.is_none() {
             id = Some(i as u8);
             break;
         }
@@ -244,7 +245,13 @@ pub fn spawn(app: u64) -> Option<u32> {
     let id = id?;
 
     // initialize process
-    init_process(id as usize, &mut proc_info, stack);
+    init_process(
+        id as usize,
+        &mut proc_info,
+        stack,
+        tx.into_raw(),
+        rx.into_raw(),
+    );
 
     let (tbl, readyq) = proc_info.get_mut();
     readyq.enque(id, tbl);
@@ -280,11 +287,18 @@ pub fn exit() -> ! {
     let actives = get_actives();
     if let Some(current) = actives[aff] {
         if let Some(entry) = tbl[current as usize].as_mut() {
+            unsafe {
+                if entry.tx != null_mut() {
+                    ringq::Sender::from_raw(entry.tx);
+                }
+
+                if entry.rx != null_mut() {
+                    ringq::Receiver::from_raw(entry.rx);
+                }
+            }
             get_free_stack()[aff] = Some(entry.stack); // stack to be freed
         }
         tbl[current as usize] = None;
-        //        tbl[current as usize].tx = None;
-        //        tbl[current as usize].rx = None;
     }
 
     actives[aff] = None;

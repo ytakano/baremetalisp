@@ -2,7 +2,6 @@ use crate::driver::uart;
 use crate::syscall;
 
 use alloc::boxed::Box;
-use blisp;
 use num_bigint::BigInt;
 use num_traits::{FromPrimitive, ToPrimitive};
 
@@ -103,7 +102,6 @@ fn get_app(id: usize) -> Option<&'static str> {
 
 #[no_mangle]
 pub fn el0_entry(app: usize) -> ! {
-    uart::puts("entered EL0\n");
     if let Some(s) = get_app(app) {
         run_lisp(s);
     } else {

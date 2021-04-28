@@ -333,10 +333,10 @@ impl TTable {
         }
 
         TTable {
-            tt_lv2: tt_lv2,
-            tt_lv3: tt_lv3,
-            num_lv2: num_lv2,
-            num_lv3: num_lv3,
+            tt_lv2,
+            tt_lv3,
+            num_lv2,
+            num_lv3,
         }
     }
 

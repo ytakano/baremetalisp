@@ -2,32 +2,30 @@ use crate::driver::topology::core_pos;
 
 use super::*;
 use ::alloc::sync::Arc;
-use core::mem::MaybeUninit;
 use synctools::mcs::{MCSLock, MCSNode};
 
-struct RingQ<T, const N: usize> {
-    buf: [Option<T>; N],
+const QUEUE_SIZE: usize = 8;
+
+struct RingQ<T> {
+    buf: [Option<T>; QUEUE_SIZE],
     head: usize,
     last: usize,
 }
 
-pub(super) struct Chan<T, const N: usize> {
-    q: MCSLock<RingQ<T, N>>,
+pub(super) struct Chan<T> {
+    q: MCSLock<RingQ<T>>,
     pid: u8,
 }
 
-impl<T: Send, const N: usize> RingQ<T, N> {
-    const BIT_MASK: usize = N - 1;
+impl<T: Send> RingQ<T> {
+    const BIT_MASK: usize = QUEUE_SIZE - 1;
 
     fn new() -> Self {
-        crate::driver::uart::puts("RingQ::new() 0\n");
-
         // check N == 2^x
-        assert!((N != 0) && (N & (N - 1)) == 0);
-        crate::driver::uart::puts("RingQ::new() 1\n");
+        assert!((QUEUE_SIZE != 0) && (QUEUE_SIZE & (QUEUE_SIZE - 1)) == 0);
 
         RingQ {
-            buf: unsafe { MaybeUninit::uninit().assume_init() },
+            buf: arr![None; 8], // QUEUE_SIZE == 8
             head: 0,
             last: 0,
         }
@@ -56,16 +54,14 @@ impl<T: Send, const N: usize> RingQ<T, N> {
     }
 }
 
-impl<T: Send, const N: usize> Chan<T, N> {
-    pub(super) fn new(pid: u8) -> (Sender<T, N>, Receiver<T, N>) {
-        crate::driver::uart::puts("Chan::new() 0\n");
+impl<T: Send> Chan<T> {
+    pub(super) fn new(pid: u8) -> (Sender<T>, Receiver<T>) {
+        crate::driver::delays::wait_milisec(100);
 
         let ch = Chan {
             q: MCSLock::new(RingQ::new()),
             pid,
         };
-
-        crate::driver::uart::puts("Chan::new() 1\n");
 
         let ch = Arc::new(ch);
 
@@ -74,11 +70,11 @@ impl<T: Send, const N: usize> Chan<T, N> {
 }
 
 #[derive(Clone)]
-pub(super) struct Sender<T, const N: usize> {
-    ch: Arc<Chan<T, N>>,
+pub(super) struct Sender<T> {
+    ch: Arc<Chan<T>>,
 }
 
-impl<T: Send, const N: usize> Sender<T, N> {
+impl<T: Send> Sender<T> {
     pub(super) fn send(&self, v: T) -> Result<(), T> {
         let mut node = MCSNode::new();
         let mask = InterMask::new();
@@ -104,13 +100,23 @@ impl<T: Send, const N: usize> Sender<T, N> {
 
         Ok(())
     }
+
+    pub(super) fn into_raw(self) -> *const Chan<T> {
+        Arc::into_raw(self.ch)
+    }
+
+    pub(super) unsafe fn from_raw(ptr: *const Chan<T>) -> Self {
+        Sender {
+            ch: Arc::from_raw(ptr),
+        }
+    }
 }
 
-pub(super) struct Receiver<T, const N: usize> {
-    ch: Arc<Chan<T, N>>,
+pub(super) struct Receiver<T> {
+    ch: Arc<Chan<T>>,
 }
 
-impl<T: Send, const N: usize> Receiver<T, N> {
+impl<T: Send> Receiver<T> {
     pub(super) fn recv(&self) -> T {
         let mut node = MCSNode::new();
 
@@ -142,6 +148,16 @@ impl<T: Send, const N: usize> Receiver<T, N> {
 
                 schedule();
             }
+        }
+    }
+
+    pub(super) fn into_raw(self) -> *const Chan<T> {
+        Arc::into_raw(self.ch)
+    }
+
+    pub(super) unsafe fn from_raw(ptr: *const Chan<T>) -> Self {
+        Receiver {
+            ch: Arc::from_raw(ptr),
         }
     }
 }
