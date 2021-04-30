@@ -3,6 +3,8 @@ pub const SYS_SPAWN: u64 = 1;
 pub const SYS_EXIT: u64 = 2;
 pub const SYS_SCHED: u64 = 3;
 pub const SYS_GETPID: u64 = 4;
+pub const SYS_SEND: u64 = 5;
+pub const SYS_RECV: u64 = 6;
 
 macro_rules! syscall {
     ($id:expr) => {
@@ -83,4 +85,18 @@ pub fn sched_yield() {
 pub fn getpid() -> u32 {
     let id = syscall!(SYS_GETPID);
     id as u32
+}
+
+/// Send val to dst
+pub fn send(dst: u32, val: u32) -> bool {
+    if syscall!(SYS_SEND, dst as u64, val as u64) == 1 {
+        true
+    } else {
+        false
+    }
+}
+
+/// Receive a value
+pub fn recv() -> u32 {
+    syscall!(SYS_RECV) as u32
 }

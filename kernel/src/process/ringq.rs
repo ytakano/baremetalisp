@@ -10,6 +10,7 @@ struct RingQ<T> {
     buf: [Option<T>; QUEUE_SIZE],
     head: usize,
     last: usize,
+    num: usize,
 }
 
 pub(super) struct Chan<T> {
@@ -28,29 +29,32 @@ impl<T: Send> RingQ<T> {
             buf: arr![None; 8], // QUEUE_SIZE == 8
             head: 0,
             last: 0,
+            num: 0,
         }
     }
 
     fn enque(&mut self, v: T) -> Result<(), T> {
-        let next = (self.last + 1) & Self::BIT_MASK;
-        if next == self.head {
-            Err(v)
-        } else {
-            self.last = next;
-            self.buf[next] = Some(v);
-            Ok(())
+        if self.num >= QUEUE_SIZE {
+            return Err(v);
         }
+
+        self.buf[self.last] = Some(v);
+        self.num += 1;
+        self.last += 1;
+
+        Ok(())
     }
 
     fn deque(&mut self) -> Option<T> {
-        if self.head == self.last {
-            None
-        } else {
-            let v = self.buf[self.head].take();
-            self.buf[self.head] = None;
-            self.head += 1;
-            Some(v.unwrap())
+        if self.num == 0 {
+            return None;
         }
+
+        let v = self.buf[self.head].take();
+        self.head += 1;
+        self.num -= 1;
+
+        v
     }
 }
 

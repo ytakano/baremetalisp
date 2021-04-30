@@ -9,3 +9,13 @@
     (match (call-rust 4 0 0)
         ((Some id) id)
         (_ 0))) ; unreachable
+
+(export send (dst val) (IO (-> (Int Int) Bool))
+    (match (call-rust 5 dst val)
+        ((Some _) true)
+        (_ false)))
+
+(export recv () (IO (-> () Int))
+    (match (call-rust 6 0 0)
+        ((Some val) val)
+        (_ 0))) ; unreachable

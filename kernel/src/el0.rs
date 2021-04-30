@@ -3,11 +3,11 @@ use crate::syscall;
 
 use alloc::boxed::Box;
 use num_bigint::BigInt;
-use num_traits::{FromPrimitive, ToPrimitive};
+use num_traits::{FromPrimitive, ToPrimitive, Zero};
 
 const APPS: &'static [&'static str] = &[include_str!("init.lisp")];
 
-fn callback(x: &BigInt, y: &BigInt, _z: &BigInt) -> Option<BigInt> {
+fn callback(x: &BigInt, y: &BigInt, z: &BigInt) -> Option<BigInt> {
     let c = x.to_u64()?;
     match c {
         syscall::SYS_SPAWN => {
@@ -26,7 +26,23 @@ fn callback(x: &BigInt, y: &BigInt, _z: &BigInt) -> Option<BigInt> {
             let id = BigInt::from_u32(id)?;
             Some(id)
         }
-        _ => None,
+        syscall::SYS_SEND => {
+            if syscall::send(y.to_u32()?, z.to_u32()?) {
+                Some(Zero::zero())
+            } else {
+                None
+            }
+        }
+        syscall::SYS_RECV => {
+            let val = syscall::recv();
+            let val = BigInt::from_u32(val)?;
+            Some(val)
+        }
+        _ => {
+            let msg = format!("unsupported syscall: {}\n", c);
+            uart::puts(&msg);
+            None
+        }
     }
 }
 

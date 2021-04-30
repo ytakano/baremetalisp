@@ -10,7 +10,7 @@ use int::InterMask;
 
 use ::alloc::alloc;
 use arr_macro::arr;
-use core::ptr::null_mut;
+use core::ptr::{null, null_mut};
 use synctools::mcs::{MCSLock, MCSLockGuard, MCSNode};
 
 const PROCESS_MAX: usize = 256;
@@ -18,6 +18,7 @@ const STACK_SIZE: usize = 2 * 1024 * 1024;
 
 static mut ACTIVES: [Option<u8>; CORE_COUNT] = [None; CORE_COUNT];
 static mut FREE_STACK: [Option<*mut u8>; CORE_COUNT] = [None; CORE_COUNT];
+static mut RECEIVER: [*const ringq::Chan<u32>; PROCESS_MAX] = [null(); PROCESS_MAX];
 
 static PROC_INFO: MCSLock<ProcInfo> = MCSLock::new(ProcInfo::new());
 
@@ -119,7 +120,6 @@ struct Process {
     next: Option<u8>,
     stack: *mut u8,
     tx: *const ringq::Chan<u32>,
-    rx: *const ringq::Chan<u32>,
     id: u8,
     cnt: u16,
 }
@@ -131,8 +131,7 @@ impl Process {
             state: State::Ready,
             next: None,
             stack: null_mut(),
-            tx: null_mut(),
-            rx: null_mut(),
+            tx: null(),
             id,
             cnt: 0,
         }
@@ -144,6 +143,14 @@ impl Process {
 
     fn pid_to_id_cnt(pid: u32) -> (u8, u16) {
         ((pid & 0xff) as u8, (pid >> 8) as u16)
+    }
+
+    fn get_tx(&mut self) -> ringq::Sender<u32> {
+        assert_ne!(self.tx, null_mut());
+        let tx = unsafe { ringq::Sender::from_raw(self.tx) };
+        let ret = tx.clone();
+        self.tx = tx.into_raw();
+        ret
     }
 }
 
@@ -203,7 +210,8 @@ fn init_process(
     proc.cnt += 1;
     proc.stack = stack;
     proc.tx = tx;
-    proc.rx = rx;
+
+    unsafe { RECEIVER[id] = rx };
 
     tbl[id] = Some(proc);
 
@@ -292,8 +300,9 @@ pub fn exit() -> ! {
                     ringq::Sender::from_raw(entry.tx);
                 }
 
-                if entry.rx != null_mut() {
-                    ringq::Receiver::from_raw(entry.rx);
+                let rx = RECEIVER[current as usize];
+                if rx != null() {
+                    ringq::Receiver::from_raw(rx);
                 }
             }
             get_free_stack()[aff] = Some(entry.stack); // stack to be freed
@@ -413,4 +422,51 @@ pub fn get_id() -> u32 {
     } else {
         0
     }
+}
+
+pub fn send(dst: u32, val: u32) -> bool {
+    let id = dst & 0xff;
+    let cnt = dst >> 8;
+
+    // disable FIQ, IRQ, Abort, Debug
+    let mask = InterMask::new();
+    let mut node = MCSNode::new();
+    let mut proc_info = PROC_INFO.lock(&mut node);
+
+    if let Some(p) = proc_info.table[id as usize].as_mut() {
+        if p.cnt != cnt as u16 {
+            return false;
+        }
+
+        let tx = p.get_tx();
+
+        proc_info.unlock();
+        mask.unmask();
+
+        tx.send(val).is_ok()
+    } else {
+        false
+    }
+}
+
+pub fn recv() -> u32 {
+    let aff = core_pos();
+    let id = if let Some(id) = get_actives()[aff] {
+        id
+    } else {
+        panic!("no active process");
+    };
+
+    let rx = unsafe {
+        let ptr = RECEIVER[id as usize];
+        assert_ne!(ptr, null());
+        RECEIVER[id as usize] = null();
+        ringq::Receiver::from_raw(ptr)
+    };
+
+    let ret = rx.recv();
+
+    unsafe { RECEIVER[id as usize] = rx.into_raw() };
+
+    ret
 }
