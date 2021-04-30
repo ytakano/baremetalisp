@@ -2,9 +2,9 @@ mod int;
 mod ringq;
 //mod semaphore;
 
-use crate::aarch64::context::GpRegs;
 use crate::aarch64::mmu;
 use crate::driver::topology::{core_pos, CORE_COUNT};
+use crate::{aarch64::context::GpRegs, syscall::Locator};
 
 use int::InterMask;
 
@@ -18,9 +18,17 @@ const STACK_SIZE: usize = 2 * 1024 * 1024;
 
 static mut ACTIVES: [Option<u8>; CORE_COUNT] = [None; CORE_COUNT];
 static mut FREE_STACK: [Option<*mut u8>; CORE_COUNT] = [None; CORE_COUNT];
-static mut RECEIVER: [*const ringq::Chan<u32>; PROCESS_MAX] = [null(); PROCESS_MAX];
+static mut RECEIVER: [*const ringq::Chan<Msg>; PROCESS_MAX] = [null(); PROCESS_MAX];
 
 static PROC_INFO: MCSLock<ProcInfo> = MCSLock::new(ProcInfo::new());
+
+#[derive(Clone)]
+struct Msg {
+    loc: Locator,
+    val: u32,
+}
+
+unsafe impl Send for Msg {}
 
 struct ProcInfo {
     table: [Option<Process>; PROCESS_MAX],
@@ -119,7 +127,7 @@ struct Process {
     state: State,
     next: Option<u8>,
     stack: *mut u8,
-    tx: *const ringq::Chan<u32>,
+    tx: *const ringq::Chan<Msg>,
     id: u8,
     cnt: u16,
 }
@@ -145,7 +153,7 @@ impl Process {
         ((pid & 0xff) as u8, (pid >> 8) as u16)
     }
 
-    fn get_tx(&mut self) -> ringq::Sender<u32> {
+    fn get_tx(&mut self) -> ringq::Sender<Msg> {
         assert_ne!(self.tx, null_mut());
         let tx = unsafe { ringq::Sender::from_raw(self.tx) };
         let ret = tx.clone();
@@ -164,7 +172,8 @@ pub fn init() {
     // disable FIQ, IRQ, Abort, Debug
     let mask = InterMask::new();
 
-    let (tx, rx) = ringq::Chan::<u32>::new(0);
+    let ch = ringq::Chan::<Msg>::new(0);
+    let (tx, rx) = ch.channel();
 
     // allocate stack
     let layout = alloc::Layout::from_size_align(STACK_SIZE, mmu::PAGESIZE as usize).unwrap();
@@ -193,8 +202,8 @@ fn init_process(
     id: usize,
     proc_info: &mut MCSLockGuard<ProcInfo>,
     stack: *mut u8,
-    tx: *const ringq::Chan<u32>,
-    rx: *const ringq::Chan<u32>,
+    tx: *const ringq::Chan<Msg>,
+    rx: *const ringq::Chan<Msg>,
 ) {
     let tbl = &mut proc_info.table;
 
@@ -228,7 +237,7 @@ pub fn spawn(app: u64) -> Option<u32> {
     let mask = InterMask::new();
 
     // create channel
-    let (tx, rx) = ringq::Chan::<u32>::new(0);
+    let mut ch = ringq::Chan::<Msg>::new(0);
 
     // allocate stack
     let layout = alloc::Layout::from_size_align(STACK_SIZE, mmu::PAGESIZE as usize).unwrap();
@@ -251,6 +260,8 @@ pub fn spawn(app: u64) -> Option<u32> {
     }
 
     let id = id?;
+    ch.set_pid(id);
+    let (tx, rx) = ch.channel();
 
     // initialize process
     init_process(
@@ -424,9 +435,15 @@ pub fn get_id() -> u32 {
     }
 }
 
-pub fn send(dst: u32, val: u32) -> bool {
-    let id = dst & 0xff;
-    let cnt = dst >> 8;
+pub fn send(dst: &Locator, val: u32) -> bool {
+    let addr = if let Locator::Process(a) = dst {
+        a
+    } else {
+        return false;
+    };
+
+    let id = addr & 0xff;
+    let cnt = addr >> 8;
 
     // disable FIQ, IRQ, Abort, Debug
     let mask = InterMask::new();
@@ -443,13 +460,13 @@ pub fn send(dst: u32, val: u32) -> bool {
         proc_info.unlock();
         mask.unmask();
 
-        tx.send(val).is_ok()
+        tx.send(Msg { loc: *dst, val }).is_ok()
     } else {
         false
     }
 }
 
-pub fn recv() -> u32 {
+pub fn recv(src: &mut Locator) -> u32 {
     let aff = core_pos();
     let id = if let Some(id) = get_actives()[aff] {
         id
@@ -468,5 +485,6 @@ pub fn recv() -> u32 {
 
     unsafe { RECEIVER[id as usize] = rx.into_raw() };
 
-    ret
+    *src = ret.loc;
+    ret.val
 }

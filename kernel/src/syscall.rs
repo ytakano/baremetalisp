@@ -6,6 +6,13 @@ pub const SYS_GETPID: u64 = 4;
 pub const SYS_SEND: u64 = 5;
 pub const SYS_RECV: u64 = 6;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Locator {
+    Process(u32),
+    Device(u32),
+    Unknown,
+}
+
 macro_rules! syscall {
     ($id:expr) => {
         {
@@ -88,8 +95,8 @@ pub fn getpid() -> u32 {
 }
 
 /// Send val to dst
-pub fn send(dst: u32, val: u32) -> bool {
-    if syscall!(SYS_SEND, dst as u64, val as u64) == 1 {
+pub fn send(dst: &Locator, val: u32) -> bool {
+    if syscall!(SYS_SEND, dst as *const Locator, val as u64) == 1 {
         true
     } else {
         false
@@ -97,6 +104,6 @@ pub fn send(dst: u32, val: u32) -> bool {
 }
 
 /// Receive a value
-pub fn recv() -> u32 {
-    syscall!(SYS_RECV) as u32
+pub fn recv(src: &mut Locator) -> u32 {
+    syscall!(SYS_RECV, src as *mut Locator) as u32
 }

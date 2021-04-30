@@ -1,4 +1,7 @@
-use crate::{process, syscall};
+use crate::{
+    process,
+    syscall::{self, Locator},
+};
 
 use super::context::GpRegs;
 
@@ -17,9 +20,13 @@ pub(super) fn handle64(regs: &GpRegs) -> i64 {
             0
         }
         syscall::SYS_GETPID => process::get_id() as i64,
-        syscall::SYS_RECV => process::recv() as i64,
+        syscall::SYS_RECV => {
+            let src = unsafe { &mut *(regs.x1 as *mut Locator) };
+            process::recv(src) as i64
+        }
         syscall::SYS_SEND => {
-            if process::send(regs.x1 as u32, regs.x2 as u32) {
+            let dst = unsafe { &*(regs.x1 as *const Locator) };
+            if process::send(dst, regs.x2 as u32) {
                 1
             } else {
                 0

@@ -59,16 +59,19 @@ impl<T: Send> RingQ<T> {
 }
 
 impl<T: Send> Chan<T> {
-    pub(super) fn new(pid: u8) -> (Sender<T>, Receiver<T>) {
-        crate::driver::delays::wait_milisec(100);
-
-        let ch = Chan {
+    pub(super) fn new(pid: u8) -> Self {
+        Chan {
             q: MCSLock::new(RingQ::new()),
             pid,
-        };
+        }
+    }
 
-        let ch = Arc::new(ch);
+    pub(super) fn set_pid(&mut self, pid: u8) {
+        self.pid = pid;
+    }
 
+    pub(super) fn channel(self) -> (Sender<T>, Receiver<T>) {
+        let ch = Arc::new(self);
         (Sender { ch: ch.clone() }, Receiver { ch })
     }
 }
@@ -130,11 +133,13 @@ impl<T: Send> Receiver<T> {
             if let Some(r) = q.deque() {
                 return r;
             } else {
+                let aff = core_pos();
+                let actives = get_actives();
+                let current = actives[aff].unwrap(); // must be active
+                let current_ctx;
+
                 {
                     // make this thread's state Recv
-                    let aff = core_pos();
-                    let actives = get_actives();
-                    let current = actives[aff].unwrap(); // must be active
 
                     let mut node = MCSNode::new();
                     let mut proc_info = PROC_INFO.lock(&mut node);
@@ -144,13 +149,21 @@ impl<T: Send> Receiver<T> {
                     } else {
                         panic!("no current process");
                     }
-                    actives[aff] = None;
+                    current_ctx = unsafe { proc_info.get_ctx(current as usize) };
                 }
+
+                actives[aff] = None;
 
                 q.unlock();
                 mask.unmask();
 
-                schedule();
+                // switch context
+                unsafe {
+                    if (*current_ctx).save_context() == 0 {
+                        schedule();
+                        unreachable!();
+                    }
+                }
             }
         }
     }

@@ -1,5 +1,5 @@
-use crate::driver::uart;
 use crate::syscall;
+use crate::{driver::uart, syscall::Locator};
 
 use alloc::boxed::Box;
 use num_bigint::BigInt;
@@ -27,14 +27,16 @@ fn callback(x: &BigInt, y: &BigInt, z: &BigInt) -> Option<BigInt> {
             Some(id)
         }
         syscall::SYS_SEND => {
-            if syscall::send(y.to_u32()?, z.to_u32()?) {
+            let loc = Locator::Process(y.to_u32()?);
+            if syscall::send(&loc, z.to_u32()?) {
                 Some(Zero::zero())
             } else {
                 None
             }
         }
         syscall::SYS_RECV => {
-            let val = syscall::recv();
+            let mut loc = Locator::Unknown;
+            let val = syscall::recv(&mut loc);
             let val = BigInt::from_u32(val)?;
             Some(val)
         }
