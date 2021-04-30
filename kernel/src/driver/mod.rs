@@ -1,6 +1,7 @@
 pub(crate) mod defs;
 pub(crate) mod delays;
 mod device;
+pub(crate) mod gic;
 pub(crate) mod memory;
 mod setup;
 pub(crate) mod topology;
