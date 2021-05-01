@@ -79,3 +79,5 @@ pub(in crate::driver) fn recv() -> u32 {
     }
     c as u32
 }
+
+pub(in crate::driver) fn enable_recv_int() {}

@@ -20,6 +20,12 @@ fn recv() -> u32 {
     return uart::recv();
 }
 
+pub(crate) fn enable_recv_int() {
+    //let mut node = mcs::MCSNode::new();
+    //let _lock = lock(&mut node);
+    uart::enable_recv_int();
+}
+
 pub(crate) fn init() {
     uart::init(UART_CLOCK, UART_BAUD);
 }
@@ -59,6 +65,19 @@ pub(crate) fn hex32(h: u32) {
         let mut n = (h >> i) & 0xF;
         n += if n > 9 { 0x37 } else { 0x30 };
         send(n as u32);
+    }
+}
+
+/// print a 8-bit value in binary to serial console
+pub(crate) fn bin8(b: u8) {
+    let mut node = mcs::MCSNode::new();
+    let _lock = lock(&mut node);
+    for i in (0..8).rev() {
+        if (1 << i) & b == 0 {
+            send(0x30);
+        } else {
+            send(0x31);
+        }
     }
 }
 

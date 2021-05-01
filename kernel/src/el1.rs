@@ -1,4 +1,4 @@
-use crate::aarch64::mmu;
+use crate::aarch64::{cpu, mmu};
 use crate::driver::topology;
 use crate::driver::uart;
 use crate::process;
@@ -14,6 +14,10 @@ extern "C" {
 }
 
 pub fn el1_entry() {
+    // enable IRQ and FIQ
+    let daif = cpu::daif::get();
+    cpu::daif::set(daif & !((cpu::DAIF_IRQ_BIT | cpu::DAIF_FIQ_BIT) << cpu::SPSR_DAIF_SHIFT));
+
     let aff = topology::core_pos() as u64;
 
     // spawn init process

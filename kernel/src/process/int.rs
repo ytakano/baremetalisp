@@ -8,7 +8,7 @@ impl InterMask {
     pub(super) fn new() -> InterMask {
         // disable FIQ, IRQ, Abort, Debug
         let prev = cpu::daif::get();
-        cpu::daif::set(prev | cpu::DISABLE_ALL_EXCEPTIONS);
+        cpu::daif::set(prev | (cpu::DISABLE_ALL_EXCEPTIONS << cpu::SPSR_DAIF_SHIFT));
 
         InterMask { prev }
     }

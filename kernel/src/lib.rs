@@ -11,6 +11,7 @@ mod boot;
 mod driver;
 mod el0;
 mod el1;
+mod mmio;
 mod process;
 mod smc;
 mod syscall;
@@ -45,6 +46,28 @@ pub fn print_msg(key: &str, val: &str) {
     }
     driver::uart::puts("] ");
     driver::uart::puts(val);
+    driver::uart::puts("\n");
+}
+
+pub fn print_hex32(key: &str, n: u32) {
+    driver::uart::puts("[");
+    driver::uart::puts(key);
+    for _ in key.len()..12 {
+        driver::uart::puts(" ");
+    }
+    driver::uart::puts("] 0x");
+    driver::uart::hex32(n);
+    driver::uart::puts("\n");
+}
+
+pub fn print_bin8(key: &str, n: u8) {
+    driver::uart::puts("[");
+    driver::uart::puts(key);
+    for _ in key.len()..12 {
+        driver::uart::puts(" ");
+    }
+    driver::uart::puts("] 0b");
+    driver::uart::bin8(n);
     driver::uart::puts("\n");
 }
 
