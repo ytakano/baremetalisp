@@ -307,12 +307,12 @@ pub fn exit() -> ! {
     if let Some(current) = actives[aff] {
         if let Some(entry) = tbl[current as usize].as_mut() {
             unsafe {
-                if entry.tx != null_mut() {
+                if entry.tx.is_null() {
                     ringq::Sender::from_raw(entry.tx);
                 }
 
                 let rx = RECEIVER[current as usize];
-                if rx != null() {
+                if rx.is_null() {
                     ringq::Receiver::from_raw(rx);
                 }
             }
@@ -352,12 +352,13 @@ fn schedule2(mask: InterMask, mut proc_info: MCSLockGuard<ProcInfo>) {
         // move the current process to Ready queue
         if let Some(current) = actives[aff] {
             if let Some(entry) = tbl[current as usize].as_mut() {
-                entry.state = State::Ready;
+                if entry.state == State::Active {
+                    entry.state = State::Ready;
+                    readyq.enque(current, tbl);
+                }
             } else {
                 return;
             }
-
-            readyq.enque(current, tbl);
 
             // make the next process Active
             actives[aff] = Some(next);

@@ -99,11 +99,8 @@ impl<T: Send> Sender<T> {
             }
         }
 
-        proc_info.unlock();
         q.unlock();
-        mask.unmask();
-
-        schedule();
+        schedule2(mask, proc_info);
 
         Ok(())
     }
@@ -136,34 +133,19 @@ impl<T: Send> Receiver<T> {
                 let aff = core_pos();
                 let actives = get_actives();
                 let current = actives[aff].unwrap(); // must be active
-                let current_ctx;
 
-                {
-                    // make this thread's state Recv
+                // make this thread's state Recv
+                let mut node = MCSNode::new();
+                let mut proc_info = PROC_INFO.lock(&mut node);
 
-                    let mut node = MCSNode::new();
-                    let mut proc_info = PROC_INFO.lock(&mut node);
-
-                    if let Some(entry) = proc_info.table[current as usize].as_mut() {
-                        entry.state = State::Recv;
-                    } else {
-                        panic!("no current process");
-                    }
-                    current_ctx = unsafe { proc_info.get_ctx(current as usize) };
+                if let Some(entry) = proc_info.table[current as usize].as_mut() {
+                    entry.state = State::Recv;
+                } else {
+                    panic!("no current process");
                 }
-
-                actives[aff] = None;
 
                 q.unlock();
-                mask.unmask();
-
-                // switch context
-                unsafe {
-                    if (*current_ctx).save_context() == 0 {
-                        schedule();
-                        unreachable!();
-                    }
-                }
+                schedule2(mask, proc_info);
             }
         }
     }
