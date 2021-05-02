@@ -6,14 +6,15 @@
 #![allow(dead_code)]
 
 mod aarch64;
-mod bits;
-mod boot;
+//mod bits;
 mod driver;
 mod el0;
 mod el1;
+mod global;
 mod mmio;
 mod process;
 mod smc;
+mod splash;
 mod syscall;
 
 #[macro_use]
@@ -38,10 +39,12 @@ pub fn entry() {
     driver::delays::forever()
 }
 
+const KEY_WIDTH: usize = 16;
+
 pub fn print_msg(key: &str, val: &str) {
     driver::uart::puts("[");
     driver::uart::puts(key);
-    for _ in key.len()..12 {
+    for _ in key.len()..KEY_WIDTH {
         driver::uart::puts(" ");
     }
     driver::uart::puts("] ");
@@ -49,10 +52,21 @@ pub fn print_msg(key: &str, val: &str) {
     driver::uart::puts("\n");
 }
 
+pub fn print_decimal(key: &str, n: u64) {
+    driver::uart::puts("[");
+    driver::uart::puts(key);
+    for _ in key.len()..KEY_WIDTH {
+        driver::uart::puts(" ");
+    }
+    driver::uart::puts("] ");
+    driver::uart::decimal(n);
+    driver::uart::puts("\n");
+}
+
 pub fn print_hex32(key: &str, n: u32) {
     driver::uart::puts("[");
     driver::uart::puts(key);
-    for _ in key.len()..12 {
+    for _ in key.len()..KEY_WIDTH {
         driver::uart::puts(" ");
     }
     driver::uart::puts("] 0x");
@@ -63,7 +77,7 @@ pub fn print_hex32(key: &str, n: u32) {
 pub fn print_bin8(key: &str, n: u8) {
     driver::uart::puts("[");
     driver::uart::puts(key);
-    for _ in key.len()..12 {
+    for _ in key.len()..KEY_WIDTH {
         driver::uart::puts(" ");
     }
     driver::uart::puts("] 0b");
@@ -88,7 +102,7 @@ fn init_primary() {
     };
 
     driver::init();
-    boot::run();
+    splash::run();
     el1::el1_entry();
 }
 

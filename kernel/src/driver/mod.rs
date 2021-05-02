@@ -5,6 +5,7 @@ pub(crate) mod gic;
 pub(crate) mod memory;
 mod setup;
 pub(crate) mod topology;
+pub(crate) mod tzc380;
 pub(crate) mod uart;
 
 /// Initlize UART0 for serial console with 115200 8n1,

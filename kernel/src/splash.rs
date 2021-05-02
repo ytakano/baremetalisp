@@ -1,3 +1,5 @@
+use crate::print_decimal;
+
 use super::aarch64;
 use super::driver;
 use super::print_msg;
@@ -10,10 +12,8 @@ pub fn run() {
 
 /// print current execution level
 fn print_el() {
-    driver::uart::puts("[Current EL  ] EL");
     let el = aarch64::cpu::get_current_el();
-    driver::uart::decimal(el as u64);
-    driver::uart::puts("\n");
+    print_decimal("Current EL", el as u64);
 
     match aarch64::mmu::enabled() {
         Some(m) => {
@@ -30,15 +30,26 @@ fn print_el() {
 }
 
 fn print_fortune() {
-    driver::uart::puts("[Fortune     ] ");
     let cnt = driver::delays::get_timer_value() as usize;
     let fortune = [
-        "大吉", "吉", "吉", "吉", "吉", "中吉", "中吉", "中吉", "中吉", "小吉", "小吉", "小吉",
-        "末吉", "末吉", "末吉", "凶",
+        "⛩  大吉 ⛩",
+        "⛩  吉 ⛩",
+        "⛩  吉 ⛩",
+        "⛩  吉 ⛩",
+        "⛩  吉 ⛩",
+        "⛩  中吉 ⛩",
+        "⛩  中吉 ⛩",
+        "⛩  中吉 ⛩",
+        "⛩  中吉 ⛩",
+        "⛩  小吉 ⛩",
+        "⛩  小吉 ⛩",
+        "⛩  小吉 ⛩",
+        "⛩  末吉 ⛩",
+        "⛩  末吉 ⛩",
+        "⛩  末吉 ⛩",
+        "⛩  凶 ⛩",
     ];
-    driver::uart::puts("⛩  ");
-    driver::uart::puts(fortune[cnt & 0xF]);
-    driver::uart::puts(" ⛩\n");
+    print_msg("Fortune", fortune[cnt & 0xF]);
 }
 
 /// print splash message

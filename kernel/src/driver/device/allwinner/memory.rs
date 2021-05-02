@@ -39,6 +39,7 @@ pub(in crate::driver) const SUNXI_SMHC2_BASE: u32 = 0x01c11000;
 pub(in crate::driver) const SUNXI_SID_BASE: u32 = 0x01c14000;
 pub(in crate::driver) const SUNXI_MSGBOX_BASE: u32 = 0x01c17000;
 pub(in crate::driver) const SUNXI_SPINLOCK_BASE: u32 = 0x01c18000;
+pub(in crate::driver) const SUNXI_SMC_BASE: u32 = 0x01c1e000;
 pub(in crate::driver) const SUNXI_CCU_BASE: u32 = 0x01c20000;
 pub(in crate::driver) const SUNXI_CCU_SEC_SWITCH_REG: u32 = SUNXI_CCU_BASE + 0x2f0;
 pub(in crate::driver) const SUNXI_PIO_BASE: u32 = 0x01c20800;

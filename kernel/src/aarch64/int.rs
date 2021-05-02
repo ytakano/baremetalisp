@@ -1,11 +1,11 @@
-use crate::aarch64::cpu;
+use super::cpu;
 
-pub(super) struct InterMask {
+pub struct InterMask {
     prev: u64,
 }
 
 impl InterMask {
-    pub(super) fn new() -> InterMask {
+    pub fn new() -> InterMask {
         // disable FIQ, IRQ, Abort, Debug
         let prev = cpu::daif::get();
         cpu::daif::set(prev | (cpu::DISABLE_ALL_EXCEPTIONS << cpu::SPSR_DAIF_SHIFT));
@@ -13,7 +13,7 @@ impl InterMask {
         InterMask { prev }
     }
 
-    pub(super) fn unmask(self) {}
+    pub fn unmask(self) {}
 }
 
 impl Drop for InterMask {

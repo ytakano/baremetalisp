@@ -1,12 +1,9 @@
-mod int;
 mod ringq;
 //mod semaphore;
 
-use crate::aarch64::mmu;
+use crate::aarch64::{int::InterMask, mmu};
 use crate::driver::topology::{core_pos, CORE_COUNT};
 use crate::{aarch64::context::GpRegs, syscall::Locator};
-
-use int::InterMask;
 
 use ::alloc::alloc;
 use arr_macro::arr;

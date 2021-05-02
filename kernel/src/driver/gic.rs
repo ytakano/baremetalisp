@@ -1,6 +1,5 @@
-use crate::mmio::MMIO;
+use crate::{global::GlobalVar, mmio::MMIO};
 use core::default::Default;
-use core::mem;
 use synctools::mcs::{MCSLock, MCSNode};
 
 const GIC_MAX_INTS: usize = 1020;
@@ -19,7 +18,7 @@ const GICC_CTLR_FIQEN: u32 = 1 << 3;
 const GICD_CTLR_ENABLEGRP0: u32 = 1 << 0;
 const GICD_CTLR_ENABLEGRP1: u32 = 1 << 1;
 
-static GIC_GLOBAL: MCSLock<OptionGIC> = MCSLock::new(OptionGIC::UnInit);
+static GIC_GLOBAL: MCSLock<GlobalVar<GIC>> = MCSLock::new(GlobalVar::UnInit);
 
 #[derive(Default)]
 pub struct GIC {
@@ -38,24 +37,6 @@ pub enum GICVer {
 impl Default for GICVer {
     fn default() -> Self {
         GICVer::V2
-    }
-}
-
-enum OptionGIC {
-    Taked,
-    Having(GIC),
-    UnInit,
-}
-
-impl OptionGIC {
-    fn take(&mut self) -> OptionGIC {
-        mem::take(self)
-    }
-}
-
-impl Default for OptionGIC {
-    fn default() -> Self {
-        OptionGIC::Taked
     }
 }
 
@@ -142,8 +123,8 @@ pub fn init(gicc_base: usize, gicd_base: usize, ver: GICVer) {
     crate::driver::uart::hex32(itar0);
     crate::driver::uart::puts("\n");
 
-    if let OptionGIC::UnInit = *lock {
-        *lock = OptionGIC::Having(g)
+    if let GlobalVar::UnInit = *lock {
+        *lock = GlobalVar::Having(g)
     } else {
         panic!("initialized twice");
     }
@@ -155,7 +136,7 @@ pub fn take() -> Option<GIC> {
     let gic = lock.take();
     lock.unlock();
 
-    if let OptionGIC::Having(g) = gic {
+    if let GlobalVar::Having(g) = gic {
         Some(g)
     } else {
         None
@@ -166,7 +147,7 @@ impl Drop for GIC {
     fn drop(&mut self) {
         let mut node = MCSNode::new();
         let mut lock = GIC_GLOBAL.lock(&mut node);
-        *lock = OptionGIC::Having(GIC {
+        *lock = GlobalVar::Having(GIC {
             gicc_base: self.gicc_base,
             gicd_base: self.gicd_base,
             ver: self.ver,
