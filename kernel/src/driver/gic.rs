@@ -85,43 +85,7 @@ pub fn init(gicc_base: usize, gicd_base: usize, ver: GICVer) {
     gicc_ctlr.write(GICC_CTLR_FIQEN | GICC_CTLR_ENABLEGRP0 | GICC_CTLR_ENABLEGRP1);
     gicd_ctlr.setbits(GICD_CTLR_ENABLEGRP0 | GICD_CTLR_ENABLEGRP1);
 
-    let ctlr = gicc_ctlr.read();
-    crate::driver::uart::puts("GICC_CTLR = 0x");
-    crate::driver::uart::hex32(ctlr);
-    crate::driver::uart::puts("\n");
-
-    let ctlr = gicd_ctlr.read();
-    crate::driver::uart::puts("GICD_CTLR = 0x");
-    crate::driver::uart::hex32(ctlr);
-    crate::driver::uart::puts("\n");
-
     crate::print_msg("GICv2", "Initialized");
-
-    let icen1 = g.gicd_isenabler(1).read();
-    crate::driver::uart::puts("isenabler[0] = 0x");
-    crate::driver::uart::hex32(icen1);
-    crate::driver::uart::puts("\n");
-
-    /*
-    for i in 0..g.max_it {
-        // enable UART 0 Interrupt
-        g.it_add(i);
-        g.it_set_cpu_mask(i, 1);
-        g.it_enable(i);
-    }
-    */
-
-    crate::driver::uart::enable_recv_int();
-
-    let icen1 = g.gicd_isenabler(1).read();
-    crate::driver::uart::puts("isenabler[0] = 0x");
-    crate::driver::uart::hex32(icen1);
-    crate::driver::uart::puts("\n");
-
-    let itar0 = g.gicd_itargetsr(0).read();
-    crate::driver::uart::puts("itargetsr[0] = 0x");
-    crate::driver::uart::hex32(itar0);
-    crate::driver::uart::puts("\n");
 
     if let GlobalVar::UnInit = *lock {
         *lock = GlobalVar::Having(g)

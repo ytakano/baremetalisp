@@ -186,7 +186,7 @@ impl Addr {
 
         // heap memory for EL0
         self.el0_heap_start = self.stack_el0_start;
-        self.el0_heap_end = self.el0_heap_start + PAGESIZE * 1024; // 64MiB
+        self.el0_heap_end = get_ram_start() + 64 * 1024 * 1024; // 64MiB
 
         // ROM
         self.rom_start = ROM_START;
