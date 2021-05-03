@@ -10,7 +10,7 @@ use arr_macro::arr;
 use core::ptr::{null, null_mut};
 use synctools::mcs::{MCSLock, MCSLockGuard, MCSNode};
 
-const PROCESS_MAX: usize = 256;
+pub const PROCESS_MAX: usize = 256;
 const STACK_SIZE: usize = 2 * 1024 * 1024;
 
 static mut ACTIVES: [Option<u8>; CORE_COUNT] = [None; CORE_COUNT];

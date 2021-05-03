@@ -7,11 +7,13 @@
 
 mod aarch64;
 //mod bits;
+mod allocator;
 mod driver;
 mod el0;
 mod el1;
 mod global;
 mod mmio;
+mod paging;
 mod process;
 mod smc;
 mod splash;
@@ -74,6 +76,17 @@ pub fn print_hex32(key: &str, n: u32) {
     driver::uart::puts("\n");
 }
 
+pub fn print_hex64(key: &str, n: u64) {
+    driver::uart::puts("[");
+    driver::uart::puts(key);
+    for _ in key.len()..KEY_WIDTH {
+        driver::uart::puts(" ");
+    }
+    driver::uart::puts("] 0x");
+    driver::uart::hex(n);
+    driver::uart::puts("\n");
+}
+
 pub fn print_bin8(key: &str, n: u8) {
     driver::uart::puts("[");
     driver::uart::puts(key);
@@ -95,12 +108,15 @@ fn init_primary() {
     driver::early_init();
 
     match aarch64::mmu::init() {
-        Some(_) => (),
+        Some(_) => init_primary2(),
         None => {
             panic!("failed to initialize MMU");
         }
     };
+}
 
+#[inline(never)]
+fn init_primary2() {
     driver::init();
     splash::run();
     el1::el1_entry();

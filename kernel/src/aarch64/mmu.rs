@@ -1,4 +1,7 @@
-use core::slice;
+use core::{
+    ptr::{read_volatile, write_volatile},
+    slice,
+};
 
 use super::cpu;
 use crate::driver;
@@ -17,7 +20,7 @@ pub const KERN_TTBR0_LV3_TABLE_NUM: usize = 8;
 pub const KERN_TTBR0_TABLE_NUM: usize = KERN_TTBR0_LV2_TABLE_NUM + KERN_TTBR0_LV3_TABLE_NUM;
 
 // level 2 table x 1 (for 4TiB space)
-// level 3 table x 4 (for 2GiB space)
+// level 3 table x 4 (for 512MiB x 4 = 2GiB space)
 pub const KERN_TTBR1_LV2_TABLE_NUM: usize = 1;
 pub const KERN_TTBR1_LV3_TABLE_NUM: usize = 4;
 pub const KERN_TTBR1_TABLE_NUM: usize = KERN_TTBR1_LV2_TABLE_NUM + KERN_TTBR1_LV3_TABLE_NUM;
@@ -349,9 +352,10 @@ impl TTable {
             panic!("memory map error");
         }
 
-        let e = phy_addr & !((1 << 16) - 1) | flag;
+        let e = phy_addr & !0xffff | flag;
+
         let idx = lv2idx * 8192 + lv3idx;
-        self.tt_lv3[idx] = e as u64;
+        unsafe { write_volatile(&mut self.tt_lv3[idx], e) };
     }
 
     fn unmap(&mut self, vm_addr: u64) {
@@ -364,7 +368,24 @@ impl TTable {
         }
 
         let idx = lv2idx * 8192 + lv3idx;
-        self.tt_lv3[idx] = 0;
+        unsafe { write_volatile(&mut self.tt_lv3[idx], 0) };
+    }
+
+    fn to_phy_addr(&self, vm_addr: u64) -> Option<u64> {
+        let lv2idx = ((vm_addr >> 29) & 8191) as usize;
+        let lv3idx = ((vm_addr >> 16) & 8191) as usize;
+
+        let idx = lv2idx * 8192 + lv3idx;
+        let val = unsafe { read_volatile(&self.tt_lv3[idx]) };
+        if val == 0 {
+            return None;
+        }
+
+        let high = (val >> 32) & 0xffff;
+        let mid = (val >> 16) & 0xffff;
+        let low = vm_addr & 0xffff;
+
+        Some((high << 32) | (mid << 16) | low)
     }
 }
 

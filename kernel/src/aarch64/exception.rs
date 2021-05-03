@@ -1,7 +1,7 @@
 use super::context::GpRegs;
 use super::cpu;
 use super::syscall;
-use crate::{driver, print_msg};
+use crate::{driver, print_hex64, print_msg};
 
 const ESR_EL1_EC_MASK: u64 = 0b111111 << 26;
 const ESR_EL1_EC_UNKNOWN: u64 = 0b000000 << 26;
@@ -110,8 +110,10 @@ pub fn lower_el_aarch32_serror_el2(_ctx: *mut GpRegs, _sp: usize) {}
 
 // from the current EL using the SP_EL0
 #[no_mangle]
-pub fn curr_el_sp0_sync_el1(_ctx: *mut GpRegs, _sp: usize) {
+pub fn curr_el_sp0_sync_el1(ctx: *mut GpRegs, sp: usize) {
     driver::uart::puts("EL1 exception: SP0 Sync\n");
+    sync_el1(ctx, sp);
+    loop {}
 }
 
 #[no_mangle]
@@ -160,24 +162,36 @@ pub fn curr_el_spx_serror_el1(_ctx: *mut GpRegs, _sp: usize) {
 
 // from lower EL (AArch64)
 #[no_mangle]
-pub fn lower_el_aarch64_sync_el1(ctx: *mut GpRegs, _sp: usize) {
+pub fn lower_el_aarch64_sync_el1(ctx: *mut GpRegs, sp: usize) {
+    sync_el1(ctx, sp);
+}
+
+fn sync_el1(ctx: *mut GpRegs, _sp: usize) {
     let r = unsafe { &mut *ctx };
     let esr = cpu::esr_el1::get();
 
     let ec = esr & ESR_EL1_EC_MASK;
     match ec {
         ESR_EL1_EC_WFI_OR_WFE => print_msg("EL1 Exception", "WFI or WFE"),
+        ESR_LE1_EC_DATA => print_msg("EL1 Exception", "DATA"),
+        ESR_LE1_EC_DATA_KERN => {
+            let far_el1 = cpu::far_el1::get();
+            print_msg("EL1 Exception", "DATA Kernel");
+            print_hex64("FAR_EL1", far_el1);
+        }
         ESR_EL1_EC_SVC64 => {
             let n = syscall::handle64(r);
             r.x0 = n as u64;
         }
         _ => {
-            driver::uart::puts("EL1 exception: Sync lower AArch64\nELR = ");
+            driver::uart::puts("ELR = ");
             driver::uart::hex(r.elr);
             driver::uart::puts("\nSPSR = 0x");
             driver::uart::hex(r.spsr as u64);
             driver::uart::puts("\nESR = 0x");
             driver::uart::hex(esr);
+            driver::uart::puts("\nEC = 0b");
+            driver::uart::bin8((ec >> 26) as u8);
             driver::uart::puts("\n");
             print_msg("EL1 Exception", "unknown")
         }

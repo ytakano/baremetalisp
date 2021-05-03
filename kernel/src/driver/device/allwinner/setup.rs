@@ -14,8 +14,8 @@ const SMC_MASTER_BYPASS: u32 = 0x18;
 const SMC_MASTER_BYPASS_EN_MASK: u32 = 0x1;
 
 pub(in crate::driver) fn platform_setup() {
-    init_gic();
-    init_smc();
+    //init_gic();
+    //init_smc();
 }
 
 /// initialize GIC

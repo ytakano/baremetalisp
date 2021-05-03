@@ -2,6 +2,7 @@ use crate::syscall;
 use crate::{driver::uart, syscall::Locator};
 
 use alloc::boxed::Box;
+use memalloc::Allocator;
 use num_bigint::BigInt;
 use num_traits::{FromPrimitive, ToPrimitive, Zero};
 
@@ -111,6 +112,8 @@ fn repl_uart(ctx: &blisp::semantics::Context) -> ! {
 }
 
 fn get_app(id: usize) -> Option<&'static str> {
+    let mut _allc = Allocator::new(); // TODO
+
     if id >= APPS.len() {
         None
     } else {

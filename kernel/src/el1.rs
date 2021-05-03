@@ -1,7 +1,7 @@
 use crate::aarch64::{cpu, mmu};
 use crate::driver::topology;
 use crate::driver::uart;
-use crate::{print_msg, process};
+use crate::{allocator, paging, print_msg, process};
 
 use core::alloc::Layout;
 use memalloc::Allocator;
@@ -44,6 +44,12 @@ pub fn el1_entry() {
             slab_size >> 20
         );
         print_msg("Slab Alloc", &msg);
+
+        // initialize Pager
+        paging::init(addr.el0_heap_start as usize, addr.el0_heap_end as usize);
+
+        // initialize Kernel heap
+        allocator::init_kern();
 
         // spawn the init process
         process::init();
