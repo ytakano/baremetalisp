@@ -1,8 +1,6 @@
-use crate::print_decimal;
-
 use super::aarch64;
 use super::driver;
-use super::print_msg;
+use super::print;
 
 pub fn run() {
     print_el();
@@ -13,14 +11,14 @@ pub fn run() {
 /// print current execution level
 fn print_el() {
     let el = aarch64::cpu::get_current_el();
-    print_decimal("Current EL", el as u64);
+    print::decimal("Current EL", el as u64);
 
     match aarch64::mmu::enabled() {
         Some(m) => {
             if m {
-                print_msg("MMU", "Enabled");
+                print::msg("MMU", "Enabled");
             } else {
-                print_msg("MMU", "Disabled");
+                print::msg("MMU", "Disabled");
             }
         }
         None => {
@@ -49,7 +47,7 @@ fn print_fortune() {
         "⛩  末吉 ⛩",
         "⛩  凶 ⛩",
     ];
-    print_msg("Fortune", fortune[cnt & 0xF]);
+    print::msg("Fortune", fortune[cnt & 0xF]);
 }
 
 /// print splash message

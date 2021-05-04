@@ -1,4 +1,4 @@
-use crate::{global::GlobalVar, mmio::MMIO, print_decimal};
+use crate::{global::GlobalVar, mmio::MMIO, print};
 use synctools::mcs::{MCSLock, MCSNode};
 
 const BUILD_CONFIG_AW_SHIFT: u32 = 8;
@@ -85,7 +85,7 @@ pub struct TZC380 {
 impl TZC380 {
     pub fn configure_region(&self, region: u8, base: usize, attr: u32) {
         if region as u32 >= self.num_regions {
-            print_decimal("TZC region error", region as u64);
+            print::decimal("TZC region error", region as u64);
             return;
         }
 
@@ -127,8 +127,8 @@ pub fn init(base: usize) {
         num_regions,
     };
 
-    print_decimal("TZC Width", addr_width as u64);
-    print_decimal("TZC #Regions", num_regions as u64);
+    print::decimal("TZC Width", addr_width as u64);
+    print::decimal("TZC #Regions", num_regions as u64);
 
     let mut node = MCSNode::new();
     let mut lock = TZC380_GLOBAL.lock(&mut node);

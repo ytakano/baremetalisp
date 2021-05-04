@@ -1,19 +1,21 @@
-use crate::{aarch64::mmu, print_msg, process::PROCESS_MAX};
+use crate::{aarch64::mmu, process::PROCESS_MAX};
 use arr_macro::arr;
 use core::ptr::null_mut;
 use memalloc::Allocator;
 
-const BUDDY_SIZE: usize = 1024 * 1024 * 32; // 32MiB
-const SLAB_SIZE: usize = 1024 * 1024 * 64; // 64MiB
 const STACK_SIZE: usize = 1024 * 1024 * 2; // 2MiB
-const USER_MEM_OFFSET: usize = 1024 * 1024 * 64; // 64MiB
-const USER_MEM_SIZE: usize = BUDDY_SIZE + SLAB_SIZE + STACK_SIZE;
+const SLAB_SIZE: usize = 1024 * 1024 * 30; // 30MiB
+const BUDDY_SIZE: usize = 1024 * 1024 * 32; // 32MiB
+const USER_MEM_OFFSET: usize = 1024 * 1024 * 64; // 1TiB
+const USER_MEM_SIZE: usize = BUDDY_SIZE + SLAB_SIZE + STACK_SIZE; // must be 64MiB
 const KERN_HEAP_OFFSET: usize = 1024 * 1024 * 64; // 64MiB
 
 //#[global_allocator]
 //static mut GLOBAL: Allocator = Allocator::new();
 
 static mut ALLOCATORS: [*mut Allocator; PROCESS_MAX] = arr!(null_mut(); 256);
+
+//#[global_allocator]
 static mut KENR_ALLOCATOR: Allocator = Allocator::new();
 
 fn kern_offset() -> usize {
@@ -35,15 +37,14 @@ pub fn init_kern() {
 }
 
 fn user_offset(id: u8) -> usize {
-    let offset = mmu::get_ram_start() as usize + USER_MEM_OFFSET;
-    offset + id as usize * BUDDY_SIZE + SLAB_SIZE + STACK_SIZE
+    USER_MEM_OFFSET + id as usize * BUDDY_SIZE + SLAB_SIZE + STACK_SIZE
 }
 
-/// Check addr is included by the canary region of id's process
+/// Check addr is the canary region of id's process
 /// If true, stack overflow
 pub fn is_user_canary(id: u8, addr: usize) -> bool {
     let offset = user_offset(id);
-    addr & (mmu::PAGESIZE - 1) as usize == offset + STACK_SIZE - mmu::PAGESIZE as usize
+    addr & !(mmu::PAGESIZE - 1) as usize == offset
 }
 
 /// Check addr is a heap address of id's process
@@ -52,6 +53,21 @@ pub fn is_user_mem(id: u8, addr: usize) -> bool {
     offset <= addr && addr < offset + STACK_SIZE + SLAB_SIZE + BUDDY_SIZE
 }
 
+/// Memory Layout
+/// +-----------------------------+ 1TiB (id = 0)
+/// | 2MiB stack space            |
+/// +-----------------------------+
+/// | 30MiB slab allocator space  |
+/// +-----------------------------+
+/// | 32MiB buddy allocator space |
+/// +-----------------------------+ 1TiB + 64MiB (id = 1)
+/// | 2MiB stack space            |
+/// +-----------------------------+
+/// | 30MiB slab allocator space  |
+/// +-----------------------------+
+/// | 32MiB buddy allocator space |
+/// +-----------------------------+
+/// ...
 pub fn set_user_allocator(id: u8, ptr: *mut Allocator) {
     unsafe {
         let allc = &mut *ptr;

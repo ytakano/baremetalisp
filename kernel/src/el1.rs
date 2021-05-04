@@ -1,7 +1,7 @@
 use crate::aarch64::{cpu, mmu};
 use crate::driver::topology;
 use crate::driver::uart;
-use crate::{allocator, paging, print_msg, process};
+use crate::{allocator, paging, print, process};
 
 use core::alloc::Layout;
 use memalloc::Allocator;
@@ -35,7 +35,7 @@ pub fn el1_entry() {
         }
 
         let msg = format!("0x{:x} - 0x{:x} (32MiB)", addr.el0_heap_start, slab_start);
-        print_msg("Buddy Alloc", &msg);
+        print::msg("Buddy Alloc", &msg);
 
         let msg = format!(
             "0x{:x} - 0x{:x} ({}MiB)",
@@ -43,13 +43,26 @@ pub fn el1_entry() {
             slab_start + slab_size,
             slab_size >> 20
         );
-        print_msg("Slab Alloc", &msg);
+        print::msg("Slab Alloc", &msg);
 
         // initialize Pager
         paging::init(addr.el0_heap_start as usize, addr.el0_heap_end as usize);
 
         // initialize Kernel heap
         allocator::init_kern();
+
+        print::msg("Kernel heap", "initialized");
+
+        // testing
+        let mut a = alloc::boxed::Box::new(10);
+        *a = 200;
+
+        print::decimal("*a", *a);
+
+        let ptr = alloc::boxed::Box::into_raw(a);
+        print::hex64("ptr", ptr as u64);
+
+        unsafe { alloc::boxed::Box::from_raw(ptr) };
 
         // spawn the init process
         process::init();

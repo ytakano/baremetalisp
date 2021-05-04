@@ -6,7 +6,7 @@ use memalloc::Allocator;
 use num_bigint::BigInt;
 use num_traits::{FromPrimitive, ToPrimitive, Zero};
 
-const APPS: &'static [&'static str] = &[include_str!("init.lisp")];
+const APPS: &[&'static str] = &[include_str!("init.lisp")];
 
 fn callback(x: &BigInt, y: &BigInt, z: &BigInt) -> Option<BigInt> {
     let c = x.to_u64()?;

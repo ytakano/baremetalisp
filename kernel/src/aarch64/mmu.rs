@@ -15,9 +15,12 @@ pub const EL1_ADDR_OFFSET: u64 = 0x3FFFFF << 42;
 
 // level 2 table x 1 (for 4TiB space)
 // level 3 table x 8 (for 512MiB x 8 = 4GiB space)
+// level 3 table x 32 (for 512MiB x 32 = 16GiB space, 64MiB * 256 Processes = 16GiB)
 pub const KERN_TTBR0_LV2_TABLE_NUM: usize = 1;
-pub const KERN_TTBR0_LV3_TABLE_NUM: usize = 8;
-pub const KERN_TTBR0_TABLE_NUM: usize = KERN_TTBR0_LV2_TABLE_NUM + KERN_TTBR0_LV3_TABLE_NUM;
+pub const KERN_TTBR0_LV3_TABLE_NUM1: usize = 8; // from 0B to 4GiB
+pub const KERN_TTBR0_LV3_TABLE_NUM2: usize = 32; // from 1TiB to 1TiB + 16GiB
+pub const KERN_TTBR0_TABLE_NUM: usize =
+    KERN_TTBR0_LV2_TABLE_NUM + KERN_TTBR0_LV3_TABLE_NUM1 + KERN_TTBR0_LV3_TABLE_NUM2;
 
 // level 2 table x 1 (for 4TiB space)
 // level 3 table x 4 (for 512MiB x 4 = 2GiB space)
@@ -103,6 +106,8 @@ const FLAG_L3_DBM: u64 = 1 << 51; // dirty bit modifier
 const FLAG_L3_AF: u64 = 1 << 10; // access flag
 const FLAG_L3_NS: u64 = 1 << 5; // non secure
 
+const OFFSET_USER_HEAP_PAGE: usize = 2048; // 1TiB offset
+
 // [9:8]: Shareability attribute, for Normal memory
 //    | Shareability
 // ---|------------------
@@ -136,9 +141,11 @@ const FLAG_L3_ATTR_NC: u64 = 2 << 2; // non-cachable
 // transition table
 pub struct TTable {
     tt_lv2: &'static mut [u64],
-    tt_lv3: &'static mut [u64],
+    tt_lv3_1: &'static mut [u64],
+    tt_lv3_2: &'static mut [u64],
     num_lv2: usize,
-    num_lv3: usize,
+    num_lv3_1: usize,
+    num_lv3_2: usize,
 }
 
 // logical address information
@@ -310,73 +317,131 @@ pub fn get_memory_map() -> &'static Addr {
     }
 }
 
+pub fn get_ttbr0() -> TTable {
+    let addr = get_memory_map();
+    TTable::new(
+        addr.tt_el1_ttbr0_start + EL1_ADDR_OFFSET,
+        KERN_TTBR0_LV2_TABLE_NUM,
+        KERN_TTBR0_LV3_TABLE_NUM1,
+        KERN_TTBR0_LV3_TABLE_NUM2,
+    )
+}
+
+pub fn get_ttbr1() -> TTable {
+    let addr = get_memory_map();
+    TTable::new(
+        addr.tt_el1_ttbr1_start + EL1_ADDR_OFFSET,
+        KERN_TTBR1_LV2_TABLE_NUM,
+        KERN_TTBR1_LV3_TABLE_NUM,
+        0,
+    )
+}
+
 impl TTable {
-    fn new(tt_addr: u64, num_lv2: usize, num_lv3: usize) -> TTable {
+    fn new(tt_addr: u64, num_lv2: usize, num_lv3_1: usize, num_lv3_2: usize) -> TTable {
         let ptr = tt_addr as *mut u64;
         let tt_lv2 = unsafe { slice::from_raw_parts_mut(ptr, 8192 * num_lv2) };
 
+        // 0... space
         let ptr = ((PAGESIZE * num_lv2 as u64) + tt_addr) as *mut u64;
-        let tt_lv3 = unsafe { slice::from_raw_parts_mut(ptr, 8192 * num_lv3) };
+        let tt_lv3_1 = unsafe { slice::from_raw_parts_mut(ptr, 8192 * num_lv3_1) };
 
-        // initialize
-        for e in tt_lv2.iter_mut() {
-            *e = 0;
-        }
-
-        for e in tt_lv3.iter_mut() {
-            *e = 0;
-        }
-
-        // set up level 2 tables
-        for i in 0..(8192 * num_lv2) {
-            if i >= num_lv3 {
-                break;
-            }
-            tt_lv2[i] = (&tt_lv3[i * 8192] as *const u64) as u64 | 0b11;
-        }
+        // 1TiB... space
+        let ptr = ((PAGESIZE * (num_lv2 + num_lv3_1) as u64) + tt_addr) as *mut u64;
+        let tt_lv3_2 = unsafe { slice::from_raw_parts_mut(ptr, 8192 * num_lv3_2) };
 
         TTable {
             tt_lv2,
-            tt_lv3,
+            tt_lv3_1,
+            tt_lv3_2,
             num_lv2,
-            num_lv3,
+            num_lv3_1,
+            num_lv3_2,
         }
     }
 
-    fn map(&mut self, vm_addr: u64, phy_addr: u64, flag: u64) {
+    fn init(&mut self) {
+        // zero clear
+        for e in self.tt_lv2.iter_mut() {
+            *e = 0;
+        }
+
+        for e in self.tt_lv3_1.iter_mut() {
+            *e = 0;
+        }
+
+        for e in self.tt_lv3_2.iter_mut() {
+            *e = 0;
+        }
+
+        // set up level 2 tables for 0... space
+        for i in 0..(8192 * self.num_lv2) {
+            if i >= self.num_lv3_1 {
+                break;
+            }
+            self.tt_lv2[i] = (&self.tt_lv3_1[i * 8192] as *const u64) as u64 | 0b11;
+        }
+
+        // set up level 2 tables for 1TiB... space
+        for i in OFFSET_USER_HEAP_PAGE..(8192 * self.num_lv2) {
+            let idx = i - OFFSET_USER_HEAP_PAGE;
+            if idx >= self.num_lv3_2 {
+                break;
+            }
+            self.tt_lv2[i] = (&self.tt_lv3_2[idx * 8192] as *const u64) as u64 | 0b11;
+        }
+    }
+
+    pub fn map(&mut self, vm_addr: u64, phy_addr: u64, flag: u64) {
         let lv2idx = ((vm_addr >> 29) & 8191) as usize;
         let lv3idx = ((vm_addr >> 16) & 8191) as usize;
 
-        if lv2idx >= self.num_lv3 {
+        if lv2idx >= (self.num_lv2 * 8192) {
             // memory access error
             panic!("memory map error");
         }
 
         let e = phy_addr & !0xffff | flag;
 
-        let idx = lv2idx * 8192 + lv3idx;
-        unsafe { write_volatile(&mut self.tt_lv3[idx], e) };
+        if lv2idx < OFFSET_USER_HEAP_PAGE {
+            let idx = lv2idx * 8192 + lv3idx;
+            unsafe { write_volatile(&mut self.tt_lv3_1[idx], e) };
+        } else {
+            let idx = (lv2idx - OFFSET_USER_HEAP_PAGE) * 8192 + lv3idx;
+            unsafe { write_volatile(&mut self.tt_lv3_2[idx], e) };
+        }
     }
 
-    fn unmap(&mut self, vm_addr: u64) {
+    pub fn unmap(&mut self, vm_addr: u64) {
         let lv2idx = ((vm_addr >> 29) & 8191) as usize;
         let lv3idx = ((vm_addr >> 16) & 8191) as usize;
 
-        if lv2idx >= self.num_lv3 {
+        if lv2idx >= (self.num_lv2 * 8192) {
             // memory access error
             panic!("memory unmap error");
         }
 
-        let idx = lv2idx * 8192 + lv3idx;
-        unsafe { write_volatile(&mut self.tt_lv3[idx], 0) };
+        if lv2idx < OFFSET_USER_HEAP_PAGE {
+            let idx = lv2idx * 8192 + lv3idx;
+            unsafe { write_volatile(&mut self.tt_lv3_1[idx], 0) };
+        } else {
+            let idx = (lv2idx - OFFSET_USER_HEAP_PAGE) * 8192 + lv3idx;
+            unsafe { write_volatile(&mut self.tt_lv3_2[idx], 0) };
+        }
     }
 
-    fn to_phy_addr(&self, vm_addr: u64) -> Option<u64> {
+    pub fn to_phy_addr(&self, vm_addr: u64) -> Option<u64> {
         let lv2idx = ((vm_addr >> 29) & 8191) as usize;
         let lv3idx = ((vm_addr >> 16) & 8191) as usize;
 
-        let idx = lv2idx * 8192 + lv3idx;
-        let val = unsafe { read_volatile(&self.tt_lv3[idx]) };
+        let val = if lv2idx < OFFSET_USER_HEAP_PAGE {
+            let idx = lv2idx * 8192 + lv3idx;
+            unsafe { read_volatile(&self.tt_lv3_1[idx]) }
+        } else {
+            let idx = (lv2idx - OFFSET_USER_HEAP_PAGE) * 8192 + lv3idx;
+            unsafe { read_volatile(&self.tt_lv3_2[idx]) }
+        };
+
         if val == 0 {
             return None;
         }
@@ -427,6 +492,14 @@ fn set_sctlr(sctlr: u64) {
     } else if el == 3 {
         cpu::sctlr_el3::set(sctlr);
     }
+}
+
+pub fn user_page_flag() -> u64 {
+    FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_RW | FLAG_L3_ATTR_MEM | 0b11
+}
+
+pub fn kernel_page_flag() -> u64 {
+    FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_RW | FLAG_L3_ATTR_MEM | 0b11
 }
 
 /// set registers
@@ -509,8 +582,11 @@ fn init_el1(addr: &Addr) -> (TTable, TTable) {
     let mut table0 = TTable::new(
         addr.tt_el1_ttbr0_start,
         KERN_TTBR0_LV2_TABLE_NUM,
-        KERN_TTBR0_LV3_TABLE_NUM,
+        KERN_TTBR0_LV3_TABLE_NUM1,
+        KERN_TTBR0_LV3_TABLE_NUM2,
     );
+
+    table0.init();
 
     // map .init and .text section
     let mut ram_start = get_ram_start();
@@ -572,13 +648,7 @@ fn init_el1(addr: &Addr) -> (TTable, TTable) {
 
     // map userland heap
     let mut heap_start = addr.el0_heap_start;
-    let flag = FLAG_L3_XN
-        | FLAG_L3_PXN
-        | FLAG_L3_AF
-        | FLAG_L3_ISH
-        | FLAG_L3_SH_RW_RW
-        | FLAG_L3_ATTR_MEM
-        | 0b11;
+    let flag = user_page_flag();
     while heap_start < addr.el0_heap_end {
         table0.map(heap_start, heap_start, flag);
         heap_start += PAGESIZE;
@@ -605,18 +675,15 @@ fn init_el1(addr: &Addr) -> (TTable, TTable) {
         addr.tt_el1_ttbr1_start,
         KERN_TTBR1_LV2_TABLE_NUM,
         KERN_TTBR1_LV3_TABLE_NUM,
+        0,
     );
+
+    table1.init();
 
     // map EL1 stack
     let mut stack_end = get_stack_el1_end();
     let stack_start = get_stack_el1_start();
-    let flag = FLAG_L3_XN
-        | FLAG_L3_PXN
-        | FLAG_L3_AF
-        | FLAG_L3_ISH
-        | FLAG_L3_SH_RW_N
-        | FLAG_L3_ATTR_MEM
-        | 0b11;
+    let flag = kernel_page_flag();
     while stack_end < stack_start {
         table1.map(stack_end, stack_end, flag);
         stack_end += PAGESIZE;
@@ -632,7 +699,7 @@ fn init_el1(addr: &Addr) -> (TTable, TTable) {
     let flag = FLAG_L3_XN
         | FLAG_L3_PXN
         | FLAG_L3_AF
-        | FLAG_L3_ISH
+        | FLAG_L3_OSH
         | FLAG_L3_SH_RW_N
         | FLAG_L3_ATTR_MEM
         | FLAG_L3_ATTR_NC
@@ -647,7 +714,7 @@ fn init_el1(addr: &Addr) -> (TTable, TTable) {
     let flag = FLAG_L3_XN
         | FLAG_L3_PXN
         | FLAG_L3_AF
-        | FLAG_L3_ISH
+        | FLAG_L3_OSH
         | FLAG_L3_SH_RW_N
         | FLAG_L3_ATTR_MEM
         | FLAG_L3_ATTR_NC

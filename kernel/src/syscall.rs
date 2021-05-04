@@ -96,11 +96,7 @@ pub fn getpid() -> u32 {
 
 /// Send val to dst
 pub fn send(dst: &Locator, val: u32) -> bool {
-    if syscall!(SYS_SEND, dst as *const Locator, val as u64) == 1 {
-        true
-    } else {
-        false
-    }
+    syscall!(SYS_SEND, dst as *const Locator, val as u64) == 1
 }
 
 /// Receive a value

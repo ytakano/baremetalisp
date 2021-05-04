@@ -1,7 +1,7 @@
 use super::context::GpRegs;
 use super::cpu;
 use super::syscall;
-use crate::{driver, print_hex64, print_msg};
+use crate::{driver, paging, print};
 
 const ESR_EL1_EC_MASK: u64 = 0b111111 << 26;
 const ESR_EL1_EC_UNKNOWN: u64 = 0b000000 << 26;
@@ -113,7 +113,6 @@ pub fn lower_el_aarch32_serror_el2(_ctx: *mut GpRegs, _sp: usize) {}
 pub fn curr_el_sp0_sync_el1(ctx: *mut GpRegs, sp: usize) {
     driver::uart::puts("EL1 exception: SP0 Sync\n");
     sync_el1(ctx, sp);
-    loop {}
 }
 
 #[no_mangle]
@@ -172,12 +171,13 @@ fn sync_el1(ctx: *mut GpRegs, _sp: usize) {
 
     let ec = esr & ESR_EL1_EC_MASK;
     match ec {
-        ESR_EL1_EC_WFI_OR_WFE => print_msg("EL1 Exception", "WFI or WFE"),
-        ESR_LE1_EC_DATA => print_msg("EL1 Exception", "DATA"),
+        ESR_EL1_EC_WFI_OR_WFE => print::msg("EL1 Exception", "WFI or WFE"),
+        ESR_LE1_EC_DATA => print::msg("EL1 Exception", "DATA"),
         ESR_LE1_EC_DATA_KERN => {
             let far_el1 = cpu::far_el1::get();
-            print_msg("EL1 Exception", "DATA Kernel");
-            print_hex64("FAR_EL1", far_el1);
+            print::msg("EL1 Exception", "DATA Kernel");
+            print::hex64("FAR_EL1", far_el1);
+            paging::map(far_el1 as usize, true);
         }
         ESR_EL1_EC_SVC64 => {
             let n = syscall::handle64(r);
@@ -193,7 +193,7 @@ fn sync_el1(ctx: *mut GpRegs, _sp: usize) {
             driver::uart::puts("\nEC = 0b");
             driver::uart::bin8((ec >> 26) as u8);
             driver::uart::puts("\n");
-            print_msg("EL1 Exception", "unknown")
+            print::msg("EL1 Exception", "unknown")
         }
     }
 }
