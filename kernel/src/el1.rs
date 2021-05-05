@@ -8,6 +8,7 @@ use memalloc::Allocator;
 
 const BUDDY_SIZE: usize = 1024 * 1024 * 32;
 
+/// will be deprecated
 #[global_allocator]
 static mut GLOBAL: Allocator = Allocator::new();
 
@@ -25,25 +26,10 @@ pub fn el1_entry() {
     // spawn init process
     if aff == 0 {
         // initialize memory allocator
+        // will be deprecated
+        init_allocator();
+
         let addr = mmu::get_memory_map();
-        let slab_size = (addr.el0_heap_end - addr.el0_heap_start) as usize - BUDDY_SIZE;
-        let slab_start = addr.el0_heap_start as usize + BUDDY_SIZE;
-
-        unsafe {
-            GLOBAL.init_buddy(addr.el0_heap_start as usize);
-            GLOBAL.init_slab(slab_start, slab_size);
-        }
-
-        let msg = format!("0x{:x} - 0x{:x} (32MiB)", addr.el0_heap_start, slab_start);
-        print::msg("Buddy Alloc", &msg);
-
-        let msg = format!(
-            "0x{:x} - 0x{:x} ({}MiB)",
-            slab_start,
-            slab_start + slab_size,
-            slab_size >> 20
-        );
-        print::msg("Slab Alloc", &msg);
 
         // initialize Pager
         paging::init(addr.el0_heap_start as usize, addr.el0_heap_end as usize);
@@ -67,6 +53,31 @@ pub fn el1_entry() {
         // spawn the init process
         process::init();
     }
+}
+
+/// will be deprecated
+fn init_allocator() {
+    // initialize memory allocator
+    let addr = mmu::get_memory_map();
+
+    let slab_size = (addr.el0_heap_end - addr.el0_heap_start) as usize - BUDDY_SIZE;
+    let slab_start = addr.el0_heap_start as usize + BUDDY_SIZE;
+
+    unsafe {
+        GLOBAL.init_buddy(addr.el0_heap_start as usize);
+        GLOBAL.init_slab(slab_start, slab_size);
+    }
+
+    let msg = format!("0x{:x} - 0x{:x} (32MiB)", addr.el0_heap_start, slab_start);
+    print::msg("Buddy Alloc", &msg);
+
+    let msg = format!(
+        "0x{:x} - 0x{:x} ({}MiB)",
+        slab_start,
+        slab_start + slab_size,
+        slab_size >> 20
+    );
+    print::msg("Slab Alloc", &msg);
 }
 
 #[alloc_error_handler]

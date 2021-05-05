@@ -175,7 +175,8 @@ fn sync_el1(ctx: *mut GpRegs, _sp: usize) {
         ESR_LE1_EC_DATA => print::msg("EL1 Exception", "DATA"),
         ESR_LE1_EC_DATA_KERN => {
             let far_el1 = cpu::far_el1::get();
-            print::msg("EL1 Exception", "DATA Kernel");
+            print::msg("EL1 Exception", "DATA Abort (Kernel)");
+            print::hex64("ELR", r.elr);
             print::hex64("FAR_EL1", far_el1);
             paging::map(far_el1 as usize, true);
         }

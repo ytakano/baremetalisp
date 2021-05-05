@@ -499,7 +499,7 @@ pub fn user_page_flag() -> u64 {
 }
 
 pub fn kernel_page_flag() -> u64 {
-    FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_RW | FLAG_L3_ATTR_MEM | 0b11
+    FLAG_L3_XN | FLAG_L3_PXN | FLAG_L3_AF | FLAG_L3_ISH | FLAG_L3_SH_RW_N | FLAG_L3_ATTR_MEM | 0b11
 }
 
 /// set registers
@@ -701,8 +701,7 @@ fn init_el1(addr: &Addr) -> (TTable, TTable) {
         | FLAG_L3_AF
         | FLAG_L3_OSH
         | FLAG_L3_SH_RW_N
-        | FLAG_L3_ATTR_MEM
-        | FLAG_L3_ATTR_NC
+        | FLAG_L3_ATTR_DEV
         | 0b11;
     while tt_start < addr.tt_el1_ttbr0_end {
         table1.map(tt_start, tt_start, flag);
@@ -716,8 +715,7 @@ fn init_el1(addr: &Addr) -> (TTable, TTable) {
         | FLAG_L3_AF
         | FLAG_L3_OSH
         | FLAG_L3_SH_RW_N
-        | FLAG_L3_ATTR_MEM
-        | FLAG_L3_ATTR_NC
+        | FLAG_L3_ATTR_DEV
         | 0b11;
     while tt_start < addr.tt_el1_ttbr1_end {
         table1.map(tt_start, tt_start, flag);
@@ -744,12 +742,12 @@ fn set_reg_el1(ttbr0: usize, ttbr1: usize) {
     let tcr: u64 = b << 32 |
          3 << 30 | // 64KiB granule, TTBR1_EL1
          3 << 28 | // inner shadable, TTBR1_EL1
-         1 << 26 | // Normal memory, Outer Write-Back Read-Allocate Write-Allocate Cacheable, TTBR1_EL1
+         2 << 26 | // Normal memory, Outer Write-Through Read-Allocate Write-Allocate Cacheable, TTBR1_EL1
          1 << 24 | // Normal memory, Inner Write-Back Read-Allocate Write-Allocate Cacheable, TTBR1_EL1
         22 << 16 | // T1SZ = 22, 2 levels (level 2 and 3 translation tables), 2^42B (4TiB) space
          1 << 14 | // 64KiB granule
          3 << 12 | // inner shadable, TTBR0_EL1
-         1 << 10 | // Normal memory, Outer Write-Back Read-Allocate Write-Allocate Cacheable, TTBR0_EL1
+         2 << 10 | // Normal memory, Outer Write-Through Read-Allocate Write-Allocate Cacheable, TTBR0_EL1
          1 <<  8 | // Normal memory, Inner Write-Back Read-Allocate Write-Allocate Cacheable, TTBR0_EL1
         22; // T0SZ = 22, 2 levels (level 2 and 3 translation tables), 2^42B (4TiB) space
 
@@ -785,4 +783,27 @@ pub fn get_no_cache<T>() -> &'static mut T {
         let addr = addr as *mut u64 as usize;
         (addr as *mut T).as_mut().unwrap()
     }
+}
+
+pub fn tlb_flush_all() {
+    unsafe {
+        asm!(
+            "dsb ishst
+             tlbi vmalle1is
+             dsb ish
+             isb",
+        )
+    };
+}
+
+pub fn tlb_flush_addr(vm_addr: usize) {
+    unsafe {
+        asm!(
+            "dsb ishst
+             tlbi vaae1is, {}
+             dsb ish
+             isb",
+             in(reg) (vm_addr >> 12) & !0b1111
+        )
+    };
 }
