@@ -111,7 +111,6 @@ pub fn lower_el_aarch32_serror_el2(_ctx: *mut GpRegs, _sp: usize) {}
 // from the current EL using the SP_EL0
 #[no_mangle]
 pub fn curr_el_sp0_sync_el1(ctx: *mut GpRegs, sp: usize) {
-    driver::uart::puts("EL1 exception: SP0 Sync\n");
     sync_el1(ctx, sp);
 }
 
@@ -172,13 +171,13 @@ fn sync_el1(ctx: *mut GpRegs, _sp: usize) {
     let ec = esr & ESR_EL1_EC_MASK;
     match ec {
         ESR_EL1_EC_WFI_OR_WFE => print::msg("EL1 Exception", "WFI or WFE"),
-        ESR_LE1_EC_DATA => print::msg("EL1 Exception", "DATA"),
+        ESR_LE1_EC_DATA => {
+            let far_el1 = cpu::far_el1::get();
+            paging::fault(far_el1 as usize);
+        }
         ESR_LE1_EC_DATA_KERN => {
             let far_el1 = cpu::far_el1::get();
-            print::msg("EL1 Exception", "DATA Abort (Kernel)");
-            print::hex64("ELR", r.elr);
-            print::hex64("FAR_EL1", far_el1);
-            paging::map(far_el1 as usize, true);
+            paging::fault(far_el1 as usize);
         }
         ESR_EL1_EC_SVC64 => {
             let n = syscall::handle64(r);

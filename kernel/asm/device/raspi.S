@@ -325,12 +325,16 @@ exception_vector_el2:
     .balign 0x800
 exception_vector_el1:
     // from the current EL using the current SP0
+    msr     spsel, #0 // Select SP_EL0
     CALL_WITH_CONTEXT curr_el_sp0_sync_el1 ELR_EL1 SPSR_EL1
     .balign 0x80
+    msr     spsel, #0 // Select SP_EL0
     CALL_WITH_CONTEXT curr_el_sp0_irq_el1 ELR_EL1 SPSR_EL1
     .balign 0x80
+    msr     spsel, #0 // Select SP_EL0
     CALL_WITH_CONTEXT curr_el_sp0_fiq_el1 ELR_EL1 SPSR_EL1
     .balign 0x80
+    msr     spsel, #0 // Select SP_EL0
     CALL_WITH_CONTEXT curr_el_sp0_serror_el1 ELR_EL1 SPSR_EL1
 
     // from the current EL using the current SP

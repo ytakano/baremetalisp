@@ -1,20 +1,25 @@
 mod ringq;
-//mod semaphore;
 
-use crate::aarch64::{int::InterMask, mmu};
-use crate::driver::topology::{core_pos, CORE_COUNT};
-use crate::{aarch64::context::GpRegs, syscall::Locator};
+use crate::{
+    aarch64::{
+        context::GpRegs,
+        cpu,
+        int::InterMask,
+        mmu::{self, PAGESIZE},
+    },
+    allocator::user_stack,
+    driver::topology::{core_pos, CORE_COUNT},
+    paging,
+    syscall::Locator,
+};
 
-use ::alloc::alloc;
 use arr_macro::arr;
 use core::ptr::{null, null_mut};
 use synctools::mcs::{MCSLock, MCSLockGuard, MCSNode};
 
 pub const PROCESS_MAX: usize = 256;
-const STACK_SIZE: usize = 2 * 1024 * 1024;
 
 static mut ACTIVES: [Option<u8>; CORE_COUNT] = [None; CORE_COUNT];
-static mut FREE_STACK: [Option<*mut u8>; CORE_COUNT] = [None; CORE_COUNT];
 static mut RECEIVER: [*const ringq::Chan<Msg>; PROCESS_MAX] = [null(); PROCESS_MAX];
 
 static PROC_INFO: MCSLock<ProcInfo> = MCSLock::new(ProcInfo::new());
@@ -55,10 +60,6 @@ impl ProcInfo {
 
 fn get_actives() -> &'static mut [Option<u8>; CORE_COUNT] {
     unsafe { &mut ACTIVES }
-}
-
-fn get_free_stack() -> &'static mut [Option<*mut u8>; CORE_COUNT] {
-    unsafe { &mut FREE_STACK }
 }
 
 struct ProcessQ(Option<(u8, u8)>); // (head, tail)
@@ -127,6 +128,7 @@ struct Process {
     tx: *const ringq::Chan<Msg>,
     id: u8,
     cnt: u16,
+    stack_end: usize,
 }
 
 impl Process {
@@ -139,6 +141,7 @@ impl Process {
             tx: null(),
             id,
             cnt: 0,
+            stack_end: 0,
         }
     }
 
@@ -173,8 +176,7 @@ pub fn init() {
     let (tx, rx) = ch.channel();
 
     // allocate stack
-    let layout = alloc::Layout::from_size_align(STACK_SIZE, mmu::PAGESIZE as usize).unwrap();
-    let stack = unsafe { alloc::alloc(layout) };
+    let stack = user_stack(0);
 
     // let tbl = get_process_table();
     let mut node = MCSNode::new();
@@ -215,30 +217,22 @@ fn init_process(
     proc.regs.x30 = goto_el0 as u64;
     proc.cnt += 1;
     proc.stack = stack;
+    proc.stack_end = map_user_stack(id as u8);
     proc.tx = tx;
 
     unsafe { RECEIVER[id] = rx };
 
     tbl[id] = Some(proc);
-
-    // TODO: set canary
-    // TODO: allocate process's heap
 }
 
 /// Spawn a new process.
 /// If successful this function is unreachable, otherwise (fail) this returns normally.
 pub fn spawn(app: u64) -> Option<u32> {
-    gc_stack(); // garbage collection
-
     // disable FIQ, IRQ, Abort, Debug
     let mask = InterMask::new();
 
     // create channel
     let mut ch = ringq::Chan::<Msg>::new(0);
-
-    // allocate stack
-    let layout = alloc::Layout::from_size_align(STACK_SIZE, mmu::PAGESIZE as usize).unwrap();
-    let stack = unsafe { alloc::alloc(layout) };
 
     // aqcuire lock
     let mut node = MCSNode::new();
@@ -259,6 +253,8 @@ pub fn spawn(app: u64) -> Option<u32> {
     let id = id?;
     ch.set_pid(id);
     let (tx, rx) = ch.channel();
+
+    let stack = user_stack(id);
 
     // initialize process
     init_process(
@@ -288,8 +284,6 @@ pub fn spawn(app: u64) -> Option<u32> {
 /// exit process
 /// this function is always unreachable
 pub fn exit() -> ! {
-    gc_stack(); // garbage collection
-
     // disable FIQ, IRQ, Abort, Debug
     let mask = InterMask::new();
 
@@ -313,7 +307,6 @@ pub fn exit() -> ! {
                     ringq::Receiver::from_raw(rx);
                 }
             }
-            get_free_stack()[aff] = Some(entry.stack); // stack to be freed
         }
         tbl[current as usize] = None;
     }
@@ -327,15 +320,6 @@ pub fn exit() -> ! {
     unreachable!()
 }
 
-fn gc_stack() {
-    let aff = core_pos();
-    if let Some(stack) = get_free_stack()[aff] {
-        let layout = alloc::Layout::from_size_align(STACK_SIZE, mmu::PAGESIZE as usize).unwrap();
-        unsafe { alloc::dealloc(stack, layout) };
-        get_free_stack()[aff] = None;
-    }
-}
-
 fn schedule2(mask: InterMask, mut proc_info: MCSLockGuard<ProcInfo>) {
     // get next
     let (tbl, readyq) = proc_info.get_mut();
@@ -345,10 +329,15 @@ fn schedule2(mask: InterMask, mut proc_info: MCSLockGuard<ProcInfo>) {
 
     if let Some(next) = next {
         let next_ctx;
+        let next_cnt;
 
         // move the current process to Ready queue
         if let Some(current) = actives[aff] {
             if let Some(entry) = tbl[current as usize].as_mut() {
+                if !extend_stack(entry) {
+                    todo!("stack overflow");
+                }
+
                 if entry.state == State::Active {
                     entry.state = State::Ready;
                     readyq.enque(current, tbl);
@@ -361,6 +350,7 @@ fn schedule2(mask: InterMask, mut proc_info: MCSLockGuard<ProcInfo>) {
             actives[aff] = Some(next);
             if let Some(entry) = tbl[next as usize].as_mut() {
                 entry.state = State::Active;
+                next_cnt = entry.cnt;
             } else {
                 return;
             }
@@ -381,6 +371,7 @@ fn schedule2(mask: InterMask, mut proc_info: MCSLockGuard<ProcInfo>) {
             actives[aff] = Some(next);
             if let Some(entry) = tbl[next as usize].as_mut() {
                 entry.state = State::Active;
+                next_cnt = entry.cnt;
             } else {
                 return;
             }
@@ -391,6 +382,7 @@ fn schedule2(mask: InterMask, mut proc_info: MCSLockGuard<ProcInfo>) {
         }
 
         // context switch
+        set_tpid_reg(next, next_cnt);
         unsafe {
             (*next_ctx).context_switch();
         }
@@ -415,7 +407,7 @@ pub fn schedule() {
 }
 
 /// Get the process ID.
-pub fn get_id() -> u32 {
+pub fn get_pid() -> u32 {
     let aff = core_pos();
 
     // disable FIQ, IRQ, Abort, Debug
@@ -431,6 +423,14 @@ pub fn get_id() -> u32 {
     } else {
         0
     }
+}
+
+/// Get the raw Process ID.
+pub fn get_raw_id() -> Option<u8> {
+    let aff = core_pos();
+
+    let actives = get_actives();
+    actives[aff]
 }
 
 pub fn send(dst: &Locator, val: u32) -> bool {
@@ -485,4 +485,85 @@ pub fn recv(src: &mut Locator) -> u32 {
 
     *src = ret.loc;
     ret.val
+}
+
+pub struct EnterKernel {
+    tpid: u64,
+}
+
+impl EnterKernel {
+    pub fn new() -> Self {
+        let tpid = cpu::tpidr_el0::get();
+        cpu::tpidrro_el0::set(1 << 63);
+        EnterKernel { tpid }
+    }
+}
+
+impl Drop for EnterKernel {
+    fn drop(&mut self) {
+        cpu::tpidr_el0::set(self.tpid);
+    }
+}
+
+const TPID_KERNEL_FLAG: u64 = 1 << 63;
+
+/// tpidrro_el0 register format
+/// | bits    | mean         |
+/// |---------|--------------|
+/// |  0 -  7 | raw ID       |
+/// |  8 - 23 | count        |
+/// | 24 - 31 | CPU affinity |
+///
+/// tpidrro_el0 must be 1 << 63 in kernel space
+fn set_tpid_reg(id: u8, cnt: u16) {
+    let aff = core_pos() as u64 & 0xff;
+    let cnt = cnt as u64;
+    let tpid = (aff << 24) | (cnt << 8) | (id as u64);
+    cpu::tpidr_el0::set(tpid);
+}
+
+/// Make tpidr_el0 kernel space
+pub fn set_tpid_kernel() {
+    cpu::tpidr_el0::set(TPID_KERNEL_FLAG);
+}
+
+/// Get raw ID from tpidrro_el0
+/// This function is for EL0
+pub fn get_raw_id_user() -> u8 {
+    cpu::tpidr_el0::get() as u8
+}
+
+/// Get affinity from tpidrro_el0
+/// This function is for EL0
+pub fn get_affinity_user() -> u8 {
+    (cpu::tpidr_el0::get() >> 24) as u8
+}
+
+/// Kernel space or user space?
+/// This function is for EL0
+pub fn is_kernel_user() -> bool {
+    cpu::tpidr_el0::get() & (TPID_KERNEL_FLAG) != 0
+}
+
+fn map_user_stack(id: u8) -> usize {
+    let vm_addr = user_stack(id);
+    let end = (vm_addr as u64 - mmu::PAGESIZE * 2) as usize;
+    paging::map_user((vm_addr as u64 - mmu::PAGESIZE) as usize, id);
+    paging::map_user(end, id);
+    end
+}
+
+fn extend_stack(proc: &mut Process) -> bool {
+    if proc.regs.sp & !(PAGESIZE - 1) == proc.stack_end as u64 {
+        if let paging::FaultResult::Ok =
+            paging::map_user(proc.stack_end - PAGESIZE as usize, proc.id)
+        {
+            proc.stack_end -= PAGESIZE as usize;
+            true
+        } else {
+            false
+        }
+    } else {
+        true
+    }
 }

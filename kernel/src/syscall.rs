@@ -5,6 +5,9 @@ pub const SYS_SCHED: u64 = 3;
 pub const SYS_GETPID: u64 = 4;
 pub const SYS_SEND: u64 = 5;
 pub const SYS_RECV: u64 = 6;
+pub const SYS_SET_ALLOC: u64 = 7;
+
+extern crate memalloc;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Locator {
@@ -102,4 +105,9 @@ pub fn send(dst: &Locator, val: u32) -> bool {
 /// Receive a value
 pub fn recv(src: &mut Locator) -> u32 {
     syscall!(SYS_RECV, src as *mut Locator) as u32
+}
+
+/// Set userland allocator
+pub fn set_allocator(allc: &mut memalloc::Allocator) {
+    syscall!(SYS_SET_ALLOC, allc as *mut memalloc::Allocator);
 }

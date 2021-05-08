@@ -6,7 +6,6 @@
 #![allow(dead_code)]
 
 mod aarch64;
-//mod bits;
 mod allocator;
 mod driver;
 mod el0;

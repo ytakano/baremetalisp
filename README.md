@@ -93,3 +93,19 @@ $ make distclean
 $ make pinephone_defconfig
 $ make all
 ```
+
+## M1 Mac Qemu
+
+Install pathced Qemu. https://github.com/knazarov/homebrew-qemu-virgl
+
+```
+$ brew install knazarov/qemu-virgl/qemu-virgl
+```
+
+Compile and run.
+
+```text
+$ cd kernel
+$ make BSP=raspi3
+$ qemu-system-aarch64 -M raspi3 -accel tcg,split-wx=on -kernel kernel8.img -serial stdio -d int
+```

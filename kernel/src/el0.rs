@@ -112,7 +112,8 @@ fn repl_uart(ctx: &blisp::semantics::Context) -> ! {
 }
 
 fn get_app(id: usize) -> Option<&'static str> {
-    let mut _allc = Allocator::new(); // TODO
+    let mut allc = Allocator::new();
+    syscall::set_allocator(&mut allc);
 
     if id >= APPS.len() {
         None

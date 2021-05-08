@@ -1,6 +1,5 @@
-use crate::driver::topology::core_pos;
-
 use super::*;
+use crate::driver::topology::core_pos;
 use ::alloc::sync::Arc;
 use synctools::mcs::{MCSLock, MCSNode};
 

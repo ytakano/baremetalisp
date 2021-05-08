@@ -747,7 +747,7 @@ fn set_reg_el1(ttbr0: usize, ttbr1: usize) {
         22 << 16 | // T1SZ = 22, 2 levels (level 2 and 3 translation tables), 2^42B (4TiB) space
          1 << 14 | // 64KiB granule
          3 << 12 | // inner shadable, TTBR0_EL1
-         2 << 10 | // Normal memory, Outer Write-Through Read-Allocate Write-Allocate Cacheable, TTBR0_EL1
+         1 << 10 | // Normal memory, Outer Write-Back Read-Allocate Write-Allocate Cacheable, TTBR0_EL1
          1 <<  8 | // Normal memory, Inner Write-Back Read-Allocate Write-Allocate Cacheable, TTBR0_EL1
         22; // T0SZ = 22, 2 levels (level 2 and 3 translation tables), 2^42B (4TiB) space
 
