@@ -42,10 +42,8 @@ static mut MEMORY_MAP: Addr = Addr {
     sram_start: 0,
     sram_end: 0,
     stack_size: 0,
-    stack_el0_end: 0,
-    stack_el0_start: 0,
-    el0_heap_start: 0,
-    el0_heap_end: 0,
+    pager_mem_start: 0,
+    pager_mem_end: 0,
 };
 
 extern "C" {
@@ -165,10 +163,8 @@ pub struct Addr {
     pub stack_size: u64,
 
     // independent from physical
-    pub stack_el0_end: u64,
-    pub stack_el0_start: u64,
-    pub el0_heap_start: u64,
-    pub el0_heap_end: u64,
+    pub pager_mem_start: u64,
+    pub pager_mem_end: u64,
 }
 
 impl Addr {
@@ -188,15 +184,10 @@ impl Addr {
 
         // 2MiB stack for each
         self.stack_size = STACK_SIZE;
-        let stack_size_total = self.stack_size * NUM_CPU;
-
-        // EL0's stack
-        self.stack_el0_end = self.tt_el1_ttbr1_end;
-        self.stack_el0_start = self.stack_el0_end + stack_size_total;
 
         // heap memory for EL0
-        self.el0_heap_start = self.stack_el0_start;
-        self.el0_heap_end = get_ram_start() + 64 * 1024 * 1024; // 64MiB
+        self.pager_mem_start = self.tt_el1_ttbr1_end;
+        self.pager_mem_end = get_ram_start() + 64 * 1024 * 1024; // 64MiB
 
         // ROM
         self.rom_start = ROM_START;
@@ -286,20 +277,12 @@ impl Addr {
         driver::uart::hex(self.tt_el1_ttbr1_end as u64);
         driver::uart::puts("\n");
 
-        driver::uart::puts("stack_el0_end      = 0x");
-        driver::uart::hex(self.stack_el0_end as u64);
+        driver::uart::puts("pager_mem_start    = 0x");
+        driver::uart::hex(self.pager_mem_start as u64);
         driver::uart::puts("\n");
 
-        driver::uart::puts("stack_el0_start    = 0x");
-        driver::uart::hex(self.stack_el0_start as u64);
-        driver::uart::puts("\n");
-
-        driver::uart::puts("el0_heap_start     = 0x");
-        driver::uart::hex(self.el0_heap_start as u64);
-        driver::uart::puts("\n");
-
-        driver::uart::puts("el0_heap_end       = 0x");
-        driver::uart::hex(self.el0_heap_end as u64);
+        driver::uart::puts("pager_mem_end      = 0x");
+        driver::uart::hex(self.pager_mem_end as u64);
         driver::uart::puts("\n");
     }
 }
@@ -535,6 +518,8 @@ pub fn init() -> Option<(TTable, TTable)> {
         return None;
     }
 
+    init_sp_el1();
+
     Some(init_el1(&addr))
 }
 
@@ -627,29 +612,10 @@ fn init_el1(addr: &Addr) -> (TTable, TTable) {
         bss_start += PAGESIZE;
     }
 
-    // map userland stack
-    let mut stack_end = addr.stack_el0_end;
-    let flag = FLAG_L3_XN
-        | FLAG_L3_PXN
-        | FLAG_L3_AF
-        | FLAG_L3_ISH
-        | FLAG_L3_SH_RW_RW
-        | FLAG_L3_ATTR_MEM
-        | 0b11;
-    while stack_end < addr.stack_el0_start {
-        table0.map(stack_end, stack_end, flag);
-        stack_end += PAGESIZE;
-    }
-
-    for i in 0..NUM_CPU {
-        let addr = addr.stack_el0_end + i * addr.stack_size;
-        table0.unmap(addr);
-    }
-
     // map userland heap
-    let mut heap_start = addr.el0_heap_start;
+    let mut heap_start = addr.pager_mem_start;
     let flag = user_page_flag();
-    while heap_start < addr.el0_heap_end {
+    while heap_start < addr.pager_mem_end {
         table0.map(heap_start, heap_start, flag);
         heap_start += PAGESIZE;
     }
@@ -806,4 +772,19 @@ pub fn tlb_flush_addr(vm_addr: usize) {
              in(reg) (vm_addr >> 12) & !0b1111
         )
     };
+}
+
+fn init_sp_el1() {
+    let stack = get_stack_el1_start();
+    for i in 0..driver::topology::CORE_COUNT {
+        let addr = stack - (i as u64) * STACK_SIZE + EL1_ADDR_OFFSET;
+        unsafe {
+            asm!(
+                "msr spsel, #1
+                 mov sp, {}
+                 msr spsel, #0",
+                in(reg) addr
+            );
+        }
+    }
 }

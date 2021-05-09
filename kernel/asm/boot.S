@@ -40,3 +40,5 @@ save_context:
 
     mov     x0, #0 // return 0
     ret
+
+#include "exception.S"

@@ -26,7 +26,7 @@ pub fn el1_entry() {
         let addr = mmu::get_memory_map();
 
         // initialize Pager
-        paging::init(addr.el0_heap_start as usize, addr.el0_heap_end as usize);
+        paging::init(addr.pager_mem_start as usize, addr.pager_mem_end as usize);
 
         // initialize Kernel heap
         allocator::init_kernel();

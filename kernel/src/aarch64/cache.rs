@@ -3,7 +3,7 @@ use super::mmu;
 
 pub fn flush() {
     let mut start = mmu::get_data_start();
-    let end = mmu::get_memory_map().el0_heap_end;
+    let end = mmu::get_memory_map().pager_mem_end;
 
     cpu::dmb_sy();
     while start < end {

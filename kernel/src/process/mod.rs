@@ -1,15 +1,9 @@
 mod ringq;
 
 use crate::{
-    aarch64::{
-        context::GpRegs,
-        cpu,
-        int::InterMask,
-        mmu::{self, PAGESIZE},
-    },
+    aarch64::{context::GpRegs, cpu, int::InterMask},
     allocator::user_stack,
     driver::topology::{core_pos, CORE_COUNT},
-    paging,
     syscall::Locator,
 };
 
@@ -128,7 +122,6 @@ struct Process {
     tx: *const ringq::Chan<Msg>,
     id: u8,
     cnt: u16,
-    stack_end: usize,
 }
 
 impl Process {
@@ -141,7 +134,6 @@ impl Process {
             tx: null(),
             id,
             cnt: 0,
-            stack_end: 0,
         }
     }
 
@@ -217,7 +209,6 @@ fn init_process(
     proc.regs.x30 = goto_el0 as u64;
     proc.cnt += 1;
     proc.stack = stack;
-    proc.stack_end = map_user_stack(id as u8);
     proc.tx = tx;
 
     unsafe { RECEIVER[id] = rx };
@@ -334,10 +325,6 @@ fn schedule2(mask: InterMask, mut proc_info: MCSLockGuard<ProcInfo>) {
         // move the current process to Ready queue
         if let Some(current) = actives[aff] {
             if let Some(entry) = tbl[current as usize].as_mut() {
-                if !extend_stack(entry) {
-                    todo!("stack overflow");
-                }
-
                 if entry.state == State::Active {
                     entry.state = State::Ready;
                     readyq.enque(current, tbl);
@@ -543,27 +530,4 @@ pub fn get_affinity_user() -> u8 {
 /// This function is for EL0
 pub fn is_kernel_user() -> bool {
     cpu::tpidr_el0::get() & (TPID_KERNEL_FLAG) != 0
-}
-
-fn map_user_stack(id: u8) -> usize {
-    let vm_addr = user_stack(id);
-    let end = (vm_addr as u64 - mmu::PAGESIZE * 2) as usize;
-    paging::map_user((vm_addr as u64 - mmu::PAGESIZE) as usize, id);
-    paging::map_user(end, id);
-    end
-}
-
-fn extend_stack(proc: &mut Process) -> bool {
-    if proc.regs.sp & !(PAGESIZE - 1) == proc.stack_end as u64 {
-        if let paging::FaultResult::Ok =
-            paging::map_user(proc.stack_end - PAGESIZE as usize, proc.id)
-        {
-            proc.stack_end -= PAGESIZE as usize;
-            true
-        } else {
-            false
-        }
-    } else {
-        true
-    }
 }
