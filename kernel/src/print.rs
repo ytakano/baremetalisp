@@ -1,6 +1,6 @@
 use crate::driver::uart;
 
-const KEY_WIDTH: usize = 16;
+const KEY_WIDTH: usize = 32;
 
 pub fn msg(key: &str, val: &str) {
     uart::puts("[");

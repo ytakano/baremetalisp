@@ -29,8 +29,18 @@ pub fn el1_entry() {
         paging::init(addr.pager_mem_start as usize, addr.pager_mem_end as usize);
 
         // initialize Kernel heap
-        allocator::init_kernel();
-        print::msg("Kernel heap", "initialized");
+        let (s0, e0, s1, e1) = allocator::init_kernel();
+
+        {
+            let msg = format!("0x{:X} - 0x{:X}", addr.pager_mem_start, addr.pager_mem_end);
+            print::msg("Pager", &msg);
+
+            let msg = format!("0x{:X} - 0x{:X}", s0, e0);
+            print::msg("Slab allocator (Kernel)", &msg);
+
+            let msg = format!("0x{:X} - 0x{:X}", s1, e1);
+            print::msg("Buddy allocator (Kernel)", &msg);
+        }
 
         // spawn the init process
         process::init();

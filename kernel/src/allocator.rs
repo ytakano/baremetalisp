@@ -66,16 +66,22 @@ pub fn is_kern_mem(addr: usize) -> bool {
     offset <= addr && addr < offset + SLAB_SIZE + BUDDY_SIZE
 }
 
-pub fn init_kernel() {
+pub fn init_kernel() -> (usize, usize, usize, usize) {
     let offset = kern_offset();
+    let offset_slab = offset + SLAB_SIZE;
     unsafe {
         ALLOCATOR.kernel.init_slab(offset, SLAB_SIZE);
-        ALLOCATOR.kernel.init_buddy(offset + SLAB_SIZE);
+        ALLOCATOR.kernel.init_buddy(offset_slab);
     }
+    (offset, offset_slab, offset_slab, offset_slab + BUDDY_SIZE)
 }
 
 fn user_offset(id: u8) -> usize {
     USER_MEM_OFFSET + id as usize * USER_MEM_SIZE
+}
+
+pub fn user_canary(id: u8) -> *mut u8 {
+    user_offset(id) as *mut u8
 }
 
 /// Get user stack

@@ -1,7 +1,9 @@
-use super::context::GpRegs;
-use super::cpu;
-use super::syscall;
-use crate::{driver, paging, print};
+use super::{context::GpRegs, cpu, mmu, syscall};
+use crate::{
+    allocator, driver,
+    paging::{self, FaultResult},
+    print, process,
+};
 
 const ESR_EL1_EC_MASK: u64 = 0b111111 << 26;
 const ESR_EL1_EC_UNKNOWN: u64 = 0b000000 << 26;
@@ -110,8 +112,28 @@ pub fn lower_el_aarch32_serror_el2(_ctx: *mut GpRegs, _sp: usize) {}
 
 // from the current EL using the SP_EL0
 #[no_mangle]
-pub fn curr_el_sp0_sync_el1(ctx: *mut GpRegs, sp: usize) {
-    sync_el1(ctx, sp);
+pub fn curr_el_sp0_sync_el1(ctx: *mut GpRegs, _sp: usize) {
+    let esr = cpu::esr_el1::get();
+
+    let ec = esr & ESR_EL1_EC_MASK;
+    match ec {
+        ESR_LE1_EC_DATA_KERN => {
+            page_fault_el1();
+        }
+        _ => {
+            let r = unsafe { &mut *ctx };
+            driver::uart::puts("ELR = ");
+            driver::uart::hex(r.elr);
+            driver::uart::puts("\nSPSR = 0x");
+            driver::uart::hex(r.spsr as u64);
+            driver::uart::puts("\nESR = 0x");
+            driver::uart::hex(esr);
+            driver::uart::puts("\nEC = 0b");
+            driver::uart::bin8((ec >> 26) as u8);
+            driver::uart::puts("\n");
+            print::msg("EL1 Exception", "unknown")
+        }
+    }
 }
 
 #[no_mangle]
@@ -160,11 +182,9 @@ pub fn curr_el_spx_serror_el1(_ctx: *mut GpRegs, _sp: usize) {
 
 // from lower EL (AArch64)
 #[no_mangle]
-pub fn lower_el_aarch64_sync_el1(ctx: *mut GpRegs, sp: usize) {
-    sync_el1(ctx, sp);
-}
+pub fn lower_el_aarch64_sync_el1(ctx: *mut GpRegs, _sp: usize) {
+    detect_stack_overflow();
 
-fn sync_el1(ctx: *mut GpRegs, _sp: usize) {
     let r = unsafe { &mut *ctx };
     let esr = cpu::esr_el1::get();
 
@@ -172,12 +192,7 @@ fn sync_el1(ctx: *mut GpRegs, _sp: usize) {
     match ec {
         ESR_EL1_EC_WFI_OR_WFE => print::msg("EL1 Exception", "WFI or WFE"),
         ESR_LE1_EC_DATA => {
-            let far_el1 = cpu::far_el1::get();
-            paging::fault(far_el1 as usize);
-        }
-        ESR_LE1_EC_DATA_KERN => {
-            let far_el1 = cpu::far_el1::get();
-            paging::fault(far_el1 as usize);
+            page_fault_el0(ctx);
         }
         ESR_EL1_EC_SVC64 => {
             let n = syscall::handle64(r);
@@ -201,16 +216,19 @@ fn sync_el1(ctx: *mut GpRegs, _sp: usize) {
 #[no_mangle]
 pub fn lower_el_aarch64_irq_el1(_ctx: *mut GpRegs, _sp: usize) {
     driver::uart::puts("EL1 exception: IRQ\n");
+    detect_stack_overflow();
 }
 
 #[no_mangle]
 pub fn lower_el_aarch64_fiq_el1(_ctx: *mut GpRegs, _sp: usize) {
     driver::uart::puts("EL1 exception: FIQ\n");
+    detect_stack_overflow();
 }
 
 #[no_mangle]
 pub fn lower_el_aarch64_serror_el1(_ctx: *mut GpRegs, _sp: usize) {
     driver::uart::puts("EL1 exception: Error\n");
+    process::exit();
 }
 
 // from lower EL (AArch32)
@@ -225,3 +243,47 @@ pub fn lower_el_aarch32_fiq_el1(_ctx: *mut GpRegs, _sp: usize) {}
 
 #[no_mangle]
 pub fn lower_el_aarch32_serror_el1(_ctx: *mut GpRegs, _sp: usize) {}
+
+fn page_fault_el1() {
+    let far_el1 = cpu::far_el1::get();
+    match paging::fault(far_el1 as usize) {
+        FaultResult::InvalidAccess => {
+            panic!("invalid memory access");
+        }
+        FaultResult::StackOverflow => {
+            paging::map_canary();
+        }
+        _ => {}
+    }
+}
+
+#[no_mangle]
+extern "C" fn call_exit() {
+    crate::syscall::exit();
+}
+
+fn page_fault_el0(ctx: *mut GpRegs) {
+    let far_el1 = cpu::far_el1::get();
+    match paging::fault(far_el1 as usize) {
+        FaultResult::InvalidAccess => {
+            unsafe { (*ctx).elr = call_exit as u64 };
+        }
+        FaultResult::StackOverflow => {
+            paging::map_canary();
+            unsafe { (*ctx).elr = call_exit as u64 };
+        }
+        _ => {}
+    }
+}
+
+fn detect_stack_overflow() {
+    if let Some(id) = process::get_raw_id() {
+        let sp = cpu::get_sp();
+        if allocator::is_user_canary(id, sp as usize)
+            || allocator::is_user_canary(id, (sp - mmu::STACK_SIZE) as usize)
+        {
+            // stack overflow
+            process::exit();
+        }
+    }
+}

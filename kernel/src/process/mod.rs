@@ -304,8 +304,7 @@ pub fn exit() -> ! {
 
     actives[aff] = None;
 
-    // TODO: unset canary
-    // TODO: deallocate process's heap
+    // TODO: unmap process's memory
 
     schedule2(mask, proc_info);
     unreachable!()

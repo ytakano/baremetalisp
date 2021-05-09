@@ -9,6 +9,7 @@ use synctools::mcs::{MCSLock, MCSNode};
 
 static PAGER: MCSLock<GlobalVar<PageManager>> = MCSLock::new(GlobalVar::UnInit);
 
+#[derive(PartialEq, Eq)]
 pub enum FaultResult {
     Ok,
     StackOverflow,
@@ -61,6 +62,13 @@ pub fn fault(vm_addr: usize) -> FaultResult {
     }
 }
 
+pub fn map_canary() {
+    if let Some(id) = get_raw_id() {
+        let canary = allocator::user_canary(id) as usize;
+        map(canary, canary, false);
+    }
+}
+
 fn map(start: usize, end: usize, is_kern: bool) {
     // disable interrupts
     let _mask = InterMask::new();
@@ -71,24 +79,29 @@ fn map(start: usize, end: usize, is_kern: bool) {
     if let GlobalVar::Having(pager) = &mut *lock {
         for vm_addr in (start..=end).step_by(mmu::PAGESIZE as usize) {
             if let Some(phy_addr) = pager.alloc() {
-                lock.unlock();
                 if is_kern {
                     let mut ttbr1 = mmu::get_ttbr1();
                     if let None = ttbr1.to_phy_addr(vm_addr as u64) {
                         ttbr1.map(vm_addr as u64, phy_addr as u64, mmu::kernel_page_flag());
                     }
-                    mmu::tlb_flush_addr(vm_addr);
                 } else {
                     let mut ttbr0 = mmu::get_ttbr0();
                     if let None = ttbr0.to_phy_addr(vm_addr as u64) {
                         ttbr0.map(vm_addr as u64, phy_addr as u64, mmu::user_page_flag());
                     }
                 };
-
-                return;
             }
         }
+
+        if start == end {
+            mmu::tlb_flush_addr(start);
+        } else {
+            mmu::tlb_flush_all();
+        }
+
+        return;
     }
+    lock.unlock();
 
     panic!("failed to map virtual memory");
 }
