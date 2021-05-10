@@ -1,4 +1,4 @@
-use crate::{global::GlobalVar, mmio::MMIO, print};
+use crate::{global::GlobalVar, mmio::MMIO, out};
 use core::default::Default;
 use synctools::mcs::{MCSLock, MCSNode};
 
@@ -85,7 +85,7 @@ pub fn init(gicc_base: usize, gicd_base: usize, ver: GICVer) {
     gicc_ctlr.write(GICC_CTLR_FIQEN | GICC_CTLR_ENABLEGRP0 | GICC_CTLR_ENABLEGRP1);
     gicd_ctlr.setbits(GICD_CTLR_ENABLEGRP0 | GICD_CTLR_ENABLEGRP1);
 
-    print::msg("GICv2", "Initialized");
+    out::msg("GICv2", "Initialized");
 
     if let GlobalVar::UnInit = *lock {
         *lock = GlobalVar::Having(g)

@@ -42,6 +42,11 @@ pub fn map_user(vm_addr: usize, id: u8) -> FaultResult {
     FaultResult::Ok
 }
 
+pub fn unmap_user_all(id: u8) {
+    let (start, end) = allocator::user_mem(id);
+    unmap(start, end, false);
+}
+
 pub fn fault(vm_addr: usize) -> FaultResult {
     if allocator::is_kern_mem(vm_addr) {
         map(vm_addr, vm_addr, true);
@@ -69,6 +74,37 @@ pub fn map_canary() {
     }
 }
 
+fn unmap(start: usize, end: usize, is_kern: bool) {
+    // disable interrupts
+    let _mask = InterMask::new();
+
+    let mut node = MCSNode::new();
+    let mut lock = PAGER.lock(&mut node);
+
+    let mut ttbr = if is_kern {
+        mmu::get_ttbr1()
+    } else {
+        mmu::get_ttbr0()
+    };
+
+    if let GlobalVar::Having(pager) = &mut *lock {
+        for vm_addr in (start..=end).step_by(mmu::PAGESIZE as usize) {
+            if let Some(phy_addr) = ttbr.to_phy_addr(vm_addr as u64) {
+                pager.free(phy_addr as usize);
+                ttbr.unmap(vm_addr as u64);
+            }
+        }
+
+        if start == end {
+            mmu::tlb_flush_addr(start);
+        } else {
+            mmu::tlb_flush_all();
+        }
+
+        return;
+    }
+}
+
 fn map(start: usize, end: usize, is_kern: bool) {
     // disable interrupts
     let _mask = InterMask::new();
@@ -76,20 +112,16 @@ fn map(start: usize, end: usize, is_kern: bool) {
     let mut node = MCSNode::new();
     let mut lock = PAGER.lock(&mut node);
 
+    let (mut ttbr, flag) = if is_kern {
+        (mmu::get_ttbr1(), mmu::kernel_page_flag())
+    } else {
+        (mmu::get_ttbr0(), mmu::user_page_flag())
+    };
+
     if let GlobalVar::Having(pager) = &mut *lock {
         for vm_addr in (start..=end).step_by(mmu::PAGESIZE as usize) {
             if let Some(phy_addr) = pager.alloc() {
-                if is_kern {
-                    let mut ttbr1 = mmu::get_ttbr1();
-                    if let None = ttbr1.to_phy_addr(vm_addr as u64) {
-                        ttbr1.map(vm_addr as u64, phy_addr as u64, mmu::kernel_page_flag());
-                    }
-                } else {
-                    let mut ttbr0 = mmu::get_ttbr0();
-                    if let None = ttbr0.to_phy_addr(vm_addr as u64) {
-                        ttbr0.map(vm_addr as u64, phy_addr as u64, mmu::user_page_flag());
-                    }
-                };
+                ttbr.map(vm_addr as u64, phy_addr as u64, flag);
             }
         }
 

@@ -1,7 +1,8 @@
 use crate::{
     aarch64::mmu,
-    driver::topology::CORE_COUNT,
-    process::{get_raw_id_user, is_kernel_user, PROCESS_MAX},
+    driver::{topology::CORE_COUNT, uart},
+    process::{get_raw_id_user, is_kernel, PROCESS_MAX},
+    syscall,
 };
 use arr_macro::arr;
 use core::{
@@ -32,7 +33,7 @@ struct UserKernAllocator {
 
 unsafe impl GlobalAlloc for UserKernAllocator {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        if is_kernel_user() {
+        if is_kernel() {
             self.kernel.alloc(layout)
         } else {
             let allc = self.user[get_raw_id_user() as usize];
@@ -44,7 +45,7 @@ unsafe impl GlobalAlloc for UserKernAllocator {
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        if is_kernel_user() {
+        if is_kernel() {
             self.kernel.dealloc(ptr, layout);
         } else {
             let allc = self.user[get_raw_id_user() as usize];
@@ -78,6 +79,11 @@ pub fn init_kernel() -> (usize, usize, usize, usize) {
 
 fn user_offset(id: u8) -> usize {
     USER_MEM_OFFSET + id as usize * USER_MEM_SIZE
+}
+
+pub fn user_mem(id: u8) -> (usize, usize) {
+    let offset = user_offset(id);
+    (offset, offset + USER_MEM_SIZE)
 }
 
 pub fn user_canary(id: u8) -> *mut u8 {
@@ -129,4 +135,18 @@ pub fn set_user_allocator(id: u8, ptr: *mut Allocator) {
 
 pub fn unset_user_allocator(id: u8) {
     unsafe { ALLOCATOR.user[id as usize] = null_mut() };
+}
+
+#[alloc_error_handler]
+fn on_oom(layout: Layout) -> ! {
+    let size = layout.size() as u64;
+    uart::puts("memory allocation error: size = ");
+    uart::decimal(size);
+    uart::puts("\n");
+    uart::puts("exiting...\n");
+    if is_kernel() {
+        loop {}
+    } else {
+        syscall::exit();
+    }
 }

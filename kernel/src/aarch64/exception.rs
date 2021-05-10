@@ -1,8 +1,8 @@
 use super::{context::GpRegs, cpu, mmu, syscall};
 use crate::{
-    allocator, driver,
+    allocator, driver, out,
     paging::{self, FaultResult},
-    print, process,
+    process,
 };
 
 const ESR_EL1_EC_MASK: u64 = 0b111111 << 26;
@@ -131,7 +131,7 @@ pub fn curr_el_sp0_sync_el1(ctx: *mut GpRegs, _sp: usize) {
             driver::uart::puts("\nEC = 0b");
             driver::uart::bin8((ec >> 26) as u8);
             driver::uart::puts("\n");
-            print::msg("EL1 Exception", "unknown")
+            out::msg("EL1 Exception", "unknown")
         }
     }
 }
@@ -190,7 +190,7 @@ pub fn lower_el_aarch64_sync_el1(ctx: *mut GpRegs, _sp: usize) {
 
     let ec = esr & ESR_EL1_EC_MASK;
     match ec {
-        ESR_EL1_EC_WFI_OR_WFE => print::msg("EL1 Exception", "WFI or WFE"),
+        ESR_EL1_EC_WFI_OR_WFE => out::msg("EL1 Exception", "WFI or WFE"),
         ESR_LE1_EC_DATA => {
             page_fault_el0(ctx);
         }
@@ -208,7 +208,7 @@ pub fn lower_el_aarch64_sync_el1(ctx: *mut GpRegs, _sp: usize) {
             driver::uart::puts("\nEC = 0b");
             driver::uart::bin8((ec >> 26) as u8);
             driver::uart::puts("\n");
-            print::msg("EL1 Exception", "unknown")
+            out::msg("EL1 Exception", "unknown")
         }
     }
 }

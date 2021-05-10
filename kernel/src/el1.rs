@@ -1,11 +1,9 @@
 use crate::{
     aarch64::{cpu, mmu},
-    driver::{topology, uart},
+    driver::topology,
     process::set_tpid_kernel,
-    {allocator, paging, print, process},
+    {allocator, out, paging, process},
 };
-
-use core::alloc::Layout;
 
 extern "C" {
     fn el0_entry();
@@ -33,25 +31,16 @@ pub fn el1_entry() {
 
         {
             let msg = format!("0x{:X} - 0x{:X}", addr.pager_mem_start, addr.pager_mem_end);
-            print::msg("Pager", &msg);
+            out::msg("Pager", &msg);
 
             let msg = format!("0x{:X} - 0x{:X}", s0, e0);
-            print::msg("Slab allocator (Kernel)", &msg);
+            out::msg("Slab allocator (Kernel)", &msg);
 
             let msg = format!("0x{:X} - 0x{:X}", s1, e1);
-            print::msg("Buddy allocator (Kernel)", &msg);
+            out::msg("Buddy allocator (Kernel)", &msg);
         }
 
         // spawn the init process
         process::init();
     }
-}
-
-#[alloc_error_handler]
-fn on_oom(layout: Layout) -> ! {
-    let size = layout.size() as u64;
-    uart::puts("memory allocation error: size = ");
-    uart::decimal(size);
-    uart::puts("\n");
-    loop {}
 }

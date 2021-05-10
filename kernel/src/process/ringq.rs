@@ -90,7 +90,7 @@ impl<T: Send> Sender<T> {
         // notify to the receiver
         let mut node = MCSNode::new();
         let mut proc_info = PROC_INFO.lock(&mut node);
-        let (tbl, readyq) = proc_info.get_mut();
+        let (tbl, _, readyq) = proc_info.split();
         if let Some(entry) = tbl[self.ch.pid as usize].as_mut() {
             if entry.state == State::Recv {
                 entry.state = State::Ready;
@@ -145,6 +145,7 @@ impl<T: Send> Receiver<T> {
 
                 q.unlock();
                 schedule2(mask, proc_info);
+                set_tpid_kernel();
             }
         }
     }

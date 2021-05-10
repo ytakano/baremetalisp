@@ -1,6 +1,6 @@
 use super::aarch64;
 use super::driver;
-use super::print;
+use super::out;
 
 pub fn run() {
     print_el();
@@ -11,14 +11,14 @@ pub fn run() {
 /// print current execution level
 fn print_el() {
     let el = aarch64::cpu::get_current_el();
-    print::decimal("Current EL", el as u64);
+    out::decimal("Current EL", el as u64);
 
     match aarch64::mmu::enabled() {
         Some(m) => {
             if m {
-                print::msg("MMU", "Enabled");
+                out::msg("MMU", "Enabled");
             } else {
-                print::msg("MMU", "Disabled");
+                out::msg("MMU", "Disabled");
             }
         }
         None => {
@@ -47,7 +47,7 @@ fn print_fortune() {
         "⛩  末吉 ⛩",
         "⛩  凶 ⛩",
     ];
-    print::msg("Fortune", fortune[cnt & 0xF]);
+    out::msg("Fortune", fortune[cnt & 0xF]);
 }
 
 /// print splash message

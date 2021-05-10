@@ -1,6 +1,6 @@
 use crate::driver::uart;
 
-const KEY_WIDTH: usize = 32;
+const KEY_WIDTH: usize = 24;
 
 pub fn msg(key: &str, val: &str) {
     uart::puts("[");
@@ -55,30 +55,4 @@ pub fn bin8(key: &str, n: u8) {
     uart::puts("] 0b");
     uart::bin8(n);
     uart::puts("\n");
-}
-use core::fmt::{self, Write};
-
-#[macro_export]
-macro_rules! print {
-    ($($arg:tt)*) => ($crate::_print(format_args!($($arg)*)));
-}
-
-#[macro_export]
-macro_rules! println {
-    ($fmt:expr) => (print!(concat!($fmt, "\n")));
-    ($fmt:expr, $($arg:tt)*) => (print!(concat!($fmt, "\n"), $($arg)*));
-}
-
-pub fn _print(args: fmt::Arguments) {
-    let mut writer = UartWriter {};
-    writer.write_fmt(args).unwrap();
-}
-
-struct UartWriter;
-
-impl Write for UartWriter {
-    fn write_str(&mut self, s: &str) -> fmt::Result {
-        uart::puts(s);
-        Ok(())
-    }
 }

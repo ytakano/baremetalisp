@@ -18,6 +18,9 @@ fn callback(x: &BigInt, y: &BigInt, z: &BigInt) -> Option<BigInt> {
             let n = BigInt::from_u32(n)?;
             Some(n)
         }
+        syscall::SYS_EXIT => {
+            syscall::exit();
+        }
         syscall::SYS_SCHED => {
             syscall::sched_yield();
             None
@@ -84,7 +87,10 @@ fn run_lisp(s: &str) {
 
 fn repl_uart(ctx: &blisp::semantics::Context) -> ! {
     loop {
-        uart::puts("\n> ");
+        let pid = syscall::getpid();
+        let msg = format!("\n(pid: {}) >> ", pid);
+        uart::puts(&msg);
+
         let code_str = uart::read_line();
         let code = alloc::str::from_utf8(&code_str).unwrap();
 
@@ -124,6 +130,8 @@ fn get_app(id: usize) -> Option<&'static str> {
 
 #[no_mangle]
 pub fn el0_entry(app: usize) -> ! {
+    use crate::out;
+    out::decimal("app id", app as u64);
     if let Some(s) = get_app(app) {
         run_lisp(s);
     } else {

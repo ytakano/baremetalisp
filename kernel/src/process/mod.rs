@@ -2,8 +2,9 @@ mod ringq;
 
 use crate::{
     aarch64::{context::GpRegs, cpu, int::InterMask},
-    allocator::user_stack,
+    allocator::{unset_user_allocator, user_stack},
     driver::topology::{core_pos, CORE_COUNT},
+    paging,
     syscall::Locator,
 };
 
@@ -15,6 +16,7 @@ pub const PROCESS_MAX: usize = 256;
 
 static mut ACTIVES: [Option<u8>; CORE_COUNT] = [None; CORE_COUNT];
 static mut RECEIVER: [*const ringq::Chan<Msg>; PROCESS_MAX] = [null(); PROCESS_MAX];
+static mut FREED: [Option<u8>; CORE_COUNT] = [None; CORE_COUNT];
 
 static PROC_INFO: MCSLock<ProcInfo> = MCSLock::new(ProcInfo::new());
 
@@ -28,6 +30,7 @@ unsafe impl Send for Msg {}
 
 struct ProcInfo {
     table: [Option<Process>; PROCESS_MAX],
+    cnt: [u16; PROCESS_MAX],
     readyq: ProcessQ,
 }
 
@@ -35,12 +38,19 @@ impl ProcInfo {
     const fn new() -> ProcInfo {
         ProcInfo {
             table: arr![None; 256], // PROCESS_MAX == 256
+            cnt: arr![0; 256],
             readyq: ProcessQ::new(),
         }
     }
 
-    fn get_mut(&mut self) -> (&mut [Option<Process>; PROCESS_MAX], &mut ProcessQ) {
-        (&mut self.table, &mut self.readyq)
+    fn split(
+        &mut self,
+    ) -> (
+        &mut [Option<Process>; PROCESS_MAX],
+        &mut [u16; PROCESS_MAX],
+        &mut ProcessQ,
+    ) {
+        (&mut self.table, &mut self.cnt, &mut self.readyq)
     }
 
     unsafe fn get_ctx(&self, i: usize) -> *mut GpRegs {
@@ -54,6 +64,10 @@ impl ProcInfo {
 
 fn get_actives() -> &'static mut [Option<u8>; CORE_COUNT] {
     unsafe { &mut ACTIVES }
+}
+
+fn get_freed() -> &'static mut [Option<u8>; CORE_COUNT] {
+    unsafe { &mut FREED }
 }
 
 struct ProcessQ(Option<(u8, u8)>); // (head, tail)
@@ -121,7 +135,6 @@ struct Process {
     stack: *mut u8,
     tx: *const ringq::Chan<Msg>,
     id: u8,
-    cnt: u16,
 }
 
 impl Process {
@@ -133,12 +146,11 @@ impl Process {
             stack: null_mut(),
             tx: null(),
             id,
-            cnt: 0,
         }
     }
 
-    fn get_pid(&self) -> u32 {
-        (self.cnt as u32) << 8 | self.id as u32
+    fn get_pid(&self, cnt: u16) -> u32 {
+        (cnt as u32) << 8 | self.id as u32
     }
 
     fn pid_to_id_cnt(pid: u32) -> (u8, u16) {
@@ -178,7 +190,7 @@ pub fn init() {
     init_process(0, &mut proc_info, stack, tx.into_raw(), rx.into_raw());
 
     // enque the process to Ready queue
-    let (tbl, readyq) = proc_info.get_mut();
+    let (tbl, _, readyq) = proc_info.split();
     readyq.enque(0, tbl);
 
     schedule2(mask, proc_info);
@@ -196,8 +208,6 @@ fn init_process(
     tx: *const ringq::Chan<Msg>,
     rx: *const ringq::Chan<Msg>,
 ) {
-    let tbl = &mut proc_info.table;
-
     // initialize
     let mut proc = Process::new(0);
     proc.state = State::Ready;
@@ -207,13 +217,13 @@ fn init_process(
     proc.regs.elr = el0_entry as u64;
     proc.regs.sp = stack as u64;
     proc.regs.x30 = goto_el0 as u64;
-    proc.cnt += 1;
     proc.stack = stack;
     proc.tx = tx;
 
     unsafe { RECEIVER[id] = rx };
 
-    tbl[id] = Some(proc);
+    proc_info.cnt[id] += 1;
+    proc_info.table[id] = Some(proc);
 }
 
 /// Spawn a new process.
@@ -256,12 +266,12 @@ pub fn spawn(app: u64) -> Option<u32> {
         rx.into_raw(),
     );
 
-    let (tbl, readyq) = proc_info.get_mut();
+    let (tbl, cnt, readyq) = proc_info.split();
     readyq.enque(id, tbl);
     let pid = {
-        if let Some(entry) = proc_info.table[id as usize].as_mut() {
+        if let Some(entry) = tbl[id as usize].as_mut() {
             entry.regs.x0 = app;
-            entry.get_pid()
+            entry.get_pid(cnt[id as usize])
         } else {
             return None;
         }
@@ -300,19 +310,26 @@ pub fn exit() -> ! {
             }
         }
         tbl[current as usize] = None;
+
+        unset_user_allocator(current);
+
+        let freed = get_freed();
+        freed[aff] = Some(current);
     }
 
     actives[aff] = None;
-
-    // TODO: unmap process's memory
 
     schedule2(mask, proc_info);
     unreachable!()
 }
 
+/// After calling schedule2, tpidrro_el0 is set by user PID.
+/// tpidrro_el0 is used by the allocator to choose memory region
+/// So, if you want to use kernel heap allocator after schedule2,
+/// call set_tpid_kernel.
 fn schedule2(mask: InterMask, mut proc_info: MCSLockGuard<ProcInfo>) {
     // get next
-    let (tbl, readyq) = proc_info.get_mut();
+    let (tbl, cnt, readyq) = proc_info.split();
     let actives = get_actives();
     let next = readyq.deque(tbl);
     let aff = core_pos();
@@ -336,7 +353,7 @@ fn schedule2(mask: InterMask, mut proc_info: MCSLockGuard<ProcInfo>) {
             actives[aff] = Some(next);
             if let Some(entry) = tbl[next as usize].as_mut() {
                 entry.state = State::Active;
-                next_cnt = entry.cnt;
+                next_cnt = cnt[next as usize];
             } else {
                 return;
             }
@@ -349,6 +366,14 @@ fn schedule2(mask: InterMask, mut proc_info: MCSLockGuard<ProcInfo>) {
 
             unsafe {
                 if (*current_ctx).save_context() > 0 {
+                    // unmap exited process's memory
+                    let aff = core_pos();
+                    let freed = get_freed();
+                    if let Some(id) = freed[aff] {
+                        paging::unmap_user_all(id);
+                        freed[aff] = None;
+                    }
+
                     return;
                 }
             }
@@ -357,7 +382,7 @@ fn schedule2(mask: InterMask, mut proc_info: MCSLockGuard<ProcInfo>) {
             actives[aff] = Some(next);
             if let Some(entry) = tbl[next as usize].as_mut() {
                 entry.state = State::Active;
-                next_cnt = entry.cnt;
+                next_cnt = cnt[next as usize];
             } else {
                 return;
             }
@@ -405,7 +430,7 @@ pub fn get_pid() -> u32 {
     let mut node = MCSNode::new();
     let proc_info = PROC_INFO.lock(&mut node);
     if let Some(entry) = proc_info.table[id as usize].as_ref() {
-        entry.get_pid()
+        entry.get_pid(proc_info.cnt[id as usize])
     } else {
         0
     }
@@ -427,15 +452,17 @@ pub fn send(dst: &Locator, val: u32) -> bool {
     };
 
     let id = addr & 0xff;
-    let cnt = addr >> 8;
+    let count = addr >> 8;
 
     // disable FIQ, IRQ, Abort, Debug
     let mask = InterMask::new();
     let mut node = MCSNode::new();
     let mut proc_info = PROC_INFO.lock(&mut node);
 
-    if let Some(p) = proc_info.table[id as usize].as_mut() {
-        if p.cnt != cnt as u16 {
+    let (tbl, cnt, _) = proc_info.split();
+
+    if let Some(p) = tbl[id as usize].as_mut() {
+        if cnt[id as usize] != count as u16 {
             return false;
         }
 
@@ -519,7 +546,7 @@ pub fn get_raw_id_user() -> u8 {
     cpu::tpidr_el0::get() as u8
 }
 
-/// Get affinity from tpidrro_el0
+/// Get CPU affinity from tpidrro_el0
 /// This function is for EL0
 pub fn get_affinity_user() -> u8 {
     (cpu::tpidr_el0::get() >> 24) as u8
@@ -527,6 +554,6 @@ pub fn get_affinity_user() -> u8 {
 
 /// Kernel space or user space?
 /// This function is for EL0
-pub fn is_kernel_user() -> bool {
+pub fn is_kernel() -> bool {
     cpu::tpidr_el0::get() & (TPID_KERNEL_FLAG) != 0
 }

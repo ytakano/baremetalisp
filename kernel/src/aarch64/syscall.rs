@@ -7,7 +7,7 @@ use crate::{
 use super::context::GpRegs;
 
 pub(super) fn handle64(regs: &GpRegs) -> i64 {
-    EnterKernel::new();
+    let _ent = EnterKernel::new();
 
     match regs.x0 {
         syscall::SYS_SPAWN => {

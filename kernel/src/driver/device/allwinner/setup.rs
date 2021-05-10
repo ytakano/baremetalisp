@@ -3,7 +3,7 @@ use crate::{
     aarch64::{cpu, mmu},
     driver::{gic, tzc380},
     mmio::MMIO,
-    print,
+    out,
 };
 
 pub(in crate::driver) fn early_platform_setup() {}
@@ -25,7 +25,7 @@ fn init_gic() {
     cpu::dmb_st();
 
     let n = ctrl.read();
-    print::hex32("CTRL REG0", n);
+    out::hex32("CTRL REG0", n);
 
     gic::init(
         memory::SUNXI_GICC_BASE as usize,
