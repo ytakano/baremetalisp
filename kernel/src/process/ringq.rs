@@ -145,7 +145,6 @@ impl<T: Send> Receiver<T> {
 
                 q.unlock();
                 schedule2(mask, proc_info);
-                set_tpid_kernel();
             }
         }
     }

@@ -197,7 +197,8 @@ pub fn init() {
 }
 
 #[no_mangle]
-fn goto_el0() {
+fn goto_el0(_app: usize, next: usize, cnt: usize) {
+    set_tpid_reg(next as u8, cnt as u16);
     unsafe { asm!("eret") }
 }
 
@@ -270,8 +271,11 @@ pub fn spawn(app: u64) -> Option<u32> {
     readyq.enque(id, tbl);
     let pid = {
         if let Some(entry) = tbl[id as usize].as_mut() {
+            let cnt2 = cnt[id as usize];
             entry.regs.x0 = app;
-            entry.get_pid(cnt[id as usize])
+            entry.regs.x1 = id as u64;
+            entry.regs.x2 = cnt2 as u64;
+            entry.get_pid(cnt2)
         } else {
             return None;
         }
@@ -323,20 +327,15 @@ pub fn exit() -> ! {
     unreachable!()
 }
 
-/// After calling schedule2, tpidrro_el0 is set by user PID.
-/// tpidrro_el0 is used by the allocator to choose memory region
-/// So, if you want to use kernel heap allocator after schedule2,
-/// call set_tpid_kernel.
 fn schedule2(mask: InterMask, mut proc_info: MCSLockGuard<ProcInfo>) {
     // get next
-    let (tbl, cnt, readyq) = proc_info.split();
+    let (tbl, _, readyq) = proc_info.split();
     let actives = get_actives();
     let next = readyq.deque(tbl);
     let aff = core_pos();
 
     if let Some(next) = next {
         let next_ctx;
-        let next_cnt;
 
         // move the current process to Ready queue
         if let Some(current) = actives[aff] {
@@ -353,7 +352,6 @@ fn schedule2(mask: InterMask, mut proc_info: MCSLockGuard<ProcInfo>) {
             actives[aff] = Some(next);
             if let Some(entry) = tbl[next as usize].as_mut() {
                 entry.state = State::Active;
-                next_cnt = cnt[next as usize];
             } else {
                 return;
             }
@@ -382,7 +380,6 @@ fn schedule2(mask: InterMask, mut proc_info: MCSLockGuard<ProcInfo>) {
             actives[aff] = Some(next);
             if let Some(entry) = tbl[next as usize].as_mut() {
                 entry.state = State::Active;
-                next_cnt = cnt[next as usize];
             } else {
                 return;
             }
@@ -393,7 +390,6 @@ fn schedule2(mask: InterMask, mut proc_info: MCSLockGuard<ProcInfo>) {
         }
 
         // context switch
-        set_tpid_reg(next, next_cnt);
         unsafe {
             (*next_ctx).context_switch();
         }

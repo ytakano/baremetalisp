@@ -1,5 +1,4 @@
-use crate::syscall;
-use crate::{driver::uart, syscall::Locator};
+use crate::{driver::uart, syscall, syscall::Locator};
 
 use alloc::boxed::Box;
 use memalloc::Allocator;

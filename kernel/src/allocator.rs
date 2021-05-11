@@ -108,6 +108,12 @@ pub fn is_user_mem(id: u8, addr: usize) -> bool {
     offset <= addr && addr < offset + USER_MEM_SIZE
 }
 
+fn unmap_user_mem(addr: usize) {
+    use crate::out;
+    out::hex64("unmap", addr as u64);
+    syscall::unmap(addr);
+}
+
 /// Memory Layout
 /// +-----------------------------+ 1TiB (id = 0)
 /// | 2MiB stack space            |
@@ -129,6 +135,7 @@ pub fn set_user_allocator(id: u8, ptr: *mut Allocator) {
         let offset = user_offset(id);
         allc.init_slab(offset + STACK_SIZE, SLAB_SIZE);
         allc.init_buddy(offset + STACK_SIZE + SLAB_SIZE);
+        allc.set_unmap_callback(unmap_user_mem);
         ALLOCATOR.user[id as usize] = ptr;
     }
 }

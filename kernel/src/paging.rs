@@ -42,6 +42,18 @@ pub fn map_user(vm_addr: usize, id: u8) -> FaultResult {
     FaultResult::Ok
 }
 
+pub fn unmap_user(vm_addr: usize, id: u8) {
+    if allocator::is_user_canary(id, vm_addr) {
+        return;
+    }
+
+    if !allocator::is_user_mem(id, vm_addr) {
+        return;
+    }
+
+    unmap(vm_addr, vm_addr, false);
+}
+
 pub fn unmap_user_all(id: u8) {
     let (start, end) = allocator::user_mem(id);
     unmap(start, end, false);

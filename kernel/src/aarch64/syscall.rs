@@ -1,14 +1,13 @@
 use crate::{
     allocator::set_user_allocator,
-    process::{self, get_raw_id, EnterKernel},
+    paging,
+    process::{self, get_raw_id},
     syscall::{self, Locator},
 };
 
 use super::context::GpRegs;
 
 pub(super) fn handle64(regs: &GpRegs) -> i64 {
-    let _ent = EnterKernel::new();
-
     match regs.x0 {
         syscall::SYS_SPAWN => {
             if let Some(pid) = process::spawn(regs.x1) {
@@ -39,6 +38,12 @@ pub(super) fn handle64(regs: &GpRegs) -> i64 {
             let ptr = unsafe { &mut *(regs.x1 as *mut memalloc::Allocator) };
             if let Some(id) = get_raw_id() {
                 set_user_allocator(id, ptr);
+            }
+            0
+        }
+        syscall::SYS_UNMAP => {
+            if let Some(id) = process::get_raw_id() {
+                paging::unmap_user(regs.x1 as usize, id);
             }
             0
         }

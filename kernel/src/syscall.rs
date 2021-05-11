@@ -6,6 +6,7 @@ pub const SYS_GETPID: u64 = 4;
 pub const SYS_SEND: u64 = 5;
 pub const SYS_RECV: u64 = 6;
 pub const SYS_SET_ALLOC: u64 = 7;
+pub const SYS_UNMAP: u64 = 8;
 
 extern crate memalloc;
 
@@ -110,4 +111,9 @@ pub fn recv(src: &mut Locator) -> u32 {
 /// Set userland allocator
 pub fn set_allocator(allc: &mut memalloc::Allocator) {
     syscall!(SYS_SET_ALLOC, allc as *mut memalloc::Allocator);
+}
+
+/// Unmap memory
+pub fn unmap(addr: usize) {
+    syscall!(SYS_UNMAP, addr);
 }

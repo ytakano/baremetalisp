@@ -183,6 +183,7 @@ pub fn curr_el_spx_serror_el1(_ctx: *mut GpRegs, _sp: usize) {
 // from lower EL (AArch64)
 #[no_mangle]
 pub fn lower_el_aarch64_sync_el1(ctx: *mut GpRegs, _sp: usize) {
+    let _ent = process::EnterKernel::new();
     detect_stack_overflow();
 
     let r = unsafe { &mut *ctx };
