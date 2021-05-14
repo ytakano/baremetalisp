@@ -14,7 +14,7 @@ use memalloc::Allocator;
 const STACK_SIZE: usize = 1024 * 1024 * 2; // 2MiB
 const SLAB_SIZE: usize = 1024 * 1024 * 30; // 30MiB
 const BUDDY_SIZE: usize = 1024 * 1024 * 32; // 32MiB
-const USER_MEM_OFFSET: usize = 1024 * 1024 * 64; // 1TiB
+const USER_MEM_OFFSET: usize = 1026 * 1024 * 1024 * 1024; // 1TiB
 const USER_MEM_SIZE: usize = BUDDY_SIZE + SLAB_SIZE + STACK_SIZE; // must be 64MiB
 const KERN_HEAP_OFFSET: usize = 1024 * 1024 * 64; // 64MiB
 
@@ -108,10 +108,8 @@ pub fn is_user_mem(id: u8, addr: usize) -> bool {
     offset <= addr && addr < offset + USER_MEM_SIZE
 }
 
-fn unmap_user_mem(addr: usize) {
-    use crate::out;
-    out::hex64("unmap", addr as u64);
-    syscall::unmap(addr);
+fn unmap_user_mem(start: usize, end: usize) {
+    syscall::unmap(start, end);
 }
 
 /// Memory Layout

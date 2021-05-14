@@ -125,7 +125,7 @@ pub enum State {
     Ready,
     Active,
     Recv,
-    SemWait,
+    Zombie,
 }
 
 struct Process {
@@ -312,8 +312,8 @@ pub fn exit() -> ! {
                     ringq::Receiver::from_raw(rx);
                 }
             }
+            entry.state = State::Zombie;
         }
-        tbl[current as usize] = None;
 
         unset_user_allocator(current);
 
@@ -364,12 +364,20 @@ fn schedule2(mask: InterMask, mut proc_info: MCSLockGuard<ProcInfo>) {
 
             unsafe {
                 if (*current_ctx).save_context() > 0 {
-                    // unmap exited process's memory
                     let aff = core_pos();
                     let freed = get_freed();
                     if let Some(id) = freed[aff] {
+                        // unmap exited process's memory
                         paging::unmap_user_all(id);
                         freed[aff] = None;
+
+                        // disable FIQ, IRQ, Abort, Debug
+                        let _mask = InterMask::new();
+
+                        // clear entry
+                        let mut node = MCSNode::new();
+                        let mut proc_info = PROC_INFO.lock(&mut node);
+                        proc_info.table[id as usize] = None;
                     }
 
                     return;
@@ -458,7 +466,7 @@ pub fn send(dst: &Locator, val: u32) -> bool {
     let (tbl, cnt, _) = proc_info.split();
 
     if let Some(p) = tbl[id as usize].as_mut() {
-        if cnt[id as usize] != count as u16 {
+        if cnt[id as usize] != count as u16 || p.state == State::Zombie {
             return false;
         }
 

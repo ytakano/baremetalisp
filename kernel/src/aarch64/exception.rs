@@ -187,7 +187,7 @@ pub fn lower_el_aarch64_sync_el1(ctx: *mut GpRegs, _sp: usize) {
     detect_stack_overflow();
 
     let r = unsafe { &mut *ctx };
-    let esr = cpu::esr_el1::get();
+    let esr = r.x18;
 
     let ec = esr & ESR_EL1_EC_MASK;
     match ec {
@@ -284,6 +284,7 @@ fn detect_stack_overflow() {
             || allocator::is_user_canary(id, (sp - mmu::STACK_SIZE) as usize)
         {
             // stack overflow
+            out::msg("stack overflow", "0");
             process::exit();
         }
     }

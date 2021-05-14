@@ -27,7 +27,8 @@ macro_rules! syscall {
                      svc #0
                      mov {}, x0",
                     in(reg) $id,
-                    lateout(reg) ret
+                    lateout(reg) ret,
+                    out("x0") _,
                 )
             };
             ret
@@ -44,7 +45,8 @@ macro_rules! syscall {
                      mov {}, x0",
                     in(reg) $id,
                     in(reg) $arg1,
-                    lateout(reg) ret
+                    lateout(reg) ret,
+                    out("x0") _, out("x1") _
                 )
             };
             ret
@@ -63,7 +65,8 @@ macro_rules! syscall {
                     in(reg) $id,
                     in(reg) $arg1,
                     in(reg) $arg2,
-                    lateout(reg) ret
+                    lateout(reg) ret,
+                    out("x0") _, out("x1") _, out("x2") _
                 )
             };
             ret
@@ -114,6 +117,6 @@ pub fn set_allocator(allc: &mut memalloc::Allocator) {
 }
 
 /// Unmap memory
-pub fn unmap(addr: usize) {
-    syscall!(SYS_UNMAP, addr);
+pub fn unmap(start: usize, end: usize) {
+    syscall!(SYS_UNMAP, start, end);
 }

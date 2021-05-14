@@ -161,12 +161,12 @@ exception_vector_el1:
     stp     x0, x1, [sp, #16 * 0]
 
     mrs     x0, daif
+    mrs     x18, esr_el1
     str     x0, [sp, #16 * 1]
     msr     daifset, 0b11 // mask IRQ and FIQ
 
     // check DATA abort
-    mrs     x0, esr_el1
-    lsr     x0, x0, #27
+    lsr     x0, x18, #27
     and     x0, x0, #0b11111
     cmp     x0, #0b10010
     b.eq    1f

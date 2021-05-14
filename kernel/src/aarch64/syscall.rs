@@ -43,7 +43,7 @@ pub(super) fn handle64(regs: &GpRegs) -> i64 {
         }
         syscall::SYS_UNMAP => {
             if let Some(id) = process::get_raw_id() {
-                paging::unmap_user(regs.x1 as usize, id);
+                paging::unmap_user(regs.x1 as usize, regs.x2 as usize, id);
             }
             0
         }

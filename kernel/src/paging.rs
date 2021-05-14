@@ -30,6 +30,8 @@ pub fn init(start: usize, end: usize) {
 }
 
 pub fn map_user(vm_addr: usize, id: u8) -> FaultResult {
+    let vm_addr = vm_addr & memalloc::MASK;
+
     if allocator::is_user_canary(id, vm_addr) {
         return FaultResult::StackOverflow;
     }
@@ -42,16 +44,21 @@ pub fn map_user(vm_addr: usize, id: u8) -> FaultResult {
     FaultResult::Ok
 }
 
-pub fn unmap_user(vm_addr: usize, id: u8) {
-    if allocator::is_user_canary(id, vm_addr) {
-        return;
+pub fn unmap_user(start: usize, end: usize, id: u8) {
+    let start = start & memalloc::MASK;
+    let end = end & memalloc::MASK;
+
+    for addr in (start..end).step_by(memalloc::ALIGNMENT) {
+        if allocator::is_user_canary(id, addr) {
+            return;
+        }
+
+        if !allocator::is_user_mem(id, addr) {
+            return;
+        }
     }
 
-    if !allocator::is_user_mem(id, vm_addr) {
-        return;
-    }
-
-    unmap(vm_addr, vm_addr, false);
+    unmap(start, end, false);
 }
 
 pub fn unmap_user_all(id: u8) {
@@ -60,6 +67,8 @@ pub fn unmap_user_all(id: u8) {
 }
 
 pub fn fault(vm_addr: usize) -> FaultResult {
+    let vm_addr = vm_addr & memalloc::MASK;
+
     if allocator::is_kern_mem(vm_addr) {
         map(vm_addr, vm_addr, true);
         FaultResult::Ok
@@ -100,7 +109,7 @@ fn unmap(start: usize, end: usize, is_kern: bool) {
     };
 
     if let GlobalVar::Having(pager) = &mut *lock {
-        for vm_addr in (start..=end).step_by(mmu::PAGESIZE as usize) {
+        for vm_addr in (start..=end).step_by(memalloc::ALIGNMENT) {
             if let Some(phy_addr) = ttbr.to_phy_addr(vm_addr as u64) {
                 pager.free(phy_addr as usize);
                 ttbr.unmap(vm_addr as u64);
@@ -131,9 +140,15 @@ fn map(start: usize, end: usize, is_kern: bool) {
     };
 
     if let GlobalVar::Having(pager) = &mut *lock {
-        for vm_addr in (start..=end).step_by(mmu::PAGESIZE as usize) {
-            if let Some(phy_addr) = pager.alloc() {
-                ttbr.map(vm_addr as u64, phy_addr as u64, flag);
+        for vm_addr in (start..=end).step_by(memalloc::ALIGNMENT) {
+            if ttbr.to_phy_addr(vm_addr as u64).is_none() {
+                if let Some(phy_addr) = pager.alloc() {
+                    ttbr.map(vm_addr as u64, phy_addr as u64, flag);
+                } else {
+                    panic!("exhausted memory");
+                }
+            } else {
+                mmu::tlb_flush_addr(vm_addr);
             }
         }
 

@@ -187,7 +187,7 @@ impl Addr {
 
         // heap memory for EL0
         self.pager_mem_start = self.tt_el1_ttbr1_end;
-        self.pager_mem_end = get_ram_start() + 64 * 1024 * 1024; // 64MiB
+        self.pager_mem_end = get_ram_start() + 128 * 1024 * 1024; // 64MiB
 
         // ROM
         self.rom_start = ROM_START;
