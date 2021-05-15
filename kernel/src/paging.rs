@@ -29,7 +29,7 @@ pub fn init(start: usize, end: usize) {
     }
 }
 
-pub fn map_user(vm_addr: usize, id: u8) -> FaultResult {
+fn map_user(vm_addr: usize, id: u8) -> FaultResult {
     let vm_addr = vm_addr & memalloc::MASK;
 
     if allocator::is_user_canary(id, vm_addr) {

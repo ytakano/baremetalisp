@@ -86,14 +86,53 @@ impl ProcessQ {
             Some((h, t)) => {
                 if let Some(entry) = tbl[t as usize].as_mut() {
                     entry.next = Some(id);
+                    self.0 = Some((h, id));
                 } else {
                     return;
                 }
-                self.0 = Some((h, id));
             }
             None => {
                 self.0 = Some((id, id));
             }
+        }
+    }
+
+    fn remove(&mut self, id: u8, tbl: &mut [Option<Process>; PROCESS_MAX]) {
+        match self.0 {
+            Some((h, t)) => {
+                if h == id {
+                    if let Some(entry) = tbl[h as usize].as_mut() {
+                        if h == t {
+                            self.0 = None
+                        } else {
+                            self.0 = Some((entry.next.unwrap(), t));
+                        }
+                        entry.next = None;
+                        return;
+                    }
+                }
+
+                let id_next = tbl[id as usize].as_ref().unwrap().next;
+                let mut n = h;
+                loop {
+                    if let Some(entry) = tbl[n as usize].as_mut() {
+                        if let Some(next) = entry.next {
+                            if next == id {
+                                entry.next = id_next;
+                                if t == id {
+                                    self.0 = Some((h, entry.id));
+                                }
+                                break;
+                            } else {
+                                n = next;
+                            }
+                        } else {
+                            return; // not found
+                        }
+                    }
+                }
+            }
+            None => (),
         }
     }
 
@@ -125,6 +164,7 @@ pub enum State {
     Ready,
     Active,
     Recv,
+    Killed,
     Zombie,
 }
 
@@ -340,9 +380,17 @@ fn schedule2(mask: InterMask, mut proc_info: MCSLockGuard<ProcInfo>) {
         // move the current process to Ready queue
         if let Some(current) = actives[aff] {
             if let Some(entry) = tbl[current as usize].as_mut() {
-                if entry.state == State::Active {
-                    entry.state = State::Ready;
-                    readyq.enque(current, tbl);
+                match entry.state {
+                    State::Active => {
+                        entry.state = State::Ready;
+                        readyq.enque(current, tbl);
+                    }
+                    State::Killed => {
+                        proc_info.unlock();
+                        mask.unmask();
+                        exit();
+                    }
+                    _ => (),
                 }
             } else {
                 return;
@@ -560,4 +608,72 @@ pub fn get_affinity_user() -> u8 {
 /// This function is for EL0
 pub fn is_kernel() -> bool {
     cpu::tpidr_el0::get() & (TPID_KERNEL_FLAG) != 0
+}
+
+pub fn kill(pid: u32) {
+    // disable FIQ, IRQ, Abort, Debug
+    let mask = InterMask::new();
+    let mut node = MCSNode::new();
+    let mut proc_info = PROC_INFO.lock(&mut node);
+
+    let (tbl, cnt, q) = proc_info.split();
+
+    // Suicide
+    let aff = core_pos();
+    let actives = get_actives();
+    if let Some(current) = actives[aff] {
+        if let Some(p) = tbl[current as usize].as_mut() {
+            if pid == p.get_pid(cnt[current as usize]) {
+                proc_info.unlock();
+                mask.unmask();
+                exit();
+            }
+        }
+    }
+
+    let id = pid & 0xff;
+    if let Some(p) = tbl[id as usize].as_mut() {
+        if pid == p.get_pid(cnt[id as usize]) {
+            match p.state {
+                State::Ready => {
+                    q.remove(id as u8, tbl);
+                    kill_proc(id as u8, mask, proc_info);
+                }
+                State::Recv => {
+                    kill_proc(id as u8, mask, proc_info);
+                }
+                State::Active => {
+                    p.state = State::Killed;
+                    // TODO
+                }
+                _ => (),
+            }
+        }
+    }
+}
+
+fn kill_proc(id: u8, mask: InterMask, mut proc_info: MCSLockGuard<ProcInfo>) {
+    let tbl = proc_info.table.as_mut();
+    if let Some(entry) = tbl[id as usize].as_mut() {
+        unsafe {
+            if entry.tx.is_null() {
+                ringq::Sender::from_raw(entry.tx);
+            }
+
+            let rx = RECEIVER[id as usize];
+            if rx.is_null() {
+                ringq::Receiver::from_raw(rx);
+            }
+        }
+    }
+
+    tbl[id as usize] = None;
+
+    proc_info.unlock();
+    mask.unmask();
+
+    unset_user_allocator(id);
+
+    // unmap killed process's memory
+    paging::unmap_user_all(id);
 }

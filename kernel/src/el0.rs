@@ -43,6 +43,10 @@ fn callback(x: &BigInt, y: &BigInt, z: &BigInt) -> Option<BigInt> {
             let val = BigInt::from_u32(val)?;
             Some(val)
         }
+        syscall::SYS_KILL => {
+            syscall::kill(y.to_u32()?);
+            None
+        }
         _ => {
             let msg = format!("unsupported syscall: {}\n", c);
             uart::puts(&msg);

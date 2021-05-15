@@ -47,6 +47,10 @@ pub(super) fn handle64(regs: &GpRegs) -> i64 {
             }
             0
         }
+        syscall::SYS_KILL => {
+            process::kill(regs.x1 as u32);
+            0
+        }
         _ => 0,
     }
 }

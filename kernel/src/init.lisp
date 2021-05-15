@@ -24,6 +24,10 @@
         ((Some val) val)
         (_ 0))) ; unreachable
 
+(export kill (pid) (IO (-> (Int) []))
+    (let ((_ (call-rust 9 pid 0)))
+        []))
+
 (export factorial (n) (Pure (-> (Int) Int))
     (factorial' n 1))
 

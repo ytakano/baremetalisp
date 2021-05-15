@@ -7,6 +7,7 @@ pub const SYS_SEND: u64 = 5;
 pub const SYS_RECV: u64 = 6;
 pub const SYS_SET_ALLOC: u64 = 7;
 pub const SYS_UNMAP: u64 = 8;
+pub const SYS_KILL: u64 = 9;
 
 extern crate memalloc;
 
@@ -119,4 +120,9 @@ pub fn set_allocator(allc: &mut memalloc::Allocator) {
 /// Unmap memory
 pub fn unmap(start: usize, end: usize) {
     syscall!(SYS_UNMAP, start, end);
+}
+
+/// Kill a process
+pub fn kill(pid: u32) {
+    syscall!(SYS_KILL, pid as u64);
 }
