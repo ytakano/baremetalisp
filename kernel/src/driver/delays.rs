@@ -1,29 +1,37 @@
-#[cfg(any(feature = "raspi3", feature = "pine64"))]
-use super::device::generic::delays;
-
-#[cfg(feature = "raspi4")]
-use super::device::raspi::delays;
-
-pub fn init() {
-    delays::init();
+pub(super) trait Delays {
+    fn init();
+    fn get_timer_value() -> usize;
+    fn wait_microsec(usec: usize);
 }
 
-pub fn get_timer_value() -> u64 {
-    delays::get_timer_value()
+#[cfg(any(feature = "raspi3", feature = "pine64"))]
+type DevDelays = super::device::generic::delays::Delays;
+
+#[cfg(feature = "raspi4")]
+type DevDelays = super::device::raspi::delays::Delays;
+
+impl DevDelays where DevDelays: Delays {}
+
+pub fn init() {
+    DevDelays::init();
+}
+
+pub fn get_timer_value() -> usize {
+    DevDelays::get_timer_value()
 }
 
 /// wait microsec
-pub fn wait_microsec(usec: u32) {
-    delays::wait_microsec(usec);
+pub fn wait_microsec(usec: usize) {
+    DevDelays::wait_microsec(usec);
 }
 
 /// wait milisec
-pub fn wait_milisec(msec: u32) {
+pub fn wait_milisec(msec: usize) {
     wait_microsec(msec * 1000);
 }
 
 /// Wait N CPU cycles
-pub fn wait_cycles(n: u32) {
+pub fn wait_cycles(n: usize) {
     if n > 0 {
         for _ in 0..n {
             unsafe { asm!("nop;") };

@@ -1,9 +1,4 @@
-use crate::{
-    aarch64::{int::InterMask, mmu},
-    allocator,
-    global::GlobalVar,
-    process::get_raw_id,
-};
+use crate::{aarch64::mmu, allocator, global::GlobalVar, int, process::get_raw_id};
 use memalloc::pager::PageManager;
 use synctools::mcs::{MCSLock, MCSNode};
 
@@ -97,7 +92,7 @@ pub fn map_canary() {
 
 fn unmap(start: usize, end: usize, is_kern: bool) {
     // disable interrupts
-    let _mask = InterMask::new();
+    let _mask = int::mask();
 
     let mut node = MCSNode::new();
     let mut lock = PAGER.lock(&mut node);
@@ -128,7 +123,7 @@ fn unmap(start: usize, end: usize, is_kern: bool) {
 
 fn map(start: usize, end: usize, is_kern: bool) {
     // disable interrupts
-    let _mask = InterMask::new();
+    let _mask = int::mask();
 
     let mut node = MCSNode::new();
     let mut lock = PAGER.lock(&mut node);

@@ -5,7 +5,7 @@ use memalloc::Allocator;
 use num_bigint::BigInt;
 use num_traits::{FromPrimitive, ToPrimitive, Zero};
 
-const APPS: &[&'static str] = &[include_str!("init.lisp")];
+const APPS: &[&str] = &[include_str!("init.lisp")];
 
 fn callback(x: &BigInt, y: &BigInt, z: &BigInt) -> Option<BigInt> {
     let c = x.to_u64()?;
@@ -132,7 +132,7 @@ fn get_app(id: usize) -> Option<&'static str> {
 }
 
 #[no_mangle]
-pub fn el0_entry(app: usize) -> ! {
+pub fn userland_entry(app: usize) -> ! {
     use crate::out;
     out::decimal("app id", app as u64);
     if let Some(s) = get_app(app) {

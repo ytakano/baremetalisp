@@ -1,5 +1,5 @@
 use super::*;
-use crate::driver::topology::core_pos;
+use crate::{driver::topology::core_pos, int};
 use ::alloc::sync::Arc;
 use synctools::mcs::{MCSLock, MCSNode};
 
@@ -22,7 +22,7 @@ impl<T: Send> RingQ<T> {
 
     fn new() -> Self {
         // check N == 2^x
-        assert!((QUEUE_SIZE != 0) && (QUEUE_SIZE & (QUEUE_SIZE - 1)) == 0);
+        // assert!((QUEUE_SIZE != 0) && (QUEUE_SIZE & (QUEUE_SIZE - 1)) == 0);
 
         RingQ {
             buf: arr![None; 8], // QUEUE_SIZE == 8
@@ -83,7 +83,7 @@ pub(super) struct Sender<T> {
 impl<T: Send> Sender<T> {
     pub(super) fn send(&self, v: T) -> Result<(), T> {
         let mut node = MCSNode::new();
-        let mask = InterMask::new();
+        let mask = int::mask();
         let mut q = self.ch.q.lock(&mut node);
         let _ = q.enque(v)?;
 
@@ -124,7 +124,7 @@ impl<T: Send> Receiver<T> {
         let mut node = MCSNode::new();
 
         loop {
-            let mask = InterMask::new();
+            let mask = int::mask();
             let mut q = self.ch.q.lock(&mut node);
             if let Some(r) = q.deque() {
                 return r;

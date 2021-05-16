@@ -11,6 +11,3 @@ pub const SRAM_END: u64 = memory::SRAM_END;
 pub const ROM_START: u64 = memory::ROM_START;
 pub const ROM_END: u64 = memory::ROM_END;
 pub const DRAM_BASE: u64 = memory::DRAM_BASE;
-
-#[cfg(feature = "pine64")]
-pub const CSS_SCP_COM_SHARED_MEM_BASE: u32 = memory::CSS_SCP_COM_SHARED_MEM_BASE;

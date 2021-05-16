@@ -8,9 +8,9 @@
 mod aarch64;
 mod allocator;
 mod driver;
-mod el0;
-mod el1;
 mod global;
+mod int;
+mod kernel;
 mod mmio;
 mod out;
 mod paging;
@@ -18,6 +18,7 @@ mod process;
 mod smc;
 mod splash;
 mod syscall;
+mod userland;
 
 #[macro_use]
 extern crate alloc;
@@ -62,7 +63,7 @@ fn init_primary() {
 fn init_primary2() {
     driver::init();
     splash::run();
-    el1::el1_entry();
+    kernel::kernel_entry();
 }
 
 /// initialization for secondary CPUs

@@ -1,22 +1,26 @@
 use super::memory;
 use crate::{
     aarch64::{cpu, mmu},
-    driver::{gic, tzc380},
+    driver::{gic, setup, tzc380},
     mmio::MMIO,
     out,
 };
 
-pub(in crate::driver) fn early_platform_setup() {}
+pub(in crate::driver) struct Setup {}
+
+impl setup::Setup for Setup {
+    fn early_platform_setup() {}
+
+    fn platform_setup() {
+        //init_gic();
+        //init_smc();
+    }
+}
 
 const GICCDISABLE: u32 = 1 << 4;
 
 const SMC_MASTER_BYPASS: u32 = 0x18;
 const SMC_MASTER_BYPASS_EN_MASK: u32 = 0x1;
-
-pub(in crate::driver) fn platform_setup() {
-    //init_gic();
-    //init_smc();
-}
 
 /// initialize GIC
 fn init_gic() {

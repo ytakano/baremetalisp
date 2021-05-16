@@ -1,21 +1,17 @@
 use crate::{
-    aarch64::{cpu, mmu},
+    aarch64::mmu,
     driver::topology,
+    int,
     process::set_tpid_kernel,
     {allocator, out, paging, process},
 };
 
-extern "C" {
-    fn el0_entry();
-}
-
-pub fn el1_entry() {
+pub fn kernel_entry() {
     // make tpidrro_el0 kernel space
     set_tpid_kernel();
 
     // enable IRQ and FIQ
-    let daif = cpu::daif::get();
-    cpu::daif::set(daif & !((cpu::DAIF_IRQ_BIT | cpu::DAIF_FIQ_BIT) << cpu::SPSR_DAIF_SHIFT));
+    int::enable_irq();
 
     let aff = topology::core_pos() as u64;
 

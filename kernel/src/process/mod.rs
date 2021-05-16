@@ -1,9 +1,10 @@
 mod ringq;
 
 use crate::{
-    aarch64::{context::GpRegs, cpu, int::InterMask},
+    aarch64::{context::GpRegs, cpu},
     allocator::{unset_user_allocator, user_stack},
     driver::topology::{core_pos, CORE_COUNT},
+    int::{self, InterMask},
     paging,
     syscall::Locator,
 };
@@ -87,8 +88,6 @@ impl ProcessQ {
                 if let Some(entry) = tbl[t as usize].as_mut() {
                     entry.next = Some(id);
                     self.0 = Some((h, id));
-                } else {
-                    return;
                 }
             }
             None => {
@@ -98,41 +97,38 @@ impl ProcessQ {
     }
 
     fn remove(&mut self, id: u8, tbl: &mut [Option<Process>; PROCESS_MAX]) {
-        match self.0 {
-            Some((h, t)) => {
-                if h == id {
-                    if let Some(entry) = tbl[h as usize].as_mut() {
-                        if h == t {
-                            self.0 = None
-                        } else {
-                            self.0 = Some((entry.next.unwrap(), t));
-                        }
-                        entry.next = None;
-                        return;
+        if let Some((h, t)) = self.0 {
+            if h == id {
+                if let Some(entry) = tbl[h as usize].as_mut() {
+                    if h == t {
+                        self.0 = None
+                    } else {
+                        self.0 = Some((entry.next.unwrap(), t));
                     }
+                    entry.next = None;
+                    return;
                 }
+            }
 
-                let id_next = tbl[id as usize].as_ref().unwrap().next;
-                let mut n = h;
-                loop {
-                    if let Some(entry) = tbl[n as usize].as_mut() {
-                        if let Some(next) = entry.next {
-                            if next == id {
-                                entry.next = id_next;
-                                if t == id {
-                                    self.0 = Some((h, entry.id));
-                                }
-                                break;
-                            } else {
-                                n = next;
+            let id_next = tbl[id as usize].as_ref().unwrap().next;
+            let mut n = h;
+            loop {
+                if let Some(entry) = tbl[n as usize].as_mut() {
+                    if let Some(next) = entry.next {
+                        if next == id {
+                            entry.next = id_next;
+                            if t == id {
+                                self.0 = Some((h, entry.id));
                             }
+                            break;
                         } else {
-                            return; // not found
+                            n = next;
                         }
+                    } else {
+                        return; // not found
                     }
                 }
             }
-            None => (),
         }
     }
 
@@ -207,14 +203,14 @@ impl Process {
 }
 
 extern "C" {
-    fn el0_entry();
+    fn userland_entry();
 }
 
 /// Initialize the first process.
 /// It is often called the init process.
 pub fn init() {
     // disable FIQ, IRQ, Abort, Debug
-    let mask = InterMask::new();
+    let mask = int::mask();
 
     let ch = ringq::Chan::<Msg>::new(0);
     let (tx, rx) = ch.channel();
@@ -237,7 +233,7 @@ pub fn init() {
 }
 
 #[no_mangle]
-fn goto_el0(_app: usize, next: usize, cnt: usize) {
+fn goto_userland(_app: usize, next: usize, cnt: usize) {
     set_tpid_reg(next as u8, cnt as u16);
     unsafe { asm!("eret") }
 }
@@ -255,9 +251,9 @@ fn init_process(
     proc.next = None;
     proc.id = id as u8;
     proc.regs.spsr = 0; // EL0t
-    proc.regs.elr = el0_entry as u64;
+    proc.regs.elr = userland_entry as u64;
     proc.regs.sp = stack as u64;
-    proc.regs.x30 = goto_el0 as u64;
+    proc.regs.x30 = goto_userland as u64;
     proc.stack = stack;
     proc.tx = tx;
 
@@ -271,7 +267,7 @@ fn init_process(
 /// If successful this function is unreachable, otherwise (fail) this returns normally.
 pub fn spawn(app: u64) -> Option<u32> {
     // disable FIQ, IRQ, Abort, Debug
-    let mask = InterMask::new();
+    let mask = int::mask();
 
     // create channel
     let mut ch = ringq::Chan::<Msg>::new(0);
@@ -330,7 +326,7 @@ pub fn spawn(app: u64) -> Option<u32> {
 /// this function is always unreachable
 pub fn exit() -> ! {
     // disable FIQ, IRQ, Abort, Debug
-    let mask = InterMask::new();
+    let mask = int::mask();
 
     // aqcuire lock
     let mut node = MCSNode::new();
@@ -367,7 +363,7 @@ pub fn exit() -> ! {
     unreachable!()
 }
 
-fn schedule2(mask: InterMask, mut proc_info: MCSLockGuard<ProcInfo>) {
+fn schedule2(mask: int::ArchIntMask, mut proc_info: MCSLockGuard<ProcInfo>) {
     // get next
     let (tbl, _, readyq) = proc_info.split();
     let actives = get_actives();
@@ -420,7 +416,7 @@ fn schedule2(mask: InterMask, mut proc_info: MCSLockGuard<ProcInfo>) {
                         freed[aff] = None;
 
                         // disable FIQ, IRQ, Abort, Debug
-                        let _mask = InterMask::new();
+                        let _mask = int::mask();
 
                         // clear entry
                         let mut node = MCSNode::new();
@@ -460,7 +456,7 @@ fn schedule2(mask: InterMask, mut proc_info: MCSLockGuard<ProcInfo>) {
 /// Yielding.
 pub fn schedule() {
     // disable FIQ, IRQ, Abort, Debug
-    let mask = InterMask::new();
+    let mask = int::mask();
 
     // aqcuire lock
     let mut node = MCSNode::new();
@@ -474,7 +470,7 @@ pub fn get_pid() -> u32 {
     let aff = core_pos();
 
     // disable FIQ, IRQ, Abort, Debug
-    let _mask = InterMask::new();
+    let _mask = int::mask();
 
     let actives = get_actives();
     let id = actives[aff].unwrap();
@@ -507,7 +503,7 @@ pub fn send(dst: &Locator, val: u32) -> bool {
     let count = addr >> 8;
 
     // disable FIQ, IRQ, Abort, Debug
-    let mask = InterMask::new();
+    let mask = int::mask();
     let mut node = MCSNode::new();
     let mut proc_info = PROC_INFO.lock(&mut node);
 
@@ -612,7 +608,7 @@ pub fn is_kernel() -> bool {
 
 pub fn kill(pid: u32) {
     // disable FIQ, IRQ, Abort, Debug
-    let mask = InterMask::new();
+    let mask = int::mask();
     let mut node = MCSNode::new();
     let mut proc_info = PROC_INFO.lock(&mut node);
 
@@ -652,7 +648,7 @@ pub fn kill(pid: u32) {
     }
 }
 
-fn kill_proc(id: u8, mask: InterMask, mut proc_info: MCSLockGuard<ProcInfo>) {
+fn kill_proc(id: u8, mask: int::ArchIntMask, mut proc_info: MCSLockGuard<ProcInfo>) {
     let tbl = proc_info.table.as_mut();
     if let Some(entry) = tbl[id as usize].as_mut() {
         unsafe {

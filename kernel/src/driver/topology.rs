@@ -9,12 +9,9 @@ use crate::aarch64::cpu;
 pub const MAX_CPUS_PER_CLUSTER: usize = topology::MAX_CPUS_PER_CLUSTER;
 pub const CLUSTER_COUNT: usize = topology::CLUSTER_COUNT;
 pub const CORE_COUNT: usize = topology::CORE_COUNT;
-pub const NUM_PWR_DOMAINS: usize = topology::NUM_PWR_DOMAINS;
-pub const NUM_NON_CPU_PWR_DOMAINS: usize = topology::NUM_PWR_DOMAINS - topology::CORE_COUNT;
-pub const POWER_DOMAIN_TREE_DESC: &'static [u8] = &topology::POWER_DOMAIN_TREE_DESC;
 
 /// get core index from MPIDR
-pub fn core_pos_by_mpidr(mpidr: usize) -> Option<usize> {
+fn core_pos_by_mpidr(mpidr: usize) -> Option<usize> {
     let core = mpidr & 0xFF;
     let cluster = (mpidr >> 8) & 0xFF;
     let lvl2 = (mpidr >> 16) & 0xFF;

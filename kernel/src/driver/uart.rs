@@ -1,36 +1,45 @@
-#[cfg(any(feature = "raspi3", feature = "raspi4"))]
-use super::device::raspi::uart;
-
-#[cfg(feature = "pine64")]
-use super::device::allwinner::uart;
-
 use alloc::vec::Vec;
 use synctools::mcs;
 
-const UART_CLOCK: u64 = 48000000;
-const UART_BAUD: u64 = 115200;
+const UART_CLOCK: usize = 48000000;
+const UART_BAUD: usize = 115200;
+
+pub(super) trait UART {
+    fn send(c: u32);
+    fn recv() -> u32;
+    fn init(clock: usize, baudrate: usize);
+}
 
 static mut LOCK: mcs::MCSLock<()> = mcs::MCSLock::new(());
 
+#[cfg(feature = "pine64")]
+type DevUART = super::device::allwinner::uart::A64UART;
+
+#[cfg(any(feature = "raspi3", feature = "raspi4"))]
+type DevUART = super::device::raspi::uart::RaspiUART;
+
+impl DevUART where DevUART: UART {}
+
 fn send(c: u32) {
-    uart::send(c);
+    DevUART::send(c);
 }
 
 fn recv() -> u32 {
-    return uart::recv();
+    DevUART::recv()
 }
 
 pub(crate) fn enable_recv_int() {
     //let mut node = mcs::MCSNode::new();
     //let _lock = lock(&mut node);
-    uart::enable_recv_int();
+    //uart::enable_recv_int();
+    todo!("")
 }
 
 pub(crate) fn init() {
-    uart::init(UART_CLOCK, UART_BAUD);
+    DevUART::init(UART_CLOCK, UART_BAUD);
 }
 
-fn lock<'t>(node: &'t mut mcs::MCSNode<()>) -> Option<mcs::MCSLockGuard<'t, ()>> {
+fn lock<'_t>(node: &'_ mut mcs::MCSNode<()>) -> Option<mcs::MCSLockGuard<'_, ()>> {
     Some(unsafe { LOCK.lock(node) })
 }
 
@@ -40,8 +49,8 @@ pub(crate) fn puts(s: &str) {
     let _lock = lock(&mut node);
     for c in s.bytes() {
         send(c as u32);
-        if c == '\n' as u8 {
-            send('\r' as u32);
+        if c == b'\n' {
+            send(b'\r' as u32);
         }
     }
 }
@@ -111,26 +120,26 @@ pub(crate) fn read_line() -> Vec<u8> {
 
     loop {
         let c = recv() as u8;
-        if c == '\r' as u8 || c == '\n' as u8 {
+        if c == b'\r' || c == b'\n' {
             break;
         } else if c == 0x08 || c == 0x7F {
             if !res.is_empty() {
-                send(0x08 as u32);
-                send(' ' as u32);
-                send(0x08 as u32);
+                send(0x08);
+                send(b' ' as u32);
+                send(0x08);
                 res.pop();
             }
-        } else if c == '\t' as u8 {
-            let c = ' ' as u8;
+        } else if c == b'\t' {
+            let c = b' ';
             for _ in 0..8 {
                 send(c as u32);
                 res.push(c);
             }
         } else if c == 0x15 {
             while !res.is_empty() {
-                send(0x08 as u32);
-                send(' ' as u32);
-                send(0x08 as u32);
+                send(0x08);
+                send(b' ' as u32);
+                send(0x08);
                 res.pop();
             }
         } else {
