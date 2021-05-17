@@ -1,4 +1,10 @@
-use crate::{global::GlobalVar, mmio::MMIO, out};
+use crate::{
+    global::GlobalVar,
+    int::{self, IRQ},
+    mmio::MMIO,
+    out,
+};
+use arr_macro::arr;
 use core::default::Default;
 use synctools::mcs::{MCSLock, MCSNode};
 
@@ -227,5 +233,36 @@ impl GIC {
 
         isen.write(mask);
         true
+    }
+}
+
+pub type IRQNumber = u16;
+
+pub struct IRQManager {
+    handlers: [Option<IRQ<IRQNumber>>; GIC_MAX_INTS],
+}
+
+impl int::IRQManager for IRQManager {
+    type IRQNumberType = IRQNumber;
+
+    fn enable(&self, _irq_num: Self::IRQNumberType) {}
+    fn disable(&self, _irq_num: Self::IRQNumberType) {}
+    fn ack(&self, _irq_num: Self::IRQNumberType) {}
+    fn handle(&self, _irq_num: Self::IRQNumberType) {}
+
+    fn register_handler(
+        &mut self,
+        irq_num: Self::IRQNumberType,
+        handler: IRQ<Self::IRQNumberType>,
+    ) {
+        self.handlers[irq_num as usize] = Some(handler);
+    }
+}
+
+impl IRQManager {
+    pub(in crate::driver) const fn new_mng() -> Self {
+        IRQManager {
+            handlers: arr![None; 1020],
+        }
     }
 }

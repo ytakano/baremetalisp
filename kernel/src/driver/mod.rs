@@ -1,12 +1,13 @@
-pub(crate) mod defs;
-pub(crate) mod delays;
+pub mod defs;
+pub mod delays;
 mod device;
-pub(crate) mod gic;
-pub(crate) mod memory;
+pub mod gic;
+pub mod int;
+pub mod memory;
 mod setup;
-pub(crate) mod topology;
-pub(crate) mod tzc380;
-pub(crate) mod uart;
+pub mod topology;
+pub mod tzc380;
+pub mod uart;
 
 /// Initlize UART0 for serial console with 115200 8n1,
 pub fn early_init() {
