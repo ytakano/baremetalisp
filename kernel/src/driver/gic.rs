@@ -250,19 +250,17 @@ impl int::IRQManager for IRQManager {
     fn ack(&self, _irq_num: Self::IRQNumberType) {}
     fn handle(&self, _irq_num: Self::IRQNumberType) {}
 
+    fn new() -> Self {
+        IRQManager {
+            handlers: arr![None; 1020],
+        }
+    }
+
     fn register_handler(
         &mut self,
         irq_num: Self::IRQNumberType,
         handler: IRQ<Self::IRQNumberType>,
     ) {
         self.handlers[irq_num as usize] = Some(handler);
-    }
-}
-
-impl IRQManager {
-    pub(in crate::driver) const fn new_mng() -> Self {
-        IRQManager {
-            handlers: arr![None; 1020],
-        }
     }
 }

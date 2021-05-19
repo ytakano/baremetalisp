@@ -4,7 +4,7 @@
 // Raspberry Pi 3
 #[cfg(feature = "raspi3")]
 mod raspi {
-    pub(super) const MMIO_BASE: u32 = 0x3F000000;
+    pub(super) const MMIO_BASE: usize = 0x3F000000;
     pub(super) const DEVICE_MEM_START: u64 = 0x3C000000;
     pub(super) const DEVICE_MEM_END: u64 = 0x40000000;
 }
@@ -14,7 +14,7 @@ mod raspi {
 // Raspberry Pi 4
 #[cfg(feature = "raspi4")]
 mod raspi {
-    pub(super) const MMIO_BASE: u32 = 0xFE000000;
+    pub(super) const MMIO_BASE: usize = 0xFE000000;
     pub(super) const DEVICE_MEM_START: u64 = 0x0fd000000; // maybe...
     pub(super) const DEVICE_MEM_END: u64 = 0x100000000; // maybe...
 }
@@ -25,7 +25,7 @@ pub(in crate::driver) const SRAM_END: u64 = 0;
 pub(in crate::driver) const ROM_START: u64 = 0;
 pub(in crate::driver) const ROM_END: u64 = 0;
 
-pub(in crate::driver) const MMIO_BASE: u32 = raspi::MMIO_BASE;
+pub(in crate::driver) const MMIO_BASE: usize = raspi::MMIO_BASE;
 pub(in crate::driver) const DEVICE_MEM_START: u64 = raspi::DEVICE_MEM_START;
 pub(in crate::driver) const DEVICE_MEM_END: u64 = raspi::DEVICE_MEM_END;
 

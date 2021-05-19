@@ -1,4 +1,4 @@
-use crate::{aarch64, driver::int};
+use crate::{aarch64, driver::int, global::GlobalVar};
 use synctools::rwlock;
 
 pub trait InterMask {
@@ -25,7 +25,13 @@ impl DevIRQManger where DevIRQManger: IRQManager {}
 
 pub struct IRQ<T> {
     description: &'static str,
-    handler: fn(T, &DevIRQManger),
+    handler: fn(T),
+}
+
+impl<T> IRQ<T> {
+    pub fn handle(&self, n: T) {
+        (self.handler)(n);
+    }
 }
 
 pub trait IRQHandler {
@@ -35,6 +41,7 @@ pub trait IRQHandler {
 pub trait IRQManager {
     type IRQNumberType;
 
+    fn new() -> Self;
     fn enable(&self, irq_num: Self::IRQNumberType);
     fn disable(&self, irq_num: Self::IRQNumberType);
     fn ack(&self, irq_num: Self::IRQNumberType);
@@ -43,4 +50,14 @@ pub trait IRQManager {
     fn register_handler(&mut self, irq_num: Self::IRQNumberType, handler: IRQ<Self::IRQNumberType>);
 }
 
-const IRQ_MANAGER: rwlock::RwLock<DevIRQManger> = rwlock::RwLock::new(DevIRQManger::new());
+static IRQ_MANAGER: rwlock::RwLock<GlobalVar<DevIRQManger>> =
+    rwlock::RwLock::new(GlobalVar::UnInit);
+
+pub fn init() {
+    let mut lock = IRQ_MANAGER.write();
+    if let GlobalVar::UnInit = *lock {
+        *lock = GlobalVar::Having(DevIRQManger::new());
+    } else {
+        panic!("initialized twice");
+    }
+}
