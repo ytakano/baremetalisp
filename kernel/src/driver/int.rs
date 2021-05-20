@@ -4,5 +4,8 @@ pub type DevIRQManger = super::gic::IRQManager;
 #[cfg(any(feature = "raspi3", feature = "raspi4"))]
 pub type DevIRQManger = super::device::raspi::int::IRQManager;
 
-#[cfg(any(feature = "raspi3", feature = "raspi4"))]
+#[cfg(any(feature = "raspi3"))]
 pub type DevIRQNumber = super::device::raspi::int::IRQNumber;
+
+#[cfg(any(feature = "pine64", feature = "raspi4"))]
+pub type DevIRQNumber = super::gic::IRQNumber;

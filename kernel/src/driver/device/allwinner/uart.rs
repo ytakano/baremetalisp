@@ -43,6 +43,9 @@ impl UART for A64UART {
         }
         c as u32
     }
+
+    fn enable_recv_interrupt() {}
+    fn disable_recv_interrupt() {}
 }
 
 pub(in crate::driver) fn enable_recv_int() {
