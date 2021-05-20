@@ -11,6 +11,7 @@ type DevSetup = super::device::raspi::setup::Setup;
 
 impl DevSetup where DevSetup: Setup {}
 
+/// Initialize devices
 pub fn platform_setup() {
     DevSetup::platform_setup();
 }

@@ -20,6 +20,7 @@ pub fn enable_irq() {
 }
 
 type DevIRQManger = int::DevIRQManger;
+pub type DevIRQNumber = int::DevIRQNumber;
 
 impl DevIRQManger where DevIRQManger: IRQManager {}
 
@@ -59,5 +60,12 @@ pub fn init() {
         *lock = GlobalVar::Having(DevIRQManger::new());
     } else {
         panic!("initialized twice");
+    }
+}
+
+pub fn enable_irq_num(irq_num: DevIRQNumber) {
+    let lock = IRQ_MANAGER.read();
+    if let GlobalVar::Having(mng) = &*lock {
+        mng.enable(irq_num);
     }
 }

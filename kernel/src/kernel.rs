@@ -10,8 +10,16 @@ pub fn kernel_entry() {
     // make tpidrro_el0 kernel space
     set_tpid_kernel();
 
+    let daif = crate::aarch64::cpu::daif::get();
+    crate::out::hex64("DAIF", daif);
+
     // enable IRQ and FIQ
     int::enable_irq();
+
+    let daif = crate::aarch64::cpu::daif::get();
+    crate::out::hex64("DAIF", daif);
+
+    //loop {}
 
     let aff = topology::core_pos() as u64;
 

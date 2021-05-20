@@ -5,7 +5,7 @@ pub(in crate::driver) type IRQNumber = int_rpi::IRQNumber;
 use crate::driver::gic as int_rpi;
 
 #[cfg(feature = "raspi3")]
-mod int_rpi {
+pub(in crate::driver::device::raspi) mod int_rpi {
     use crate::{
         driver::device::raspi::memory,
         int::{self, IRQ},
@@ -22,7 +22,7 @@ mod int_rpi {
     // Offset is 0x3f00b200 for Raspberry Pi 3
     register_structs! {
         #[allow(non_snake_case)]
-        pub RegisterBlock {
+        RegisterBlock {
             (0x000 => IRQ_Basic_Pending: ReadOnly<u32>),
             (0x004 => IRQ_Pending1: ReadOnly<u32>),
             (0x008 => IRQ_Pending2: ReadOnly<u32>),
@@ -44,10 +44,31 @@ mod int_rpi {
         LOCAL_CTRL as *const RegisterBlock
     }
 
+    #[derive(Debug, PartialEq, Eq)]
     pub enum IRQNumber {
         Private(u8),
         Peripheral(u8),
     }
+
+    pub(in crate::driver::device::raspi) const IRQ_SYSTEM_TIMER_MATCH1: IRQNumber =
+        IRQNumber::Peripheral(1);
+    pub(in crate::driver::device::raspi) const IRQ_SYSTEM_TIMER_MATCH3: IRQNumber =
+        IRQNumber::Peripheral(3);
+    pub(in crate::driver::device::raspi) const IRQ_USB_CONTROLLER: IRQNumber =
+        IRQNumber::Peripheral(9);
+    pub(in crate::driver::device::raspi) const IRQ_AUX_INT: IRQNumber = IRQNumber::Peripheral(29);
+    pub(in crate::driver::device::raspi) const IRQ_I2C_SPI_SLV_INT: IRQNumber =
+        IRQNumber::Peripheral(43);
+    pub(in crate::driver::device::raspi) const IRQ_PWA0: IRQNumber = IRQNumber::Peripheral(45);
+    pub(in crate::driver::device::raspi) const IRQ_PWA1: IRQNumber = IRQNumber::Peripheral(46);
+    pub(in crate::driver::device::raspi) const IRQ_SMI: IRQNumber = IRQNumber::Peripheral(48);
+    pub(in crate::driver::device::raspi) const IRQ_GPIP_INT0: IRQNumber = IRQNumber::Peripheral(49);
+    pub(in crate::driver::device::raspi) const IRQ_GPIP_INT1: IRQNumber = IRQNumber::Peripheral(50);
+    pub(in crate::driver::device::raspi) const IRQ_GPIP_INT2: IRQNumber = IRQNumber::Peripheral(51);
+    pub(in crate::driver::device::raspi) const IRQ_I2C_INT: IRQNumber = IRQNumber::Peripheral(53);
+    pub(in crate::driver::device::raspi) const IRQ_SPI_INT: IRQNumber = IRQNumber::Peripheral(54);
+    pub(in crate::driver::device::raspi) const IRQ_PCM_INT: IRQNumber = IRQNumber::Peripheral(55);
+    pub(in crate::driver::device::raspi) const IRQ_UART_INT: IRQNumber = IRQNumber::Peripheral(57);
 
     pub struct IRQManager {
         hdls_private: [Option<IRQ<IRQNumber>>; MAX_LOCAL_IRQ_NUMBER],
@@ -63,13 +84,11 @@ mod int_rpi {
                     unimplemented!();
                 }
                 IRQNumber::Peripheral(n) => {
-                    let regs = local_int_regs();
-                    unsafe {
-                        if n < 32 {
-                            (*regs).Enable_IRQs1.set(1 << n);
-                        } else {
-                            (*regs).Enable_IRQs2.set(1 << (n - 32));
-                        }
+                    let regs = unsafe { &*local_int_regs() };
+                    if n < 32 {
+                        regs.Enable_IRQs1.set(1 << n);
+                    } else {
+                        regs.Enable_IRQs2.set(1 << (n - 32));
                     }
                 }
             }
@@ -81,13 +100,11 @@ mod int_rpi {
                     unimplemented!();
                 }
                 IRQNumber::Peripheral(n) => {
-                    let regs = local_int_regs();
-                    unsafe {
-                        if n < 32 {
-                            (*regs).Disable_IRQs1.set(1 << n);
-                        } else {
-                            (*regs).Disable_IRQs2.set(1 << (n - 32));
-                        }
+                    let regs = unsafe { &*local_int_regs() };
+                    if n < 32 {
+                        regs.Disable_IRQs1.set(1 << n);
+                    } else {
+                        regs.Disable_IRQs2.set(1 << (n - 32));
                     }
                 }
             }
@@ -114,6 +131,11 @@ mod int_rpi {
         }
 
         fn new() -> Self {
+            let regs = unsafe { &*local_int_regs() };
+            regs.Disable_Basic_IRQs2.set(0);
+            regs.Disable_IRQs1.set(0);
+            regs.Disable_IRQs2.set(0);
+
             IRQManager {
                 hdls_private: arr![None; 11],
                 hdls_periheral: arr![None; 63],

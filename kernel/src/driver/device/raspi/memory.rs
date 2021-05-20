@@ -1,3 +1,5 @@
+use register::{mmio::*, register_structs};
+
 // https://wiki.osdev.org/Raspberry_Pi_4
 
 //-----------------------------------------------------------------------------
@@ -29,25 +31,6 @@ pub(in crate::driver) const MMIO_BASE: usize = raspi::MMIO_BASE;
 pub(in crate::driver) const DEVICE_MEM_START: u64 = raspi::DEVICE_MEM_START;
 pub(in crate::driver) const DEVICE_MEM_END: u64 = raspi::DEVICE_MEM_END;
 
-pub(super) const GPFSEL0: *mut u32 = (MMIO_BASE + 0x00200000) as *mut u32;
-pub(super) const GPFSEL1: *mut u32 = (MMIO_BASE + 0x00200004) as *mut u32;
-pub(super) const GPFSEL2: *mut u32 = (MMIO_BASE + 0x00200008) as *mut u32;
-pub(super) const GPFSEL3: *mut u32 = (MMIO_BASE + 0x0020000C) as *mut u32;
-pub(super) const GPFSEL4: *mut u32 = (MMIO_BASE + 0x00200010) as *mut u32;
-pub(super) const GPFSEL5: *mut u32 = (MMIO_BASE + 0x00200014) as *mut u32;
-pub(super) const GPSET0: *mut u32 = (MMIO_BASE + 0x0020001C) as *mut u32;
-pub(super) const GPSET1: *mut u32 = (MMIO_BASE + 0x00200020) as *mut u32;
-pub(super) const GPCLR0: *mut u32 = (MMIO_BASE + 0x00200028) as *mut u32;
-pub(super) const GPLEV0: *mut u32 = (MMIO_BASE + 0x00200034) as *mut u32;
-pub(super) const GPLEV1: *mut u32 = (MMIO_BASE + 0x00200038) as *mut u32;
-pub(super) const GPEDS0: *mut u32 = (MMIO_BASE + 0x00200040) as *mut u32;
-pub(super) const GPEDS1: *mut u32 = (MMIO_BASE + 0x00200044) as *mut u32;
-pub(super) const GPHEN0: *mut u32 = (MMIO_BASE + 0x00200064) as *mut u32;
-pub(super) const GPHEN1: *mut u32 = (MMIO_BASE + 0x00200068) as *mut u32;
-pub(super) const GPPUD: *mut u32 = (MMIO_BASE + 0x00200094) as *mut u32;
-pub(super) const GPPUDCLK0: *mut u32 = (MMIO_BASE + 0x00200098) as *mut u32;
-pub(super) const GPPUDCLK1: *mut u32 = (MMIO_BASE + 0x0020009C) as *mut u32;
-
 pub(super) const AUX_ENABLE: *mut u32 = (MMIO_BASE + 0x00215004) as *mut u32;
 pub(super) const AUX_MU_IO: *mut u32 = (MMIO_BASE + 0x00215040) as *mut u32;
 pub(super) const AUX_MU_IER: *mut u32 = (MMIO_BASE + 0x00215044) as *mut u32;
@@ -62,3 +45,55 @@ pub(super) const AUX_MU_STAT: *mut u32 = (MMIO_BASE + 0x00215064) as *mut u32;
 pub(super) const AUX_MU_BAUD: *mut u32 = (MMIO_BASE + 0x00215068) as *mut u32;
 
 pub(in crate::driver) const DRAM_BASE: u64 = 0;
+
+register_structs! {
+    #[allow(non_snake_case)]
+    pub(super) GPIORegisters {
+        (0x000 => pub(super) GPFSEL0: ReadWrite<u32>),
+        (0x004 => pub(super) GPFSEL1: ReadWrite<u32>),
+        (0x008 => pub(super) GPFSEL2: ReadWrite<u32>),
+        (0x00c => pub(super) GPFSEL3: ReadWrite<u32>),
+        (0x010 => pub(super) GPFSEL4: ReadWrite<u32>),
+        (0x014 => pub(super) GPFSEL5: ReadWrite<u32>),
+
+        (0x01c => pub(super) GPSET0: WriteOnly<u32>),
+        (0x020 => pub(super) GPSET1: WriteOnly<u32>),
+
+        (0x028 => pub(super) GPCLR0: WriteOnly<u32>),
+        (0x02c => pub(super) GPCLR1: WriteOnly<u32>),
+
+        (0x034 => pub(super) GPLEV0: ReadOnly<u32>),
+        (0x038 => pub(super) GPLEV1: ReadOnly<u32>),
+
+        (0x040 => pub(super) GPEDS0: ReadWrite<u32>),
+        (0x044 => pub(super) GPEDS1: ReadWrite<u32>),
+
+        (0x04c => pub(super) GPREN0: ReadWrite<u32>),
+        (0x050 => pub(super) GPREN1: ReadWrite<u32>),
+
+        (0x058 => pub(super) GPFEN0: ReadWrite<u32>),
+        (0x05c => pub(super) GPFEN1: ReadWrite<u32>),
+
+        (0x064 => pub(super) GPHEN0: ReadWrite<u32>),
+        (0x068 => pub(super) GPHEN1: ReadWrite<u32>),
+
+        (0x070 => pub(super) GPLEN0: ReadWrite<u32>),
+        (0x074 => pub(super) GPLEN1: ReadWrite<u32>),
+
+        (0x07c => pub(super) GPAREN0: ReadWrite<u32>),
+        (0x080 => pub(super) GPAREN1: ReadWrite<u32>),
+
+        (0x088 => pub(super) GPAFEN0: ReadWrite<u32>),
+        (0x08c => pub(super) GPAFEN1: ReadWrite<u32>),
+
+        (0x094 => pub(super) GPPUD: ReadWrite<u32>),
+        (0x098 => pub(super) GPPUDCLK0: ReadWrite<u32>),
+        (0x09c => pub(super) GPPUDCLK1: ReadWrite<u32>),
+
+        (0x0a4 => @END),
+    }
+}
+
+pub(super) fn gpio_registers() -> *const GPIORegisters {
+    (MMIO_BASE + 0x00200000) as *const GPIORegisters
+}

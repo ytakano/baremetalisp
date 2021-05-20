@@ -1,5 +1,4 @@
 use alloc::vec::Vec;
-use synctools::mcs;
 
 const UART_CLOCK: usize = 48000000;
 const UART_BAUD: usize = 115200;
@@ -7,10 +6,10 @@ const UART_BAUD: usize = 115200;
 pub(super) trait UART {
     fn send(c: u32);
     fn recv() -> u32;
+    fn enable_recv_interrupt();
+    fn disable_recv_interrupt();
     fn init(clock: usize, baudrate: usize);
 }
-
-static mut LOCK: mcs::MCSLock<()> = mcs::MCSLock::new(());
 
 #[cfg(feature = "pine64")]
 type DevUART = super::device::allwinner::uart::A64UART;
@@ -28,25 +27,27 @@ fn recv() -> u32 {
     DevUART::recv()
 }
 
-pub(crate) fn enable_recv_int() {
+pub fn enable_recv_interrupt() {
+    DevUART::enable_recv_interrupt()
+}
+
+pub fn disable_recv_interrupt() {
+    DevUART::disable_recv_interrupt()
+}
+
+pub fn enable_recv_int() {
     //let mut node = mcs::MCSNode::new();
     //let _lock = lock(&mut node);
     //uart::enable_recv_int();
     todo!("")
 }
 
-pub(crate) fn init() {
+pub fn init() {
     DevUART::init(UART_CLOCK, UART_BAUD);
 }
 
-fn lock<'_t>(node: &'_ mut mcs::MCSNode<()>) -> Option<mcs::MCSLockGuard<'_, ()>> {
-    Some(unsafe { LOCK.lock(node) })
-}
-
 /// print characters to serial console
-pub(crate) fn puts(s: &str) {
-    let mut node = mcs::MCSNode::new();
-    let _lock = lock(&mut node);
+pub fn puts(s: &str) {
     for c in s.bytes() {
         send(c as u32);
         if c == b'\n' {
@@ -56,9 +57,7 @@ pub(crate) fn puts(s: &str) {
 }
 
 /// print a 64-bit value in hexadecimal to serial console
-pub(crate) fn hex(h: u64) {
-    let mut node = mcs::MCSNode::new();
-    let _lock = lock(&mut node);
+pub fn hex(h: u64) {
     for i in (0..61).step_by(4).rev() {
         let mut n = (h >> i) & 0xF;
         n += if n > 9 { 0x37 } else { 0x30 };
@@ -67,9 +66,7 @@ pub(crate) fn hex(h: u64) {
 }
 
 /// print a 32-bit value in hexadecimal to serial console
-pub(crate) fn hex32(h: u32) {
-    let mut node = mcs::MCSNode::new();
-    let _lock = lock(&mut node);
+pub fn hex32(h: u32) {
     for i in (0..29).step_by(4).rev() {
         let mut n = (h >> i) & 0xF;
         n += if n > 9 { 0x37 } else { 0x30 };
@@ -78,9 +75,7 @@ pub(crate) fn hex32(h: u32) {
 }
 
 /// print a 8-bit value in binary to serial console
-pub(crate) fn bin8(b: u8) {
-    let mut node = mcs::MCSNode::new();
-    let _lock = lock(&mut node);
+pub fn bin8(b: u8) {
     for i in (0..8).rev() {
         if (1 << i) & b == 0 {
             send(0x30);
@@ -91,9 +86,7 @@ pub(crate) fn bin8(b: u8) {
 }
 
 /// print a 64-bit value in decimal to serial console
-pub(crate) fn decimal(mut h: u64) {
-    let mut node = mcs::MCSNode::new();
-    let _lock = lock(&mut node);
+pub fn decimal(mut h: u64) {
     let mut num = [0; 32];
 
     if h == 0 {
@@ -115,7 +108,7 @@ pub(crate) fn decimal(mut h: u64) {
     }
 }
 
-pub(crate) fn read_line() -> Vec<u8> {
+pub fn read_line() -> Vec<u8> {
     let mut res = Vec::new();
 
     loop {
