@@ -1,4 +1,4 @@
-use crate::{global::GlobalVar, mmio::MMIO, out};
+use crate::{global::GlobalVar, mmio::ReadWrite, out};
 use synctools::mcs::{MCSLock, MCSNode};
 
 const BUILD_CONFIG_AW_SHIFT: u32 = 8;
@@ -98,25 +98,25 @@ impl TZC380 {
         }
     }
 
-    fn build_config(&self) -> MMIO<u32> {
-        MMIO::new(self.base as *mut u32)
+    fn build_config(&self) -> ReadWrite<u32> {
+        ReadWrite::new(self.base)
     }
 
-    fn setup_low(&self, region: u8) -> MMIO<u32> {
-        MMIO::new((self.base + 0x100 + region as usize * 0x10) as *mut u32)
+    fn setup_low(&self, region: u8) -> ReadWrite<u32> {
+        ReadWrite::new(self.base + 0x100 + region as usize * 0x10)
     }
 
-    fn setup_high(&self, region: u8) -> MMIO<u32> {
-        MMIO::new((self.base + 0x104 + region as usize * 0x10) as *mut u32)
+    fn setup_high(&self, region: u8) -> ReadWrite<u32> {
+        ReadWrite::new(self.base + 0x104 + region as usize * 0x10)
     }
 
-    fn attributes(&self, region: u8) -> MMIO<u32> {
-        MMIO::new((self.base + 0x108 + region as usize * 0x10) as *mut u32)
+    fn attributes(&self, region: u8) -> ReadWrite<u32> {
+        ReadWrite::new(self.base + 0x108 + region as usize * 0x10)
     }
 }
 
 pub fn init(base: usize) {
-    let tzc_build = MMIO::new(base as *mut u32);
+    let tzc_build = ReadWrite::<u32>::new(base);
     let cfg = tzc_build.read();
     let addr_width = (((cfg >> BUILD_CONFIG_AW_SHIFT) & BUILD_CONFIG_AW_MASK) + 1) as u32;
     let num_regions = (((cfg >> BUILD_CONFIG_NR_SHIFT) & BUILD_CONFIG_NR_MASK) + 1) as u32;

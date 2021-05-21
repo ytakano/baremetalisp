@@ -9,9 +9,9 @@ pub(in crate::driver::device::raspi) mod int_rpi {
     use crate::{
         driver::device::raspi::memory,
         int::{self, IRQ},
+        mmio_r, mmio_rw,
     };
     use arr_macro::arr;
-    use register::{mmio::*, register_structs};
 
     const LOCAL_INTERRUPT_CTRL_OFFSET: usize = 0xb200;
     const LOCAL_CTRL: usize = memory::MMIO_BASE + LOCAL_INTERRUPT_CTRL_OFFSET;
@@ -20,29 +20,19 @@ pub(in crate::driver::device::raspi) mod int_rpi {
     // See page 112 of https://www.raspberrypi.org/app/uploads/2012/02/BCM2835-ARM-Peripherals.pdf
     //
     // Offset is 0x3f00b200 for Raspberry Pi 3
-    register_structs! {
-        #[allow(non_snake_case)]
-        RegisterBlock {
-            (0x000 => IRQ_Basic_Pending: ReadOnly<u32>),
-            (0x004 => IRQ_Pending1: ReadOnly<u32>),
-            (0x008 => IRQ_Pending2: ReadOnly<u32>),
-            (0x00c => FIQ_Control: ReadWrite<u32>),
-            (0x010 => Enable_IRQs1: ReadWrite<u32>),
-            (0x014 => Enable_IRQs2: ReadWrite<u32>),
-            (0x018 => Enable_Basic_IRQs: ReadWrite<u32>),
-            (0x01c => Disable_IRQs1: ReadWrite<u32>),
-            (0x020 => Disable_IRQs2: ReadWrite<u32>),
-            (0x024 => Disable_Basic_IRQs2: ReadWrite<u32>),
-            (0x028 => @END),
-        }
-    }
+    mmio_r! (LOCAL_CTRL         => irq_basic_pending<u32>);
+    mmio_r! (LOCAL_CTRL + 0x004 => irq_pending1<u32>);
+    mmio_r! (LOCAL_CTRL + 0x008 => irq_pending2<u32>);
+    mmio_rw!(LOCAL_CTRL + 0x00c => fiq_control<u32>);
+    mmio_rw!(LOCAL_CTRL + 0x010 => enable_irqs1<u32>);
+    mmio_rw!(LOCAL_CTRL + 0x014 => enable_irqs2<u32>);
+    mmio_rw!(LOCAL_CTRL + 0x018 => enable_basic_irqs<u32>);
+    mmio_rw!(LOCAL_CTRL + 0x01c => disable_irqs1<u32>);
+    mmio_rw!(LOCAL_CTRL + 0x020 => disable_irqs2<u32>);
+    mmio_rw!(LOCAL_CTRL + 0x024 => disable_basic_irqs<u32>);
 
     const MAX_LOCAL_IRQ_NUMBER: usize = 11;
     const MAX_PERIPHERAL_IRQ_NUMBER: usize = 63;
-
-    fn local_int_regs() -> *const RegisterBlock {
-        LOCAL_CTRL as *const RegisterBlock
-    }
 
     #[derive(Debug, PartialEq, Eq)]
     pub enum IRQNumber {
@@ -84,11 +74,10 @@ pub(in crate::driver::device::raspi) mod int_rpi {
                     unimplemented!();
                 }
                 IRQNumber::Peripheral(n) => {
-                    let regs = unsafe { &*local_int_regs() };
                     if n < 32 {
-                        regs.Enable_IRQs1.set(1 << n);
+                        enable_irqs1().write(1 << n);
                     } else {
-                        regs.Enable_IRQs2.set(1 << (n - 32));
+                        enable_irqs2().write(1 << (n - 32));
                     }
                 }
             }
@@ -100,11 +89,10 @@ pub(in crate::driver::device::raspi) mod int_rpi {
                     unimplemented!();
                 }
                 IRQNumber::Peripheral(n) => {
-                    let regs = unsafe { &*local_int_regs() };
                     if n < 32 {
-                        regs.Disable_IRQs1.set(1 << n);
+                        disable_irqs1().write(1 << n);
                     } else {
-                        regs.Disable_IRQs2.set(1 << (n - 32));
+                        disable_irqs2().write(1 << (n - 32));
                     }
                 }
             }
@@ -131,10 +119,9 @@ pub(in crate::driver::device::raspi) mod int_rpi {
         }
 
         fn new() -> Self {
-            let regs = unsafe { &*local_int_regs() };
-            regs.Disable_Basic_IRQs2.set(0);
-            regs.Disable_IRQs1.set(0);
-            regs.Disable_IRQs2.set(0);
+            disable_basic_irqs().write(0);
+            disable_irqs1().write(0);
+            disable_irqs2().write(0);
 
             IRQManager {
                 hdls_private: arr![None; 11],

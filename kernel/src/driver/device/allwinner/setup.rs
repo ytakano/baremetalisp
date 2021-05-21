@@ -2,7 +2,7 @@ use super::memory;
 use crate::{
     aarch64::{cpu, mmu},
     driver::{gic, setup, tzc380},
-    mmio::MMIO,
+    mmio::ReadWrite,
     out,
 };
 
@@ -19,12 +19,12 @@ impl setup::Setup for Setup {
 
 const GICCDISABLE: u32 = 1 << 4;
 
-const SMC_MASTER_BYPASS: u32 = 0x18;
+const SMC_MASTER_BYPASS: usize = 0x18;
 const SMC_MASTER_BYPASS_EN_MASK: u32 = 0x1;
 
 /// initialize GIC
 fn init_gic() {
-    let ctrl = MMIO::new(memory::SUNXI_GENER_CTRL_REG0 as *mut u32);
+    let ctrl = ReadWrite::new(memory::SUNXI_GENER_CTRL_REG0);
     ctrl.clrbits(GICCDISABLE);
     cpu::dmb_st();
 
@@ -50,6 +50,6 @@ fn init_smc() {
             | tzc380::TZC_ATTR_SP_S_RW,
     );
 
-    let mb = MMIO::new((memory::SUNXI_SMC_BASE + SMC_MASTER_BYPASS) as *mut u32);
+    let mb = ReadWrite::new(memory::SUNXI_SMC_BASE + SMC_MASTER_BYPASS);
     mb.clrbits(SMC_MASTER_BYPASS_EN_MASK);
 }

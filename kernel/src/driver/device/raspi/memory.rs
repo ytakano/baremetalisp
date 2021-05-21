@@ -1,4 +1,4 @@
-use register::{mmio::*, register_structs};
+use crate::{mmio_rw, mmio_w};
 
 // https://wiki.osdev.org/Raspberry_Pi_4
 
@@ -46,54 +46,34 @@ pub(super) const AUX_MU_BAUD: *mut u32 = (MMIO_BASE + 0x00215068) as *mut u32;
 
 pub(in crate::driver) const DRAM_BASE: u64 = 0;
 
-register_structs! {
-    #[allow(non_snake_case)]
-    pub(super) GPIORegisters {
-        (0x000 => pub(super) GPFSEL0: ReadWrite<u32>),
-        (0x004 => pub(super) GPFSEL1: ReadWrite<u32>),
-        (0x008 => pub(super) GPFSEL2: ReadWrite<u32>),
-        (0x00c => pub(super) GPFSEL3: ReadWrite<u32>),
-        (0x010 => pub(super) GPFSEL4: ReadWrite<u32>),
-        (0x014 => pub(super) GPFSEL5: ReadWrite<u32>),
+const GPIO_BASE: usize = MMIO_BASE + 0x00200000;
 
-        (0x01c => pub(super) GPSET0: WriteOnly<u32>),
-        (0x020 => pub(super) GPSET1: WriteOnly<u32>),
-
-        (0x028 => pub(super) GPCLR0: WriteOnly<u32>),
-        (0x02c => pub(super) GPCLR1: WriteOnly<u32>),
-
-        (0x034 => pub(super) GPLEV0: ReadOnly<u32>),
-        (0x038 => pub(super) GPLEV1: ReadOnly<u32>),
-
-        (0x040 => pub(super) GPEDS0: ReadWrite<u32>),
-        (0x044 => pub(super) GPEDS1: ReadWrite<u32>),
-
-        (0x04c => pub(super) GPREN0: ReadWrite<u32>),
-        (0x050 => pub(super) GPREN1: ReadWrite<u32>),
-
-        (0x058 => pub(super) GPFEN0: ReadWrite<u32>),
-        (0x05c => pub(super) GPFEN1: ReadWrite<u32>),
-
-        (0x064 => pub(super) GPHEN0: ReadWrite<u32>),
-        (0x068 => pub(super) GPHEN1: ReadWrite<u32>),
-
-        (0x070 => pub(super) GPLEN0: ReadWrite<u32>),
-        (0x074 => pub(super) GPLEN1: ReadWrite<u32>),
-
-        (0x07c => pub(super) GPAREN0: ReadWrite<u32>),
-        (0x080 => pub(super) GPAREN1: ReadWrite<u32>),
-
-        (0x088 => pub(super) GPAFEN0: ReadWrite<u32>),
-        (0x08c => pub(super) GPAFEN1: ReadWrite<u32>),
-
-        (0x094 => pub(super) GPPUD: ReadWrite<u32>),
-        (0x098 => pub(super) GPPUDCLK0: ReadWrite<u32>),
-        (0x09c => pub(super) GPPUDCLK1: ReadWrite<u32>),
-
-        (0x0a4 => @END),
-    }
-}
-
-pub(super) fn gpio_registers() -> *const GPIORegisters {
-    (MMIO_BASE + 0x00200000) as *const GPIORegisters
-}
+mmio_rw!(GPIO_BASE         => pub(super) gpfsel0<u32>);
+mmio_rw!(GPIO_BASE + 0x004 => pub(super) gpfsel1<u32>);
+mmio_rw!(GPIO_BASE + 0x008 => pub(super) gpfsel2<u32>);
+mmio_rw!(GPIO_BASE + 0x00c => pub(super) gpfsel3<u32>);
+mmio_rw!(GPIO_BASE + 0x010 => pub(super) gpfsel4<u32>);
+mmio_rw!(GPIO_BASE + 0x014 => pub(super) gpfsel5<u32>);
+mmio_w! (GPIO_BASE + 0x01c => pub(super) gpset0<u32>);
+mmio_w! (GPIO_BASE + 0x020 => pub(super) gpset1<u32>);
+mmio_w! (GPIO_BASE + 0x028 => pub(super) gpclr0<u32>);
+mmio_w! (GPIO_BASE + 0x02c => pub(super) gpclr1<u32>);
+mmio_w! (GPIO_BASE + 0x034 => pub(super) gplev0<u32>);
+mmio_w! (GPIO_BASE + 0x038 => pub(super) gplev1<u32>);
+mmio_rw!(GPIO_BASE + 0x040 => pub(super) gpeds0<u32>);
+mmio_rw!(GPIO_BASE + 0x044 => pub(super) gpeds1<u32>);
+mmio_rw!(GPIO_BASE + 0x04c => pub(super) gpren0<u32>);
+mmio_rw!(GPIO_BASE + 0x050 => pub(super) gpren1<u32>);
+mmio_rw!(GPIO_BASE + 0x058 => pub(super) gpfen0<u32>);
+mmio_rw!(GPIO_BASE + 0x05c => pub(super) gpfen1<u32>);
+mmio_rw!(GPIO_BASE + 0x064 => pub(super) gphen0<u32>);
+mmio_rw!(GPIO_BASE + 0x068 => pub(super) gphen1<u32>);
+mmio_rw!(GPIO_BASE + 0x070 => pub(super) gplen0<u32>);
+mmio_rw!(GPIO_BASE + 0x074 => pub(super) gplen1<u32>);
+mmio_rw!(GPIO_BASE + 0x07c => pub(super) gparen0<u32>);
+mmio_rw!(GPIO_BASE + 0x080 => pub(super) gparen1<u32>);
+mmio_rw!(GPIO_BASE + 0x088 => pub(super) gpafen0<u32>);
+mmio_rw!(GPIO_BASE + 0x08c => pub(super) gpafen1<u32>);
+mmio_rw!(GPIO_BASE + 0x094 => pub(super) gppud<u32>);
+mmio_rw!(GPIO_BASE + 0x098 => pub(super) gppudclk0<u32>);
+mmio_rw!(GPIO_BASE + 0x09c => pub(super) gppudclk1<u32>);

@@ -1,7 +1,7 @@
 use crate::{
     global::GlobalVar,
     int::{self, IRQ},
-    mmio::MMIO,
+    mmio::ReadWrite,
     out,
 };
 use arr_macro::arr;
@@ -127,40 +127,40 @@ impl Drop for GIC {
 }
 
 impl GIC {
-    fn gicc_ctlr(&self) -> MMIO<u32> {
-        MMIO::new(self.gicc_base as *mut u32)
+    fn gicc_ctlr(&self) -> ReadWrite<u32> {
+        ReadWrite::new(self.gicc_base)
     }
 
-    fn gicc_pmr(&self) -> MMIO<u32> {
-        MMIO::new((self.gicc_base + 0x04) as *mut u32)
+    fn gicc_pmr(&self) -> ReadWrite<u32> {
+        ReadWrite::new(self.gicc_base + 0x04)
     }
 
-    fn gicd_ctlr(&self) -> MMIO<u32> {
-        MMIO::new(self.gicd_base as *mut u32)
+    fn gicd_ctlr(&self) -> ReadWrite<u32> {
+        ReadWrite::new(self.gicd_base)
     }
 
-    fn gicd_isenabler(&self, n: usize) -> MMIO<u32> {
-        MMIO::new((self.gicd_base + 0x100 + n * 4) as *mut u32)
+    fn gicd_isenabler(&self, n: usize) -> ReadWrite<u32> {
+        ReadWrite::new(self.gicd_base + 0x100 + n * 4)
     }
 
-    fn gicd_icenabler(&self, n: usize) -> MMIO<u32> {
-        MMIO::new((self.gicd_base + 0x180 + n * 4) as *mut u32)
+    fn gicd_icenabler(&self, n: usize) -> ReadWrite<u32> {
+        ReadWrite::new(self.gicd_base + 0x180 + n * 4)
     }
 
-    fn gicd_ispendr(&self, n: usize) -> MMIO<u32> {
-        MMIO::new((self.gicd_base + 0x200 + n * 4) as *mut u32)
+    fn gicd_ispendr(&self, n: usize) -> ReadWrite<u32> {
+        ReadWrite::new(self.gicd_base + 0x200 + n * 4)
     }
 
-    fn gicd_icpendr(&self, n: usize) -> MMIO<u32> {
-        MMIO::new((self.gicd_base + 0x280 + n * 4) as *mut u32)
+    fn gicd_icpendr(&self, n: usize) -> ReadWrite<u32> {
+        ReadWrite::new(self.gicd_base + 0x280 + n * 4)
     }
 
-    fn gicd_igroupr(&self, n: usize) -> MMIO<u32> {
-        MMIO::new((self.gicd_base + 0x80 + n * 4) as *mut u32)
+    fn gicd_igroupr(&self, n: usize) -> ReadWrite<u32> {
+        ReadWrite::new(self.gicd_base + 0x80 + n * 4)
     }
 
-    fn gicd_itargetsr(&self, n: usize) -> MMIO<u32> {
-        MMIO::new((self.gicd_base + 0x800 + n * 4) as *mut u32)
+    fn gicd_itargetsr(&self, n: usize) -> ReadWrite<u32> {
+        ReadWrite::new(self.gicd_base + 0x800 + n * 4)
     }
 
     fn probe_max_it(&mut self) {
