@@ -65,3 +65,17 @@ pub fn enable_irq_num(irq_num: DevIRQNumber) {
         mng.enable(irq_num);
     }
 }
+
+pub fn disable_irq_num(irq_num: DevIRQNumber) {
+    let lock = IRQ_MANAGER.read();
+    if let GlobalVar::Having(mng) = &*lock {
+        mng.disable(irq_num);
+    }
+}
+
+pub fn register_handler(irq_num: DevIRQNumber, handler: IRQ<DevIRQNumber>) {
+    let mut lock = IRQ_MANAGER.write();
+    if let GlobalVar::Having(mng) = &mut *lock {
+        mng.register_handler(irq_num, handler);
+    }
+}

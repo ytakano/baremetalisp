@@ -1,5 +1,4 @@
-//use super::int;
-use crate::driver::{setup, uart};
+use crate::driver::setup;
 
 pub(in crate::driver) struct Setup {}
 

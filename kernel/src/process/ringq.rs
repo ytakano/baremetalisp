@@ -1,5 +1,5 @@
 use super::*;
-use crate::{driver::topology::core_pos, int};
+use crate::{cpuint, driver::topology::core_pos};
 use ::alloc::sync::Arc;
 use synctools::mcs::{MCSLock, MCSNode};
 
@@ -83,7 +83,7 @@ pub(super) struct Sender<T> {
 impl<T: Send> Sender<T> {
     pub(super) fn send(&self, v: T) -> Result<(), T> {
         let mut node = MCSNode::new();
-        let mask = int::mask();
+        let mask = cpuint::mask();
         let mut q = self.ch.q.lock(&mut node);
         let _ = q.enque(v)?;
 
@@ -124,7 +124,7 @@ impl<T: Send> Receiver<T> {
         let mut node = MCSNode::new();
 
         loop {
-            let mask = int::mask();
+            let mask = cpuint::mask();
             let mut q = self.ch.q.lock(&mut node);
             if let Some(r) = q.deque() {
                 return r;

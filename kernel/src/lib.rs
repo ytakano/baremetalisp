@@ -8,9 +8,9 @@
 mod aarch64;
 mod allocator;
 mod bsp;
+mod cpuint;
 mod driver;
 mod global;
-mod int;
 mod kernel;
 mod mmio;
 mod out;

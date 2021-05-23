@@ -3,8 +3,8 @@ mod ringq;
 use crate::{
     aarch64::{context::GpRegs, cpu},
     allocator::{unset_user_allocator, user_stack},
+    cpuint::{self, InterMask},
     driver::topology::{core_pos, CORE_COUNT},
-    int::{self, InterMask},
     paging,
     syscall::Locator,
 };
@@ -210,7 +210,7 @@ extern "C" {
 /// It is often called the init process.
 pub fn init() {
     // disable FIQ, IRQ, Abort, Debug
-    let mask = int::mask();
+    let mask = cpuint::mask();
 
     let ch = ringq::Chan::<Msg>::new(0);
     let (tx, rx) = ch.channel();
@@ -267,7 +267,7 @@ fn init_process(
 /// If successful this function is unreachable, otherwise (fail) this returns normally.
 pub fn spawn(app: u64) -> Option<u32> {
     // disable FIQ, IRQ, Abort, Debug
-    let mask = int::mask();
+    let mask = cpuint::mask();
 
     // create channel
     let mut ch = ringq::Chan::<Msg>::new(0);
@@ -326,7 +326,7 @@ pub fn spawn(app: u64) -> Option<u32> {
 /// this function is always unreachable
 pub fn exit() -> ! {
     // disable FIQ, IRQ, Abort, Debug
-    let mask = int::mask();
+    let mask = cpuint::mask();
 
     // aqcuire lock
     let mut node = MCSNode::new();
@@ -363,7 +363,7 @@ pub fn exit() -> ! {
     unreachable!()
 }
 
-fn schedule2(mask: int::ArchIntMask, mut proc_info: MCSLockGuard<ProcInfo>) {
+fn schedule2(mask: cpuint::ArchIntMask, mut proc_info: MCSLockGuard<ProcInfo>) {
     // get next
     let (tbl, _, readyq) = proc_info.split();
     let actives = get_actives();
@@ -416,7 +416,7 @@ fn schedule2(mask: int::ArchIntMask, mut proc_info: MCSLockGuard<ProcInfo>) {
                         freed[aff] = None;
 
                         // disable FIQ, IRQ, Abort, Debug
-                        let _mask = int::mask();
+                        let _mask = cpuint::mask();
 
                         // clear entry
                         let mut node = MCSNode::new();
@@ -456,7 +456,7 @@ fn schedule2(mask: int::ArchIntMask, mut proc_info: MCSLockGuard<ProcInfo>) {
 /// Yielding.
 pub fn schedule() {
     // disable FIQ, IRQ, Abort, Debug
-    let mask = int::mask();
+    let mask = cpuint::mask();
 
     // aqcuire lock
     let mut node = MCSNode::new();
@@ -470,7 +470,7 @@ pub fn get_pid() -> u32 {
     let aff = core_pos();
 
     // disable FIQ, IRQ, Abort, Debug
-    let _mask = int::mask();
+    let _mask = cpuint::mask();
 
     let actives = get_actives();
     let id = actives[aff].unwrap();
@@ -503,7 +503,7 @@ pub fn send(dst: &Locator, val: u32) -> bool {
     let count = addr >> 8;
 
     // disable FIQ, IRQ, Abort, Debug
-    let mask = int::mask();
+    let mask = cpuint::mask();
     let mut node = MCSNode::new();
     let mut proc_info = PROC_INFO.lock(&mut node);
 
@@ -608,7 +608,7 @@ pub fn is_kernel() -> bool {
 
 pub fn kill(pid: u32) {
     // disable FIQ, IRQ, Abort, Debug
-    let mask = int::mask();
+    let mask = cpuint::mask();
     let mut node = MCSNode::new();
     let mut proc_info = PROC_INFO.lock(&mut node);
 
@@ -648,7 +648,7 @@ pub fn kill(pid: u32) {
     }
 }
 
-fn kill_proc(id: u8, mask: int::ArchIntMask, mut proc_info: MCSLockGuard<ProcInfo>) {
+fn kill_proc(id: u8, mask: cpuint::ArchIntMask, mut proc_info: MCSLockGuard<ProcInfo>) {
     let tbl = proc_info.table.as_mut();
     if let Some(entry) = tbl[id as usize].as_mut() {
         unsafe {

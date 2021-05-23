@@ -1,5 +1,5 @@
 use super::cpu;
-use crate::int::InterMask;
+use crate::cpuint::InterMask;
 
 pub struct AA64Mask {
     prev: u64,
