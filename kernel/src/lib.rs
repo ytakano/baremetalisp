@@ -7,6 +7,7 @@
 
 mod aarch64;
 mod allocator;
+mod bsp;
 mod driver;
 mod global;
 mod int;
@@ -61,7 +62,7 @@ fn init_primary() {
 
 #[inline(never)]
 fn init_primary2() {
-    int::init();
+    bsp::int::init();
     driver::init();
     splash::run();
     kernel::kernel_entry();

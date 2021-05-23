@@ -1,6 +1,6 @@
 use crate::{
+    bsp::int::{self, IRQ},
     global::GlobalVar,
-    int::{self, IRQ},
     mmio::ReadWrite,
     out,
 };

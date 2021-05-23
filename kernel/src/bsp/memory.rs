@@ -1,8 +1,8 @@
 #[cfg(any(feature = "raspi3", feature = "raspi4"))]
-use super::device::raspi::memory;
+use super::raspi::memory;
 
 #[cfg(feature = "pine64")]
-use super::device::allwinner::memory;
+use super::allwinner::memory;
 
 pub const DEVICE_MEM_START: u64 = memory::DEVICE_MEM_START;
 pub const DEVICE_MEM_END: u64 = memory::DEVICE_MEM_END;

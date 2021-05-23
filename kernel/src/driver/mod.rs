@@ -2,8 +2,6 @@ pub mod defs;
 pub mod delays;
 mod device;
 pub mod gic;
-pub mod int;
-pub mod memory;
 mod setup;
 pub mod topology;
 pub mod tzc380;

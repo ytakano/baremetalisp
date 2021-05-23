@@ -4,10 +4,10 @@ use core::{
 };
 
 use super::cpu;
-use crate::driver;
-use crate::driver::memory::{
+use crate::bsp::memory::{
     DEVICE_MEM_END, DEVICE_MEM_START, ROM_END, ROM_START, SRAM_END, SRAM_START,
 };
+use crate::driver;
 
 const NUM_CPU: u64 = driver::topology::CORE_COUNT as u64;
 

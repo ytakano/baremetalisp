@@ -1,5 +1,6 @@
-use crate::{aarch64, driver::int, global::GlobalVar};
-use synctools::rwlock;
+// TODO: move this file to the CPU directory
+
+use crate::aarch64;
 
 pub trait InterMask {
     fn new() -> Self;
@@ -17,55 +18,4 @@ pub fn mask() -> ArchIntMask {
 
 pub fn enable_irq() {
     ArchIntMask::enable_irq();
-}
-
-type DevIRQManger = int::DevIRQManger;
-pub type DevIRQNumber = int::DevIRQNumber;
-
-impl DevIRQManger where DevIRQManger: IRQManager {}
-
-pub struct IRQ<T> {
-    description: &'static str,
-    handler: fn(T),
-}
-
-impl<T> IRQ<T> {
-    pub fn handle(&self, n: T) {
-        (self.handler)(n);
-    }
-}
-
-pub trait IRQHandler {
-    fn handle(&mut self) {}
-}
-
-pub trait IRQManager {
-    type IRQNumberType;
-
-    fn new() -> Self;
-    fn enable(&self, irq_num: Self::IRQNumberType);
-    fn disable(&self, irq_num: Self::IRQNumberType);
-    fn ack(&self, irq_num: Self::IRQNumberType);
-    fn handle(&self, irq_num: Self::IRQNumberType);
-
-    fn register_handler(&mut self, irq_num: Self::IRQNumberType, handler: IRQ<Self::IRQNumberType>);
-}
-
-static IRQ_MANAGER: rwlock::RwLock<GlobalVar<DevIRQManger>> =
-    rwlock::RwLock::new(GlobalVar::UnInit);
-
-pub fn init() {
-    let mut lock = IRQ_MANAGER.write();
-    if let GlobalVar::UnInit = *lock {
-        *lock = GlobalVar::Having(DevIRQManger::new());
-    } else {
-        panic!("initialized twice");
-    }
-}
-
-pub fn enable_irq_num(irq_num: DevIRQNumber) {
-    let lock = IRQ_MANAGER.read();
-    if let GlobalVar::Having(mng) = &*lock {
-        mng.enable(irq_num);
-    }
 }

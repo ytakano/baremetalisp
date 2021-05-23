@@ -1,4 +1,4 @@
-use super::int;
+//use super::int;
 use crate::driver::{setup, uart};
 
 pub(in crate::driver) struct Setup {}
@@ -11,8 +11,8 @@ impl setup::Setup for Setup {
     #[cfg(feature = "raspi3")]
     fn platform_setup() {
         // enable UART0 interrupt
-        crate::int::enable_irq_num(int::int_rpi::IRQ_UART_INT);
-        uart::enable_recv_interrupt();
+        //crate::int::enable_irq_num(int::int_rpi::IRQ_UART_INT);
+        //uart::enable_recv_interrupt();
     }
 
     #[cfg(feature = "raspi4")]

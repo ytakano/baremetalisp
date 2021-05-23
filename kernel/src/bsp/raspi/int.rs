@@ -1,14 +1,13 @@
-pub(in crate::driver) type IRQManager = int_rpi::IRQManager;
-pub(in crate::driver) type IRQNumber = int_rpi::IRQNumber;
+pub(in crate::bsp) type IRQManager = int_rpi::IRQManager;
+pub(in crate::bsp) type IRQNumber = int_rpi::IRQNumber;
 
 #[cfg(feature = "raspi4")]
 use crate::driver::gic as int_rpi;
 
 #[cfg(feature = "raspi3")]
-pub(in crate::driver::device::raspi) mod int_rpi {
+pub(in crate::bsp::raspi) mod int_rpi {
     use crate::{
-        driver::device::raspi::memory,
-        int::{self, IRQ},
+        bsp::{int, raspi::memory},
         mmio_r, mmio_rw,
     };
     use arr_macro::arr;
@@ -40,29 +39,25 @@ pub(in crate::driver::device::raspi) mod int_rpi {
         Peripheral(u8),
     }
 
-    pub(in crate::driver::device::raspi) const IRQ_SYSTEM_TIMER_MATCH1: IRQNumber =
-        IRQNumber::Peripheral(1);
-    pub(in crate::driver::device::raspi) const IRQ_SYSTEM_TIMER_MATCH3: IRQNumber =
-        IRQNumber::Peripheral(3);
-    pub(in crate::driver::device::raspi) const IRQ_USB_CONTROLLER: IRQNumber =
-        IRQNumber::Peripheral(9);
-    pub(in crate::driver::device::raspi) const IRQ_AUX_INT: IRQNumber = IRQNumber::Peripheral(29);
-    pub(in crate::driver::device::raspi) const IRQ_I2C_SPI_SLV_INT: IRQNumber =
-        IRQNumber::Peripheral(43);
-    pub(in crate::driver::device::raspi) const IRQ_PWA0: IRQNumber = IRQNumber::Peripheral(45);
-    pub(in crate::driver::device::raspi) const IRQ_PWA1: IRQNumber = IRQNumber::Peripheral(46);
-    pub(in crate::driver::device::raspi) const IRQ_SMI: IRQNumber = IRQNumber::Peripheral(48);
-    pub(in crate::driver::device::raspi) const IRQ_GPIP_INT0: IRQNumber = IRQNumber::Peripheral(49);
-    pub(in crate::driver::device::raspi) const IRQ_GPIP_INT1: IRQNumber = IRQNumber::Peripheral(50);
-    pub(in crate::driver::device::raspi) const IRQ_GPIP_INT2: IRQNumber = IRQNumber::Peripheral(51);
-    pub(in crate::driver::device::raspi) const IRQ_I2C_INT: IRQNumber = IRQNumber::Peripheral(53);
-    pub(in crate::driver::device::raspi) const IRQ_SPI_INT: IRQNumber = IRQNumber::Peripheral(54);
-    pub(in crate::driver::device::raspi) const IRQ_PCM_INT: IRQNumber = IRQNumber::Peripheral(55);
-    pub(in crate::driver::device::raspi) const IRQ_UART_INT: IRQNumber = IRQNumber::Peripheral(57);
+    pub(in crate::bsp::raspi) const IRQ_SYSTEM_TIMER_MATCH1: IRQNumber = IRQNumber::Peripheral(1);
+    pub(in crate::bsp::raspi) const IRQ_SYSTEM_TIMER_MATCH3: IRQNumber = IRQNumber::Peripheral(3);
+    pub(in crate::bsp::raspi) const IRQ_USB_CONTROLLER: IRQNumber = IRQNumber::Peripheral(9);
+    pub(in crate::bsp::raspi) const IRQ_AUX_INT: IRQNumber = IRQNumber::Peripheral(29);
+    pub(in crate::bsp::raspi) const IRQ_I2C_SPI_SLV_INT: IRQNumber = IRQNumber::Peripheral(43);
+    pub(in crate::bsp::raspi) const IRQ_PWA0: IRQNumber = IRQNumber::Peripheral(45);
+    pub(in crate::bsp::raspi) const IRQ_PWA1: IRQNumber = IRQNumber::Peripheral(46);
+    pub(in crate::bsp::raspi) const IRQ_SMI: IRQNumber = IRQNumber::Peripheral(48);
+    pub(in crate::bsp::raspi) const IRQ_GPIP_INT0: IRQNumber = IRQNumber::Peripheral(49);
+    pub(in crate::bsp::raspi) const IRQ_GPIP_INT1: IRQNumber = IRQNumber::Peripheral(50);
+    pub(in crate::bsp::raspi) const IRQ_GPIP_INT2: IRQNumber = IRQNumber::Peripheral(51);
+    pub(in crate::bsp::raspi) const IRQ_I2C_INT: IRQNumber = IRQNumber::Peripheral(53);
+    pub(in crate::bsp::raspi) const IRQ_SPI_INT: IRQNumber = IRQNumber::Peripheral(54);
+    pub(in crate::bsp::raspi) const IRQ_PCM_INT: IRQNumber = IRQNumber::Peripheral(55);
+    pub(in crate::bsp::raspi) const IRQ_UART_INT: IRQNumber = IRQNumber::Peripheral(57);
 
     pub struct IRQManager {
-        hdls_private: [Option<IRQ<IRQNumber>>; MAX_LOCAL_IRQ_NUMBER],
-        hdls_periheral: [Option<IRQ<IRQNumber>>; MAX_PERIPHERAL_IRQ_NUMBER],
+        hdls_private: [Option<int::IRQ<IRQNumber>>; MAX_LOCAL_IRQ_NUMBER],
+        hdls_periheral: [Option<int::IRQ<IRQNumber>>; MAX_PERIPHERAL_IRQ_NUMBER],
     }
 
     impl int::IRQManager for IRQManager {
@@ -132,7 +127,7 @@ pub(in crate::driver::device::raspi) mod int_rpi {
         fn register_handler(
             &mut self,
             irq_num: Self::IRQNumberType,
-            handler: IRQ<Self::IRQNumberType>,
+            handler: int::IRQ<Self::IRQNumberType>,
         ) {
             match irq_num {
                 IRQNumber::Private(n) => {
