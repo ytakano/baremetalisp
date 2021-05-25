@@ -20,6 +20,20 @@ macro_rules! mmio_rw {
 }
 
 #[macro_export]
+macro_rules! mmio_rw_base {
+    ($addr:expr => $func_name:ident<$ty:ty>) => {
+        fn $func_name(&self) -> crate::mmio::ReadWrite<$ty> {
+            crate::mmio::ReadWrite::new(self.base + $addr)
+        }
+    };
+    ($addr:expr => $visibility:vis $func_name:ident<$ty:ty>) => {
+        $visibility fn $func_name(&self) -> crate::mmio::ReadWrite<$ty> {
+            crate::mmio::ReadWrite::new(self.base + $addr)
+        }
+    };
+}
+
+#[macro_export]
 macro_rules! mmio_r {
     ($addr:expr => $func_name:ident<$ty:ty>) => {
         fn $func_name() -> crate::mmio::ReadOnly<$ty> {

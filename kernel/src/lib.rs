@@ -62,7 +62,7 @@ fn init_primary() {
 
 #[inline(never)]
 fn init_primary2() {
-    bsp::int::init();
+    bsp::init();
     driver::init();
     splash::run();
     kernel::kernel_entry();

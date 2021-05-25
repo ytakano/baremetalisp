@@ -44,7 +44,7 @@ impl UART for RaspiUART {
     /// Initialiaze UART0 for serial console.
     /// Set baud rate and characteristics (8N1) and map to GPIO 14 (Tx) and 15 (Rx).
     /// 8N1 stands for "eight data bits, no parity, one stop bit".
-    fn init(uart_clock: usize, baudrate: usize) {
+    fn init(&self, uart_clock: usize, baudrate: usize) {
         uart0_cr().write(0); // turn off UART0
 
         // map UART1 to GPIO pins
@@ -77,7 +77,7 @@ impl UART for RaspiUART {
     }
 
     /// send a character to serial console
-    fn send(c: u32) {
+    fn send(&self, c: u32) {
         // wait until we can send
         unsafe { asm!("nop;") };
         while uart0_fr().read() & 0x20 != 0 {
@@ -88,7 +88,7 @@ impl UART for RaspiUART {
         uart0_dr().write(c);
     }
 
-    fn recv() -> u32 {
+    fn recv(&self) -> u32 {
         // wait until something is in the buffer
         unsafe { asm!("nop;") };
         while uart0_fr().read() & 0x10 != 0 {
@@ -98,11 +98,17 @@ impl UART for RaspiUART {
         uart0_dr().read()
     }
 
-    fn enable_recv_interrupt() {
+    fn enable_recv_interrupt(&self) {
         //uart0_imsc().setbits(IMSC_RXIM);
     }
 
-    fn disable_recv_interrupt() {
+    fn disable_recv_interrupt(&self) {
         uart0_imsc().clrbits(IMSC_RXIM);
+    }
+
+    fn on(&self) {}
+    fn off(&self) {}
+    fn new(_base: usize) -> Self {
+        Self {}
     }
 }

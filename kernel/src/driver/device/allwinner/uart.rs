@@ -12,7 +12,7 @@ const UART0_LSR: *mut u32 = (SUNXI_UART0_BASE + 0x14) as *mut u32; // line statu
 pub(in crate::driver) struct A64UART {}
 
 impl UART for A64UART {
-    fn init(_uart_clock: usize, _baudrate: usize) {
+    fn init(&self, _uart_clock: usize, _baudrate: usize) {
         unsafe {
             let val = read_volatile(UART0_FCR);
             write_volatile(UART0_THR, val | 1);
@@ -20,7 +20,7 @@ impl UART for A64UART {
     }
 
     /// send a character to serial console
-    fn send(c: u32) {
+    fn send(&self, c: u32) {
         while unsafe { read_volatile(UART0_LSR) } & (1 << 5) == 0 {
             unsafe { asm!("nop;") };
         }
@@ -30,7 +30,7 @@ impl UART for A64UART {
         }
     }
 
-    fn recv() -> u32 {
+    fn recv(&self) -> u32 {
         // wait until we can send
         unsafe { asm!("nop;") };
         while unsafe { read_volatile(UART0_LSR) } & 1 == 0 {
@@ -44,8 +44,13 @@ impl UART for A64UART {
         c as u32
     }
 
-    fn enable_recv_interrupt() {}
-    fn disable_recv_interrupt() {}
+    fn enable_recv_interrupt(&self) {}
+    fn disable_recv_interrupt(&self) {}
+    fn new(_base: usize) -> Self {
+        Self {}
+    }
+    fn on(&self) {}
+    fn off(&self) {}
 }
 
 pub(in crate::driver) fn enable_recv_int() {

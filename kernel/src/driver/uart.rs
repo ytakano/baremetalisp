@@ -1,14 +1,20 @@
 use alloc::vec::Vec;
 
+pub mod pl011;
+pub mod sunxi_uart;
+
 const UART_CLOCK: usize = 48000000;
 const UART_BAUD: usize = 115200;
 
-pub(super) trait UART {
-    fn send(c: u32);
-    fn recv() -> u32;
-    fn enable_recv_interrupt();
-    fn disable_recv_interrupt();
-    fn init(clock: usize, baudrate: usize);
+pub trait UART {
+    fn new(base: usize) -> Self;
+    fn send(&self, c: u32);
+    fn recv(&self) -> u32;
+    fn enable_recv_interrupt(&self);
+    fn disable_recv_interrupt(&self);
+    fn on(&self);
+    fn off(&self);
+    fn init(&self, clock: usize, baudrate: usize);
 }
 
 #[cfg(feature = "pine64")]
@@ -19,20 +25,22 @@ type DevUART = super::device::raspi::uart::RaspiUART;
 
 impl DevUART where DevUART: UART {}
 
+const UART0: DevUART = DevUART {};
+
 fn send(c: u32) {
-    DevUART::send(c);
+    UART0.send(c);
 }
 
 fn recv() -> u32 {
-    DevUART::recv()
+    UART0.recv()
 }
 
 pub fn enable_recv_interrupt() {
-    DevUART::enable_recv_interrupt()
+    UART0.enable_recv_interrupt()
 }
 
 pub fn disable_recv_interrupt() {
-    DevUART::disable_recv_interrupt()
+    UART0.disable_recv_interrupt()
 }
 
 pub fn enable_recv_int() {
@@ -43,7 +51,7 @@ pub fn enable_recv_int() {
 }
 
 pub fn init() {
-    DevUART::init(UART_CLOCK, UART_BAUD);
+    UART0.init(UART_CLOCK, UART_BAUD);
 }
 
 /// print characters to serial console
