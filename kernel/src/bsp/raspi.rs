@@ -2,7 +2,16 @@ pub(super) mod int;
 pub(super) mod memory;
 
 use super::{raspi::memory::*, BSPInit};
-use crate::driver::uart::{pl011::PL011, UART};
+use crate::{
+    bsp,
+    driver::uart::{pl011::PL011, UART},
+};
+
+#[cfg(feature = "raspi3")]
+pub const SYSCNT_FRQ: u32 = 19200000;
+
+#[cfg(feature = "raspi4")]
+pub const SYSCNT_FRQ: u32 = 54000000;
 
 const UART0_BASE: usize = memory::MMIO_BASE + 0x00201000;
 const UART0_CLOCK: usize = 48000000;
@@ -31,11 +40,11 @@ fn init_uart0() {
     gpfsel1().write(r);
     gppud().write(0);
 
-    crate::driver::delays::wait_cycles(150);
+    bsp::delays::wait_cycles(150);
 
     gppudclk0().write((1 << 14) | (1 << 15));
 
-    crate::driver::delays::wait_cycles(150);
+    bsp::delays::wait_cycles(150);
 
     gppudclk0().write(0); // flush GPIO setup
 

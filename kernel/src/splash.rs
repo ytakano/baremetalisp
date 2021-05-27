@@ -1,6 +1,4 @@
-use super::aarch64;
-use super::driver;
-use super::out;
+use super::{aarch64, bsp, driver, out};
 
 pub fn run() {
     print_el();
@@ -28,7 +26,7 @@ fn print_el() {
 }
 
 fn print_fortune() {
-    let cnt = driver::delays::get_timer_value() as usize;
+    let cnt = bsp::delays::get_timer_value() as usize;
     let fortune = [
         "⛩  大吉 ⛩",
         "⛩  吉 ⛩",

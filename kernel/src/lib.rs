@@ -40,17 +40,19 @@ pub fn entry() {
         return;
     }
 
-    driver::delays::forever()
+    bsp::delays::forever()
 }
 
 /// initialization for the primary CPU
 fn init_primary() {
+    bsp::early_init();
+    driver::early_init(); // TODO: remove this line
+
     if aarch64::cpu::get_current_el() != 1 {
         panic!("unsupported execution level");
     }
 
     aarch64::mmu::init_memory_map();
-    driver::early_init();
 
     match aarch64::mmu::init() {
         Some(_) => init_primary2(),
@@ -99,12 +101,12 @@ fn panic(info: &PanicInfo) -> ! {
         driver::uart::puts("\n");
     }
 
-    driver::delays::forever();
+    bsp::delays::forever();
 }
 
 #[no_mangle]
 pub fn abort() -> ! {
-    driver::delays::forever();
+    bsp::delays::forever();
 }
 
 #[no_mangle]

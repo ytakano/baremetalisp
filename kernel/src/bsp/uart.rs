@@ -131,6 +131,29 @@ pub fn decimal(mut h: u64) {
     }
 }
 
+pub fn read(v: &mut [u8], echo: fn(&DevUART, u8)) -> usize {
+    let mut n = 0;
+
+    let _mask = cpuint::mask();
+    let mut node = MCSNode::new();
+    let lock = UART0.lock(&mut node);
+    if let GlobalVar::Having(uart0) = &*lock {
+        loop {
+            let c = uart0.recv() as u8;
+            v[n] = c;
+            n += 1;
+
+            echo(uart0, c);
+
+            if n >= v.len() {
+                break;
+            }
+        }
+    }
+
+    n
+}
+
 /*
 pub fn read_line() -> Vec<u8> {
     let mut res = Vec::new();

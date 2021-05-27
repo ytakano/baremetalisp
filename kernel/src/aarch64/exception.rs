@@ -1,6 +1,6 @@
 use super::{context::GpRegs, cpu, mmu, syscall};
 use crate::{
-    allocator, driver, out,
+    allocator, bsp, driver, out,
     paging::{self, FaultResult},
     process,
 };
@@ -162,7 +162,7 @@ pub fn curr_el_spx_sync_el1(ctx: *mut GpRegs, _sp: usize) {
     driver::uart::puts("\nESR = 0x");
     driver::uart::hex(cpu::esr_el1::get() as u64);
     driver::uart::puts("\n");
-    driver::delays::forever();
+    bsp::delays::forever();
 }
 
 #[no_mangle]

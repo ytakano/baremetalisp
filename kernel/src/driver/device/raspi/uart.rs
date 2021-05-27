@@ -1,8 +1,5 @@
 use super::memory::*;
-use crate::{
-    driver::{delays, uart::UART},
-    mmio_rw,
-};
+use crate::{bsp, driver::uart::UART, mmio_rw};
 
 pub(in crate::driver) struct RaspiUART {}
 
@@ -56,11 +53,11 @@ impl UART for RaspiUART {
         gpfsel1().write(r);
         gppud().write(0);
 
-        delays::wait_cycles(150);
+        bsp::delays::wait_cycles(150);
 
         gppudclk0().write((1 << 14) | (1 << 15));
 
-        delays::wait_cycles(150);
+        bsp::delays::wait_cycles(150);
 
         let bauddiv: u32 = ((1000 * uart_clock) / (16 * baudrate)) as u32;
         let ibrd: u32 = bauddiv / 1000;
