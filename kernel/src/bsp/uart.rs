@@ -6,10 +6,10 @@ const UART_CLOCK: usize = 48000000;
 const UART_BAUD: usize = 115200;
 
 #[cfg(feature = "pine64")]
-type DevUART = crate::driver::uart::sunxi_uart::SunxiUART;
+pub type DevUART = crate::driver::uart::sunxi_uart::SunxiUART;
 
 #[cfg(any(feature = "raspi3", feature = "raspi4"))]
-type DevUART = crate::driver::uart::pl011::PL011;
+pub type DevUART = crate::driver::uart::pl011::PL011;
 
 impl DevUART where DevUART: UART {}
 
@@ -131,7 +131,10 @@ pub fn decimal(mut h: u64) {
     }
 }
 
-pub fn read(v: &mut [u8], echo: fn(&DevUART, u8)) -> usize {
+pub fn read<F>(buf: &mut [u8], echo: F) -> usize
+where
+    F: Fn(&DevUART, u8),
+{
     let mut n = 0;
 
     let _mask = cpuint::mask();
@@ -140,12 +143,12 @@ pub fn read(v: &mut [u8], echo: fn(&DevUART, u8)) -> usize {
     if let GlobalVar::Having(uart0) = &*lock {
         loop {
             let c = uart0.recv() as u8;
-            v[n] = c;
+            buf[n] = c;
             n += 1;
 
             echo(uart0, c);
 
-            if n >= v.len() {
+            if n >= buf.len() {
                 break;
             }
         }

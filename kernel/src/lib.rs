@@ -19,6 +19,7 @@ mod process;
 mod smc;
 mod splash;
 mod syscall;
+mod tty;
 mod userland;
 
 #[macro_use]
