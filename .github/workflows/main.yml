@@ -25,10 +25,11 @@ jobs:
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
-          profile: minimal
+          profile: default
           toolchain: nightly-2022-08-27
           override: true
           components: rust-src
+          default: true
 
       - name: Install cargo-*
         uses: actions-rs/cargo@v1
