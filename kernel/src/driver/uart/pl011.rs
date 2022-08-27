@@ -1,4 +1,5 @@
 use crate::{driver::uart::UART, mmio_rw_base};
+use core::arch::asm;
 
 const CR_RXE: u32 = 1 << 9;
 const CR_TXE: u32 = 1 << 8;

@@ -35,7 +35,7 @@ pub(super) fn handle64(regs: &GpRegs) -> i64 {
             }
         }
         syscall::SYS_SET_ALLOC => {
-            let ptr = unsafe { &mut *(regs.x1 as *mut memalloc::Allocator) };
+            let ptr = unsafe { &mut *(regs.x1 as *mut memac::Allocator) };
             if let Some(id) = get_raw_id() {
                 set_user_allocator(id, ptr);
             }

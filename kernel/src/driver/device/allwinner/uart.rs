@@ -1,4 +1,7 @@
-use core::ptr::{read_volatile, write_volatile};
+use core::{
+    arch::asm,
+    ptr::{read_volatile, write_volatile},
+};
 
 use super::memory::SUNXI_UART0_BASE;
 use crate::driver::uart::UART;

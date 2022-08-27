@@ -50,6 +50,7 @@ A library for synchronization.
 
 A memory allocator crate, which uses buddy and slab allocator.
 
+- https://crates.io/crates/memac
 - https://github.com/ytakano/memalloc
 
 ## Boot Image
@@ -94,12 +95,12 @@ $ make pinephone_defconfig
 $ make all
 ```
 
-## M1 Mac Qemu
+## Run on Qemu
 
-Install pathced Qemu. https://github.com/knazarov/homebrew-qemu-virgl
+Install qemu.
 
 ```
-$ brew install knazarov/qemu-virgl/qemu-virgl
+$ brew install qemu
 ```
 
 Compile and run.
@@ -107,5 +108,5 @@ Compile and run.
 ```text
 $ cd kernel
 $ make BSP=raspi3
-$ qemu-system-aarch64 -M raspi3 -accel tcg,split-wx=on -kernel kernel8.img -serial stdio -d int
+$ qemu-system-aarch64 -M raspi3b -kernel kernel8.img -serial stdio
 ```

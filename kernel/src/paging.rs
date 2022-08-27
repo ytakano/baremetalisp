@@ -1,5 +1,5 @@
 use crate::{aarch64::mmu, allocator, cpuint, global::GlobalVar, process::get_raw_id};
-use memalloc::pager::PageManager;
+use memac::pager::PageManager;
 use synctools::mcs::{MCSLock, MCSNode};
 
 static PAGER: MCSLock<GlobalVar<PageManager>> = MCSLock::new(GlobalVar::UnInit);
@@ -25,7 +25,7 @@ pub fn init(start: usize, end: usize) {
 }
 
 fn map_user(vm_addr: usize, id: u8) -> FaultResult {
-    let vm_addr = vm_addr & memalloc::MASK;
+    let vm_addr = vm_addr & memac::MASK;
 
     if allocator::is_user_canary(id, vm_addr) {
         return FaultResult::StackOverflow;
@@ -40,10 +40,10 @@ fn map_user(vm_addr: usize, id: u8) -> FaultResult {
 }
 
 pub fn unmap_user(start: usize, end: usize, id: u8) {
-    let start = start & memalloc::MASK;
-    let end = end & memalloc::MASK;
+    let start = start & memac::MASK;
+    let end = end & memac::MASK;
 
-    for addr in (start..end).step_by(memalloc::ALIGNMENT) {
+    for addr in (start..end).step_by(memac::ALIGNMENT) {
         if allocator::is_user_canary(id, addr) {
             return;
         }
@@ -62,7 +62,7 @@ pub fn unmap_user_all(id: u8) {
 }
 
 pub fn fault(vm_addr: usize) -> FaultResult {
-    let vm_addr = vm_addr & memalloc::MASK;
+    let vm_addr = vm_addr & memac::MASK;
 
     if allocator::is_kern_mem(vm_addr) {
         map(vm_addr, vm_addr, true);
@@ -104,7 +104,7 @@ fn unmap(start: usize, end: usize, is_kern: bool) {
     };
 
     if let GlobalVar::Having(pager) = &mut *lock {
-        for vm_addr in (start..=end).step_by(memalloc::ALIGNMENT) {
+        for vm_addr in (start..=end).step_by(memac::ALIGNMENT) {
             if let Some(phy_addr) = ttbr.to_phy_addr(vm_addr as u64) {
                 pager.free(phy_addr as usize);
                 ttbr.unmap(vm_addr as u64);
@@ -135,7 +135,7 @@ fn map(start: usize, end: usize, is_kern: bool) {
     };
 
     if let GlobalVar::Having(pager) = &mut *lock {
-        for vm_addr in (start..=end).step_by(memalloc::ALIGNMENT) {
+        for vm_addr in (start..=end).step_by(memac::ALIGNMENT) {
             if ttbr.to_phy_addr(vm_addr as u64).is_none() {
                 if let Some(phy_addr) = pager.alloc() {
                     ttbr.map(vm_addr as u64, phy_addr as u64, flag);

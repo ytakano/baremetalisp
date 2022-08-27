@@ -1,5 +1,6 @@
 use super::mmu;
 use crate::driver::topology::core_pos;
+use core::arch::asm;
 
 extern "C" {
     fn smc_done(arg: u64);

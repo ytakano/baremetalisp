@@ -1,3 +1,5 @@
+use core::arch::asm;
+
 extern "C" {
     fn save_context(ptr: *const GpRegs) -> usize;
 }

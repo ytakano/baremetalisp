@@ -1,3 +1,5 @@
+use core::arch::asm;
+
 pub const ECTLR_SMP_BIT: u64 = 1 << 6;
 
 // Data cache set/way op type defines
@@ -338,6 +340,7 @@ pub fn init_cpacr_el1() {
 macro_rules! sysreg {
     ($x:ident) => {
         pub mod $x {
+            use core::arch::asm;
             pub fn get() -> u64 {
                 let v: u64;
                 unsafe { asm!(concat!("mrs {}, ", stringify!($x)), lateout(reg) v) };

@@ -1,5 +1,5 @@
-use super::cpu;
-use super::mmu;
+use super::{cpu, mmu};
+use core::arch::asm;
 
 pub fn flush() {
     let mut start = mmu::get_data_start();

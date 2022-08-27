@@ -9,7 +9,7 @@ pub const SYS_SET_ALLOC: u64 = 7;
 pub const SYS_UNMAP: u64 = 8;
 pub const SYS_KILL: u64 = 9;
 
-extern crate memalloc;
+use core::arch::asm;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Locator {
@@ -113,8 +113,8 @@ pub fn recv(src: &mut Locator) -> u32 {
 }
 
 /// Set userland allocator
-pub fn set_allocator(allc: &mut memalloc::Allocator) {
-    syscall!(SYS_SET_ALLOC, allc as *mut memalloc::Allocator);
+pub fn set_allocator(allc: &mut memac::Allocator) {
+    syscall!(SYS_SET_ALLOC, allc as *mut memac::Allocator);
 }
 
 /// Unmap memory

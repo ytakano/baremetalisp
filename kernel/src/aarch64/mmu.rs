@@ -1,4 +1,5 @@
 use core::{
+    arch::asm,
     ptr::{read_volatile, write_volatile},
     slice,
 };

@@ -1,4 +1,5 @@
 use crate::driver::delays::{self, Delays};
+use core::arch::asm;
 
 //-------------------------------------------------------------------------
 // Raspberry Pi 3 (Qemu) or Pine64

@@ -45,7 +45,7 @@ $(ASM_OBJ): $(ASM_FILE) $(ASM_FILE_DEP)
 	$(CC) --target=aarch64-elf -c $(ASM_FILE) -o $(ASM_OBJ) -D$(BSP) -DSTACKSIZE="$(STACKSIZE)"
 
 $(RUSTLIB): FORCE
-	RUSTFLAGS="$(RUSTFLAGS)" cargo xrustc --features $(BSP) --target $(TARGET) --release
+	RUSTFLAGS="$(RUSTFLAGS)" cargo +nightly xrustc --features $(BSP) --target $(TARGET) --release
 
 doc:
 	cargo xdoc --target=$(TARGET) --features $(BSP) --document-private-items

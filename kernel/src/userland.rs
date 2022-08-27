@@ -1,7 +1,7 @@
 use crate::{driver::uart, syscall, syscall::Locator};
 
 use alloc::boxed::Box;
-use memalloc::Allocator;
+use memac::Allocator;
 use num_bigint::BigInt;
 use num_traits::{FromPrimitive, ToPrimitive, Zero};
 

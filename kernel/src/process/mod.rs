@@ -8,9 +8,11 @@ use crate::{
     paging,
     syscall::Locator,
 };
-
 use arr_macro::arr;
-use core::ptr::{null, null_mut};
+use core::{
+    arch::asm,
+    ptr::{null, null_mut},
+};
 use synctools::mcs::{MCSLock, MCSLockGuard, MCSNode};
 
 pub const PROCESS_MAX: usize = 256;

@@ -1,5 +1,6 @@
 use super::memory::*;
 use crate::{bsp, driver::uart::UART, mmio_rw};
+use core::arch::asm;
 
 pub(in crate::driver) struct RaspiUART {}
 

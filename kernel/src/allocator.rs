@@ -9,7 +9,7 @@ use core::{
     alloc::{GlobalAlloc, Layout},
     ptr::null_mut,
 };
-use memalloc::Allocator;
+use memac::Allocator;
 
 const STACK_SIZE: usize = 1024 * 1024 * 2; // 2MiB
 const SLAB_SIZE: usize = 1024 * 1024 * 30; // 30MiB
