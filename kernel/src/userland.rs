@@ -60,10 +60,10 @@ fn run_lisp(s: &str) {
     uart::puts("\n");
 
     // initialize
-    match blisp::init(s) {
+    match blisp::init(s, vec![]) {
         Ok(exprs) => {
             // typing
-            match blisp::typing(&exprs) {
+            match blisp::typing(exprs) {
                 Ok(mut ctx) => {
                     // register callback function
                     ctx.set_callback(Box::new(|x, y, z| callback(x, y, z)));

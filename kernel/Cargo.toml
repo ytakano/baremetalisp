@@ -7,8 +7,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-arr_macro = "0.1.3"
-blisp = "0.3.9"
+arr_macro = "0.2"
+blisp = "0.4"
 libm = "0.2.1"
 synctools = "0.3"
 
